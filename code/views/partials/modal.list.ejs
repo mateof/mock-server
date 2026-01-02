@@ -1,0 +1,45 @@
+<!-- Modal -->
+<div class="modal fade" id="modalLista" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h1 class="modal-title fs-5" id="titleModalList">Lista de Pendientes</h1>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <table class="table">
+            <thead>
+                <tr>
+                    <th>id</th>
+                    <th>Url</th>
+                    <th>Date</th>
+                    <th>Acciones</th>
+                  </tr>
+            </thead>
+            <tbody id="pendingListBody">
+                <% listaEspera.forEach(function(element) { %>
+                    <tr id="pl-<%= element.id %>">
+                        <th>
+                            <%= element.id %>
+                        </th>
+                        <td>
+                            <%= element.url %>
+                        </td>
+                        <td>
+                            <%= element.date %>
+                        </td>
+                        <td>
+                            <button class="btn btn-success" onclick="iniciaTarea('<%= element.id %>')"><i class="fa fa-play" aria-hidden="true"></i></button>
+                        </td>
+                    </tr>
+                <% }) %>
+
+            </tbody>
+          </table>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+        </div>
+      </div>
+    </div>
+  </div>

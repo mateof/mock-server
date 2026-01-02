@@ -1,0 +1,18 @@
+version: '3.4'
+
+services:
+  mockserver:
+    image: ghcr.io/mateof/mockserver:latest
+    container_name: mockserver
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    environment:
+      - GENERIC_TIMEZONE=Europe/Madrid
+      - TZ=Europe/Madrid
+    #   NODE_ENV: production
+    volumes:
+      - /path/to/your/data:/app/data
+    ports:
+      - 3880:3880
