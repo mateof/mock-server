@@ -85,7 +85,29 @@ The application will be available at `http://localhost:3880`
 
 ## Docker Deployment
 
-### Using Docker Compose
+### Docker Compose
+
+```bacd code
+version: '3.4'
+
+services:
+  mockserver:
+    image: ghcr.io/mateof/mock-server:latest
+    container_name: mockserver
+    restart: unless-stopped
+    environment:
+      - GENERIC_TIMEZONE=Europe/Madrid
+      - TZ=Europe/Madrid
+    #   NODE_ENV: production
+    #   WS_PORT: 3880
+    volumes:
+      - /your/folder/data:/app/data
+    ports:
+      - 3880:3880
+
+```
+
+## Using Docker Compose
 
 ```bash
 cd code
@@ -214,36 +236,6 @@ volumes:
 4. Click "Pendientes" to see waiting requests
 5. Click trigger button to release with default or custom response
 
-## Project Structure
-
-```
-code/
-├── app.js                 # Application entry point
-├── routes/
-│   ├── index.js          # Frontend routes
-│   └── api.js            # API endpoints
-├── services/
-│   ├── sqlite.service.js # Database operations
-│   ├── socket.service.js # WebSocket communication
-│   ├── semaphore.service.js # Request waiting queue
-│   └── config.js         # Global configuration
-├── middlewares/
-│   ├── routes.middleware.js # Route matching & response
-│   └── proxy.middleware.js  # Proxy forwarding
-├── views/
-│   ├── index.ejs         # Main dashboard
-│   ├── layout/
-│   │   └── layout.ejs    # Master template
-│   └── partials/
-│       ├── header.ejs    # Navigation bar
-│       └── footer.ejs    # Footer scripts
-├── public/
-│   ├── css/              # Stylesheets
-│   └── images/           # Static images
-├── data/                 # Database and uploads
-├── Dockerfile            # Docker build configuration
-└── docker-compose.yml    # Docker Compose configuration
-```
 
 ## License
 
