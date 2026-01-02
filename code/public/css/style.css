@@ -1,0 +1,28 @@
+/* body {
+  padding: 50px;
+  font: 14px "Lucida Grande", Helvetica, Arial, sans-serif;
+}
+
+a {
+  color: #00B7FF;
+} */
+
+.bg-coral {
+  background-color:coral
+}
+
+.bg-purple {
+  background-color:mediumpurple
+}
+
+.bg-crimson {
+  background-color:crimson
+}
+
+.bg-magenta {
+  background-color:magenta
+}
+
+footer {
+  padding-top: 6rem!important;
+}

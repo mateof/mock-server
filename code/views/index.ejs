@@ -1,0 +1,2237 @@
+<div class="main-container">
+  <!-- Routes Card -->
+  <div class="card-modern animate-fade-in">
+    <div class="card-header-modern">
+      <h2><i class="fa fa-sitemap"></i> Rutas Configuradas</h2>
+      <div class="d-flex gap-2">
+        <button type="button" class="btn-modern btn-modern-secondary" onclick="normalizeOrder()" title="Reorganizar órdenes secuencialmente">
+          <i class="fa fa-sort-numeric-asc"></i> Normalizar
+        </button>
+        <button type="button" class="btn-modern btn-modern-secondary" onclick="openList()" style="position: relative;">
+          <i class="fa fa-list"></i> Pendientes
+          <% if (listaEspera.length > 0) { %>
+          <span id="pendingBadge" class="pending-badge"><%=listaEspera.length %></span>
+          <% } else { %>
+          <span id="pendingBadge" class="pending-badge" style="display: none;">0</span>
+          <% } %>
+        </button>
+        <button type="button" class="btn-modern btn-modern-primary" onclick="openModal('create')">
+          <i class="fa fa-plus"></i> Nueva Ruta
+        </button>
+      </div>
+    </div>
+    <div class="card-body-modern">
+      <!-- Filtros de tabla -->
+      <div class="table-filters">
+        <div class="filter-group">
+          <label class="filter-label" for="filterMethod">Metodo</label>
+          <select id="filterMethod" name="filterMethod" class="filter-select" onchange="applyFilters()">
+            <option value="">Todos</option>
+            <option value="get">GET</option>
+            <option value="post">POST</option>
+            <option value="put">PUT</option>
+            <option value="delete">DELETE</option>
+            <option value="patch">PATCH</option>
+            <option value="options">OPTIONS</option>
+            <option value="head">HEAD</option>
+            <option value="any">ANY</option>
+          </select>
+        </div>
+        <div class="filter-group filter-group-large">
+          <label class="filter-label" for="filterRouteValue">Ruta</label>
+          <div class="filter-route-wrapper">
+            <select id="filterRouteType" name="filterRouteType" class="filter-select filter-route-type" onchange="applyFilters()">
+              <option value="contains">Contiene</option>
+              <option value="startsWith">Empieza por</option>
+              <option value="endsWith">Termina por</option>
+              <option value="equals">Es igual a</option>
+              <option value="regex">Regex</option>
+            </select>
+            <input type="text" id="filterRouteValue" name="filterRouteValue" class="filter-input" placeholder="Buscar ruta..." oninput="applyFilters()">
+          </div>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label" for="filterType">Tipo Resp.</label>
+          <select id="filterType" name="filterType" class="filter-select" onchange="applyFilters()">
+            <option value="">Todos</option>
+            <option value="json">JSON</option>
+            <option value="xml">XML</option>
+            <option value="soap">SOAP</option>
+            <option value="text">Texto</option>
+            <option value="html">HTML</option>
+            <option value="page">Page</option>
+            <option value="file">Archivo</option>
+            <option value="proxy">Proxy</option>
+            <option value="empty">Empty</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label" for="filterCode">Codigo</label>
+          <select id="filterCode" name="filterCode" class="filter-select" onchange="applyFilters()">
+            <option value="">Todos</option>
+            <option value="2xx">2xx (Exito)</option>
+            <option value="3xx">3xx (Redireccion)</option>
+            <option value="4xx">4xx (Error cliente)</option>
+            <option value="5xx">5xx (Error servidor)</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label" for="filterRegex">Regex</label>
+          <select id="filterRegex" name="filterRegex" class="filter-select" onchange="applyFilters()">
+            <option value="">Todos</option>
+            <option value="1">Si</option>
+            <option value="0">No</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label" for="filterWait">Espera</label>
+          <select id="filterWait" name="filterWait" class="filter-select" onchange="applyFilters()">
+            <option value="">Todos</option>
+            <option value="1">Si</option>
+            <option value="0">No</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label" for="filterActivo">Activo</label>
+          <select id="filterActivo" name="filterActivo" class="filter-select" onchange="applyFilters()">
+            <option value="">Todos</option>
+            <option value="1">Si</option>
+            <option value="0">No</option>
+          </select>
+        </div>
+        <div class="filter-group filter-actions">
+          <button class="btn-filter-clear" onclick="clearFilters()" title="Limpiar filtros">
+            <i class="fa fa-times"></i> Limpiar
+          </button>
+        </div>
+      </div>
+
+      <div class="table-modern-wrapper">
+        <table id="dtList" class="table-modern" style="width:100%">
+          <thead>
+            <tr>
+              <th>id</th>
+              <th>Orden</th>
+              <th>Metodo</th>
+              <th>Ruta</th>
+              <th>Tipo</th>
+              <th>Codigo</th>
+              <th>Regex</th>
+              <th>Espera</th>
+              <th>Activo</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Terminal Card -->
+  <div class="card-modern animate-fade-in" style="margin-top: 2rem;">
+    <div class="card-body terminal" style="height: 650px; padding: 0; border-radius: var(--border-radius);">
+      <div class="terminal-header">
+        <div class="dots">
+          <span class="dot red"></span>
+          <span class="dot yellow"></span>
+          <span class="dot green"></span>
+        </div>
+        <span class="title">Mock Server Terminal</span>
+        <div class="terminal-actions">
+          <button onclick="Terminal.clear()" title="Limpiar terminal">
+            <i class="fa fa-trash"></i> Clear
+          </button>
+          <button onclick="Terminal.toggleAutoScroll()" id="btnAutoScroll" title="Auto-scroll">
+            <i class="fa fa-arrow-down"></i> Auto
+          </button>
+          <button onclick="Terminal.exportLogs()" title="Exportar logs">
+            <i class="fa fa-download"></i> Export
+          </button>
+        </div>
+      </div>
+      <div class="console">
+        <div class="output" id="salidaconsola">
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Nueva/Editar Ruta -->
+<div class="modal fade modal-modern" id="routesModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="titleModal"><i class="fa fa-route me-2"></i>Nueva Ruta</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p id="idmodal" hidden></p>
+
+        <!-- Tipo de Respuesta -->
+        <div class="form-group-modern" id="divtresp">
+          <label class="form-label-modern" for="tiporespuesta">Tipo de Respuesta</label>
+          <select class="form-control-modern form-select-modern" onchange="checkRespuesta()" id="tiporespuesta" name="tiporespuesta">
+            <option value="json" selected>JSON</option>
+            <option value="xml">XML</option>
+            <option value="soap">SOAP</option>
+            <option value="text">Texto plano</option>
+            <option value="html">HTML</option>
+            <option value="page">Page (render)</option>
+            <option value="file">Archivo</option>
+            <option value="proxy">Proxy</option>
+            <option value="empty">Sin Body</option>
+          </select>
+        </div>
+
+        <!-- Metodo HTTP -->
+        <div class="form-group-modern" id="divtipo">
+          <label class="form-label-modern" for="tipoSelect">Metodo HTTP</label>
+          <select class="form-control-modern form-select-modern" id="tipoSelect" name="tipoSelect">
+            <option value="0" selected>GET</option>
+            <option value="1">POST</option>
+            <option value="2">PUT</option>
+            <option value="3">DELETE</option>
+            <option value="4">PATCH</option>
+            <option value="5">OPTIONS</option>
+            <option value="6">HEAD</option>
+            <option value="7">ANY</option>
+          </select>
+        </div>
+
+        <!-- Ruta -->
+        <div class="form-group-modern" id="divruta">
+          <label class="form-label-modern" for="ruta">Ruta</label>
+          <div class="input-group-modern">
+            <input type="text" class="form-control-modern" id="ruta" name="ruta" placeholder="/api/ejemplo"
+              oninput="validateRegexIfEnabled()">
+            <div class="input-addon">
+              <input class="form-check-input me-2" type="checkbox" id="isRegex" name="isRegex" onchange="toggleRegexMode()">
+              <label class="form-check-label" for="isRegex">Regex</label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Validador Regex -->
+        <div class="form-group-modern" id="divRegexValidator" style="display: none;">
+          <label class="form-label-modern" for="regexTestUrl">Probar Regex</label>
+          <div class="input-group-modern">
+            <input type="text" class="form-control-modern" id="regexTestUrl" name="regexTestUrl" placeholder="/api/users/123" oninput="testRegex()">
+            <button class="btn-modern btn-modern-secondary" type="button" onclick="testRegex()" style="border-radius: 0 var(--border-radius-sm) var(--border-radius-sm) 0;">
+              Validar
+            </button>
+          </div>
+          <div id="regexResult" class="mt-2"></div>
+        </div>
+
+        <!-- Codigo de Respuesta -->
+        <div class="form-group-modern" id="divcodresp">
+          <label class="form-label-modern" for="crespuestaInput">Codigo de Respuesta</label>
+          <div class="d-flex gap-3 align-items-center">
+            <input type="text" class="form-control-modern" id="crespuestaInput" name="crespuestaInput" list="httpCodes" value="200"
+              oninput="updateCodeDescription()" autocomplete="off" style="max-width: 100px;">
+            <span id="codeDescription" style="color: var(--text-secondary);">OK</span>
+          </div>
+          <datalist id="httpCodes">
+            <option value="200">OK</option>
+            <option value="201">Created</option>
+            <option value="204">No Content</option>
+            <option value="301">Moved Permanently</option>
+            <option value="302">Found (Redirect)</option>
+            <option value="304">Not Modified</option>
+            <option value="400">Bad Request</option>
+            <option value="401">Unauthorized</option>
+            <option value="403">Forbidden</option>
+            <option value="404">Not Found</option>
+            <option value="405">Method Not Allowed</option>
+            <option value="409">Conflict</option>
+            <option value="422">Unprocessable Entity</option>
+            <option value="429">Too Many Requests</option>
+            <option value="500">Internal Server Error</option>
+            <option value="502">Bad Gateway</option>
+            <option value="503">Service Unavailable</option>
+            <option value="504">Gateway Timeout</option>
+          </datalist>
+        </div>
+
+        <!-- Respuesta -->
+        <div class="form-group-modern" id="divresp">
+          <div class="form-label-row">
+            <label class="form-label-modern" for="respuesta">Respuesta</label>
+            <button type="button" class="btn-modern btn-modern-secondary btn-sm" id="btnFormatJson" onclick="formatResponseJson()" title="Formatear JSON">
+              <i class="fa fa-align-left"></i> Formatear
+            </button>
+          </div>
+          <textarea class="form-control-modern" id="respuesta" name="respuesta" rows="5" placeholder='{"message": "Hello World"}'></textarea>
+        </div>
+
+        <!-- Destino Proxy -->
+        <div class="form-group-modern" id="divDestino" style="display: none;">
+          <label class="form-label-modern" for="destinoProxy">URL Destino</label>
+          <input type="text" class="form-control-modern" id="destinoProxy" name="destinoProxy" placeholder="https://api.example.com">
+          <small style="color: var(--text-muted); margin-top: 0.5rem; display: block;">
+            Ejemplo: Si ruta es <code style="color: var(--primary);">/fake-api/</code> y destino es <code style="color: var(--primary);">https://api.example.com</code>,
+            una peticion a <code style="color: var(--primary);">/fake-api/users</code> se enviara a <code style="color: var(--primary);">https://api.example.com/users</code>
+          </small>
+        </div>
+
+        <!-- Archivo -->
+        <div class="form-group-modern" id="divFile" style="display: none;">
+          <label class="form-label-modern" for="fileUpload">Archivo a devolver</label>
+          <div class="file-upload-wrapper">
+            <input type="file" class="form-control-modern" id="fileUpload" name="fileUpload" onchange="handleFileSelect(event)">
+            <div id="fileInfo" class="file-info" style="display: none;">
+              <i class="fa fa-file"></i>
+              <span id="fileName"></span>
+              <span id="fileSize" class="file-size"></span>
+              <button type="button" class="btn-file-remove" onclick="clearFileSelection()" title="Quitar archivo">
+                <i class="fa fa-times"></i>
+              </button>
+            </div>
+            <div id="currentFileInfo" class="current-file-info" style="display: none;">
+              <i class="fa fa-check-circle" style="color: var(--success);"></i>
+              <span>Archivo actual: </span>
+              <strong id="currentFileName"></strong>
+              <span id="currentFileSize" class="file-size"></span>
+            </div>
+          </div>
+          <small style="color: var(--text-muted); margin-top: 0.5rem; display: block;">
+            El archivo se devolverá con el Content-Type apropiado según su extensión.
+          </small>
+        </div>
+
+        <!-- Espera Activa -->
+        <div class="alert-modern alert-modern-warning" id="divEsperaActiva">
+          <i class="fa fa-pause-circle alert-icon" aria-hidden="true"></i>
+          <div class="alert-content">
+            <div class="alert-title">Modo Espera Activa</div>
+            <div class="alert-text">Las peticiones se pausaran hasta que las liberes manualmente desde "Lista Pendientes".</div>
+          </div>
+          <label class="switch-modern" for="esperaActiva">
+            <input type="checkbox" id="esperaActiva" name="esperaActiva">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <!-- Ruta Activa -->
+        <div class="alert-modern alert-modern-info" id="divActivo">
+          <i class="fa fa-power-off alert-icon" aria-hidden="true"></i>
+          <div class="alert-content">
+            <div class="alert-title">Ruta Activa</div>
+            <div class="alert-text">Si esta desactivada, las peticiones no seran interceptadas por esta ruta.</div>
+          </div>
+          <label class="switch-modern" for="rutaActiva">
+            <input type="checkbox" id="rutaActiva" name="rutaActiva" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <!-- Headers Personalizados -->
+        <div class="collapsible-section" id="divHeaders" style="margin-top: 1.25rem;">
+          <div class="collapsible-header" onclick="toggleHeadersSection()">
+            <h4><i class="fa fa-list-ul"></i> Headers Personalizados</h4>
+            <button type="button" class="btn-modern btn-modern-success" onclick="event.stopPropagation(); addHeaderRow()">
+              <i class="fa fa-plus"></i> Añadir
+            </button>
+          </div>
+          <div class="collapsible-body">
+            <small style="color: var(--text-muted); margin-bottom: 1rem; display: block;">
+              <strong>Set:</strong> Añade o sobreescribe el header |
+              <strong>Remove:</strong> Elimina el header de la respuesta
+            </small>
+            <div id="headersContainer">
+              <!-- Headers dinamicos aqui -->
+            </div>
+            <div id="noHeadersMsg" class="empty-state" style="padding: 1rem;">
+              <i class="fa fa-inbox"></i>
+              <p>No hay headers configurados</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-modern btn-modern-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn-modern btn-modern-primary" id="botonguardar" onclick="guardar()">
+          <i class="fa fa-save"></i> Guardar
+        </button>
+        <button type="button" class="btn-modern btn-modern-warning" id="botoneditar" onclick="editar()">
+          <i class="fa fa-edit"></i> Actualizar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Lista Pendientes -->
+<div class="modal fade modal-modern" id="modalLista" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="titleModalList"><i class="fa fa-clock-o me-2"></i>Lista de Pendientes</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="pendingListContainer">
+          <% listaEspera.forEach(function(element) { %>
+          <div class="pending-item" id="pl-<%= element.id %>"
+               data-id="<%= element.id %>"
+               data-response="<%= element.defaultResponse || '' %>"
+               data-type="<%= element.tiporespuesta || 'json' %>"
+               data-code="<%= element.codigo || 200 %>"
+               data-headers="<%= element.customHeaders || '{}' %>">
+            <div class="pending-item-header">
+              <div class="pending-item-info">
+                <span class="pending-item-url"><%= element.url %></span>
+                <span class="pending-item-date"><%= element.date %></span>
+              </div>
+              <div class="pending-item-actions">
+                <button class="btn-icon btn-icon-primary" onclick="togglePendingResponse('<%= element.id %>')" title="Editar respuesta">
+                  <i class="fa fa-pencil" aria-hidden="true"></i>
+                </button>
+                <button class="btn-icon btn-icon-success" onclick="iniciaTarea('<%= element.id %>')" title="Liberar">
+                  <i class="fa fa-play" aria-hidden="true"></i>
+                </button>
+              </div>
+            </div>
+            <div class="pending-item-response" id="pr-<%= element.id %>" style="display: none;">
+              <div class="pending-response-row">
+                <div class="form-group-modern pending-code-group">
+                  <label class="form-label-modern" for="prc-<%= element.id %>">Código</label>
+                  <input type="number" class="form-control-modern" id="prc-<%= element.id %>" name="prc-<%= element.id %>" value="<%= element.codigo || 200 %>" min="100" max="599">
+                </div>
+                <div class="form-group-modern pending-type-group">
+                  <label class="form-label-modern" for="prtype-<%= element.id %>">Tipo</label>
+                  <select class="form-control-modern" id="prtype-<%= element.id %>" name="prtype-<%= element.id %>" onchange="togglePendingFormatBtn('<%= element.id %>')">
+                    <option value="json" <%= element.tiporespuesta === 'json' ? 'selected' : '' %>>JSON</option>
+                    <option value="xml" <%= element.tiporespuesta === 'xml' ? 'selected' : '' %>>XML</option>
+                    <option value="soap" <%= element.tiporespuesta === 'soap' ? 'selected' : '' %>>SOAP</option>
+                    <option value="text" <%= element.tiporespuesta === 'text' ? 'selected' : '' %>>Texto</option>
+                    <option value="html" <%= element.tiporespuesta === 'html' ? 'selected' : '' %>>HTML</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group-modern">
+                <label class="form-label-modern" for="prt-<%= element.id %>">Body de respuesta</label>
+                <textarea class="form-control-modern" id="prt-<%= element.id %>" name="prt-<%= element.id %>" rows="6" placeholder="Dejar vacío para usar la respuesta por defecto"><%= element.defaultResponse || '' %></textarea>
+              </div>
+              <div class="form-group-modern">
+                <label class="form-label-modern" for="prh-<%= element.id %>">Headers personalizados (JSON)</label>
+                <textarea class="form-control-modern" id="prh-<%= element.id %>" name="prh-<%= element.id %>" rows="3" placeholder='{"Content-Type": "application/json"}'><%= element.customHeaders || '' %></textarea>
+              </div>
+              <div class="pending-response-actions">
+                <button class="btn-modern btn-modern-secondary btn-sm" onclick="resetPendingResponse('<%= element.id %>')">
+                  <i class="fa fa-undo"></i> Restaurar
+                </button>
+                <button class="btn-modern btn-modern-primary btn-sm" id="prfmt-<%= element.id %>" onclick="formatPendingContent('<%= element.id %>')" style="<%= !['json', 'xml', 'soap', 'html'].includes(element.tiporespuesta) ? 'display:none' : '' %>">
+                  <i class="fa fa-align-left"></i> Formatear
+                </button>
+              </div>
+            </div>
+          </div>
+          <% }) %>
+        </div>
+        <% if (listaEspera.length === 0) { %>
+        <div class="empty-state" id="pendingEmptyState">
+          <i class="fa fa-check-circle"></i>
+          <p>No hay peticiones pendientes</p>
+        </div>
+        <% } %>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-modern btn-modern-secondary" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Curl Example -->
+<div class="modal fade modal-modern" id="curlModal" tabindex="-1" aria-labelledby="curlModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="curlModalTitle"><i class="fa fa-terminal me-2"></i>Ejemplo de Peticion</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="curl-info">
+          <div class="curl-row">
+            <span class="curl-label">Metodo:</span>
+            <span id="curlMethod" class="badge-modern"></span>
+          </div>
+          <div class="curl-row">
+            <span class="curl-label">Ruta:</span>
+            <code id="curlRoute" class="curl-code"></code>
+          </div>
+          <div class="curl-row">
+            <span class="curl-label">URL completa:</span>
+            <code id="curlFullUrl" class="curl-code"></code>
+          </div>
+        </div>
+
+        <div class="curl-section">
+          <div class="curl-section-header">
+            <h6><i class="fa fa-code"></i> Comando cURL</h6>
+            <button class="btn-modern btn-modern-secondary btn-sm" onclick="copyCurl()" title="Copiar">
+              <i class="fa fa-copy"></i> Copiar
+            </button>
+          </div>
+          <pre id="curlCommand" class="curl-pre"></pre>
+        </div>
+
+        <div id="curlOpenSection" class="curl-open-section" style="display: none;">
+          <button class="btn-modern btn-modern-primary" onclick="openRouteInBrowser()">
+            <i class="fa fa-external-link"></i> Abrir en nueva pestaña
+          </button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-modern btn-modern-secondary" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Confirmar Eliminación -->
+<div class="modal fade modal-modern" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header" style="border-bottom-color: var(--danger);">
+        <h5 class="modal-title" style="color: var(--danger);"><i class="fa fa-exclamation-triangle me-2"></i>Confirmar Eliminación</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="delete-warning">
+          <div class="delete-icon">
+            <i class="fa fa-trash"></i>
+          </div>
+          <p class="delete-message">¿Estás seguro de que deseas eliminar esta ruta?</p>
+          <p class="delete-submessage">Esta acción no se puede deshacer.</p>
+        </div>
+
+        <div class="delete-route-info">
+          <div class="delete-info-row">
+            <span class="delete-info-label">ID:</span>
+            <span class="delete-info-value" id="deleteRouteId">-</span>
+          </div>
+          <div class="delete-info-row">
+            <span class="delete-info-label">Método:</span>
+            <span id="deleteRouteMethod"></span>
+          </div>
+          <div class="delete-info-row">
+            <span class="delete-info-label">Ruta:</span>
+            <code class="delete-info-value delete-route-path" id="deleteRoutePath">-</code>
+          </div>
+          <div class="delete-info-row">
+            <span class="delete-info-label">Tipo:</span>
+            <span class="delete-info-value" id="deleteRouteType">-</span>
+          </div>
+          <div class="delete-info-row">
+            <span class="delete-info-label">Código:</span>
+            <span class="delete-info-value" id="deleteRouteCode">-</span>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-modern btn-modern-secondary" data-bs-dismiss="modal">
+          <i class="fa fa-times"></i> Cancelar
+        </button>
+        <button type="button" class="btn-modern btn-modern-danger" id="confirmDeleteBtn" onclick="confirmDelete()">
+          <i class="fa fa-trash"></i> Eliminar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Estado de Conexión -->
+<div class="modal fade modal-modern" id="connectionModal" tabindex="-1" aria-labelledby="connectionModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-wifi me-2"></i>Estado de Conexión</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="connection-status-card" id="connectionStatusCard">
+          <div class="connection-status-indicator">
+            <span class="connection-dot" id="connDot"></span>
+            <span class="connection-label" id="connLabel">Conectando...</span>
+          </div>
+        </div>
+
+        <div class="connection-stats">
+          <div class="stat-group">
+            <h6><i class="fa fa-info-circle"></i> Información General</h6>
+            <div class="stat-row">
+              <span class="stat-label">Tipo de conexión:</span>
+              <span class="stat-value" id="connType">-</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">URL del servidor:</span>
+              <span class="stat-value" id="connUrl">-</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">ID de sesión:</span>
+              <span class="stat-value stat-value-mono" id="connSessionId">-</span>
+            </div>
+          </div>
+
+          <div class="stat-group">
+            <h6><i class="fa fa-clock-o"></i> Tiempo</h6>
+            <div class="stat-row">
+              <span class="stat-label">Conectado desde:</span>
+              <span class="stat-value" id="connSince">-</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Tiempo conectado:</span>
+              <span class="stat-value" id="connDuration">-</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Latencia (ping):</span>
+              <span class="stat-value" id="connLatency">-</span>
+            </div>
+          </div>
+
+          <div class="stat-group">
+            <h6><i class="fa fa-exchange"></i> Transferencia de Datos</h6>
+            <div class="stat-row">
+              <span class="stat-label">Mensajes recibidos:</span>
+              <span class="stat-value" id="connMsgReceived">0</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Mensajes enviados:</span>
+              <span class="stat-value" id="connMsgSent">0</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Eventos de consola:</span>
+              <span class="stat-value" id="connConsoleEvents">0</span>
+            </div>
+          </div>
+
+          <div class="stat-group">
+            <h6><i class="fa fa-refresh"></i> Reconexiones</h6>
+            <div class="stat-row">
+              <span class="stat-label">Reconexiones:</span>
+              <span class="stat-value" id="connReconnects">0</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Última reconexión:</span>
+              <span class="stat-value" id="connLastReconnect">-</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-modern btn-modern-secondary" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/socket.io.js"></script>
+
+<script>
+  let totalPending = Number('<%=listaEspera.length %>');
+  // Socket.io usa el mismo puerto que la web
+  const socket = io();
+
+  // ===== TERMINAL MODULE =====
+  const Terminal = {
+    container: null,
+    autoScroll: true,
+    logs: [],
+    maxLogs: 1000,
+
+    init() {
+      this.container = document.getElementById("salidaconsola");
+      this.updateAutoScrollButton();
+    },
+
+    addEntry(data) {
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${data.type || 'info'}`;
+
+      let message = data.texto || data;
+      let timestamp = '';
+
+      const timestampMatch = message.match(/^\[(\d{2}:\d{2}:\d{2}\.\d{3})\]\s*/);
+      if (timestampMatch) {
+        timestamp = timestampMatch[1];
+        message = message.replace(timestampMatch[0], '');
+      }
+
+      // Si es un log colapsable (proxy detallado)
+      if (data.collapsible && data.details) {
+        const detailsId = 'proxy-details-' + Date.now();
+        entry.classList.add('log-collapsible');
+        entry.innerHTML = `
+          ${timestamp ? `<span class="timestamp">${timestamp}</span>` : ''}
+          <span class="message">${this.escapeHtml(message)}</span>
+          <button class="log-toggle-btn" onclick="Terminal.toggleDetails('${detailsId}')" title="Ver detalles">
+            <i class="fa fa-chevron-down"></i>
+          </button>
+          <div id="${detailsId}" class="log-details" style="display: none;">
+            ${this.renderProxyDetails(data.details)}
+          </div>
+        `;
+      } else {
+        entry.innerHTML = `
+          ${timestamp ? `<span class="timestamp">${timestamp}</span>` : ''}
+          <span class="message">${this.escapeHtml(message)}</span>
+        `;
+      }
+
+      this.container.appendChild(entry);
+      this.logs.push({ timestamp: new Date(), type: data.type, message, details: data.details });
+
+      if (this.logs.length > this.maxLogs) {
+        this.logs.shift();
+        if (this.container.firstChild) {
+          this.container.removeChild(this.container.firstChild);
+        }
+      }
+
+      if (this.autoScroll) {
+        this.scrollToBottom();
+      }
+    },
+
+    toggleDetails(id) {
+      const details = document.getElementById(id);
+      const btn = details.previousElementSibling;
+      if (details.style.display === 'none') {
+        details.style.display = 'block';
+        btn.innerHTML = '<i class="fa fa-chevron-up"></i>';
+        btn.classList.add('active');
+      } else {
+        details.style.display = 'none';
+        btn.innerHTML = '<i class="fa fa-chevron-down"></i>';
+        btn.classList.remove('active');
+      }
+    },
+
+    renderProxyDetails(details) {
+      const { request, response } = details;
+      return `
+        <div class="proxy-details-container">
+          <div class="proxy-details-section">
+            <div class="proxy-details-header" onclick="this.parentElement.classList.toggle('expanded')">
+              <i class="fa fa-arrow-up"></i> Outgoing Request
+              <i class="fa fa-chevron-right toggle-icon"></i>
+            </div>
+            <div class="proxy-details-content">
+              <div class="proxy-details-row">
+                <span class="proxy-details-label">URL:</span>
+                <code class="proxy-details-value">${this.escapeHtml(request.target || request.url)}</code>
+              </div>
+              <div class="proxy-details-row">
+                <span class="proxy-details-label">Method:</span>
+                <span class="proxy-details-value">${request.method}</span>
+              </div>
+              <div class="proxy-details-subsection">
+                <div class="proxy-details-subheader" onclick="this.parentElement.classList.toggle('expanded')">
+                  <i class="fa fa-list"></i> Headers
+                  <i class="fa fa-chevron-right toggle-icon"></i>
+                </div>
+                <div class="proxy-details-subcontent">
+                  <pre class="proxy-details-pre">${this.escapeHtml(JSON.stringify(request.headers, null, 2))}</pre>
+                </div>
+              </div>
+              ${request.body ? `
+              <div class="proxy-details-subsection">
+                <div class="proxy-details-subheader" onclick="this.parentElement.classList.toggle('expanded')">
+                  <i class="fa fa-file-text-o"></i> Body
+                  <i class="fa fa-chevron-right toggle-icon"></i>
+                </div>
+                <div class="proxy-details-subcontent">
+                  <pre class="proxy-details-pre">${this.escapeHtml(typeof request.body === 'object' ? JSON.stringify(request.body, null, 2) : request.body)}</pre>
+                </div>
+              </div>
+              ` : ''}
+            </div>
+          </div>
+          <div class="proxy-details-section">
+            <div class="proxy-details-header" onclick="this.parentElement.classList.toggle('expanded')">
+              <i class="fa fa-arrow-down"></i> Incoming Response
+              <span class="proxy-status-badge status-${Math.floor(response.statusCode / 100)}xx">${response.statusCode}</span>
+              <i class="fa fa-chevron-right toggle-icon"></i>
+            </div>
+            <div class="proxy-details-content">
+              <div class="proxy-details-subsection">
+                <div class="proxy-details-subheader" onclick="this.parentElement.classList.toggle('expanded')">
+                  <i class="fa fa-list"></i> Headers
+                  <i class="fa fa-chevron-right toggle-icon"></i>
+                </div>
+                <div class="proxy-details-subcontent">
+                  <pre class="proxy-details-pre">${this.escapeHtml(JSON.stringify(response.headers, null, 2))}</pre>
+                </div>
+              </div>
+              ${response.body ? `
+              <div class="proxy-details-subsection">
+                <div class="proxy-details-subheader" onclick="this.parentElement.classList.toggle('expanded')">
+                  <i class="fa fa-file-text-o"></i> Body ${response.body.truncated ? '<span class="truncated-badge">(truncado)</span>' : ''}
+                  <i class="fa fa-chevron-right toggle-icon"></i>
+                </div>
+                <div class="proxy-details-subcontent">
+                  <pre class="proxy-details-pre ${response.body.type === 'json' ? 'json-body' : ''}">${this.escapeHtml(
+                    response.body.type === 'json'
+                      ? JSON.stringify(response.body.data, null, 2)
+                      : (response.body.data || '')
+                  )}</pre>
+                </div>
+              </div>
+              ` : ''}
+            </div>
+          </div>
+        </div>
+      `;
+    },
+
+    clear() {
+      this.container.innerHTML = '';
+      this.logs = [];
+      this.addEntry({ texto: 'Terminal limpiado', type: 'info' });
+    },
+
+    toggleAutoScroll() {
+      this.autoScroll = !this.autoScroll;
+      this.updateAutoScrollButton();
+      if (this.autoScroll) {
+        this.scrollToBottom();
+      }
+    },
+
+    updateAutoScrollButton() {
+      const btn = document.getElementById('btnAutoScroll');
+      if (btn) {
+        btn.style.background = this.autoScroll ? 'rgba(39, 202, 64, 0.3)' : 'rgba(255, 255, 255, 0.1)';
+      }
+    },
+
+    scrollToBottom() {
+      const consoleEl = this.container.parentElement;
+      consoleEl.scrollTo({ top: consoleEl.scrollHeight, behavior: 'smooth' });
+    },
+
+    exportLogs() {
+      const content = this.logs.map(l =>
+        `[${l.timestamp.toISOString()}] [${l.type}] ${l.message}`
+      ).join('\n');
+
+      const blob = new Blob([content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `mockserver-logs-${new Date().toISOString().slice(0,10)}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+
+    escapeHtml(text) {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+  };
+
+  document.addEventListener('DOMContentLoaded', () => Terminal.init());
+
+  // ===== CONNECTION METRICS MODULE =====
+  const ConnectionMetrics = {
+    status: 'disconnected',
+    connectedSince: null,
+    messagesReceived: 0,
+    messagesSent: 0,
+    consoleEvents: 0,
+    reconnects: 0,
+    lastReconnect: null,
+    latency: null,
+    pingInterval: null,
+    durationInterval: null,
+
+    init() {
+      this.startPingInterval();
+    },
+
+    startPingInterval() {
+      // Medir latencia cada 5 segundos
+      this.pingInterval = setInterval(() => {
+        if (this.status === 'connected') {
+          const start = Date.now();
+          socket.emit('ping', () => {
+            this.latency = Date.now() - start;
+            this.updateModalLatency();
+          });
+        }
+      }, 5000);
+
+      // Actualizar duración cada segundo
+      this.durationInterval = setInterval(() => {
+        this.updateModalDuration();
+      }, 1000);
+    },
+
+    setStatus(status) {
+      this.status = status;
+      if (status === 'connected' && !this.connectedSince) {
+        this.connectedSince = new Date();
+      } else if (status === 'disconnected') {
+        this.connectedSince = null;
+        this.latency = null;
+      }
+      this.updateNavbarStatus();
+      this.updateModalStatus();
+    },
+
+    incrementReceived() {
+      this.messagesReceived++;
+      this.updateElement('connMsgReceived', this.messagesReceived);
+    },
+
+    incrementSent() {
+      this.messagesSent++;
+      this.updateElement('connMsgSent', this.messagesSent);
+    },
+
+    incrementConsoleEvents() {
+      this.consoleEvents++;
+      this.updateElement('connConsoleEvents', this.consoleEvents);
+    },
+
+    incrementReconnects() {
+      this.reconnects++;
+      this.lastReconnect = new Date();
+      this.updateElement('connReconnects', this.reconnects);
+      this.updateElement('connLastReconnect', this.formatTime(this.lastReconnect));
+    },
+
+    updateNavbarStatus() {
+      const statusDot = document.getElementById('statusDot');
+      const statusText = document.getElementById('statusText');
+      const serverStatus = document.getElementById('serverStatus');
+
+      if (!statusDot || !statusText) return;
+
+      serverStatus.classList.remove('status-connected', 'status-disconnected', 'status-reconnecting');
+
+      switch(this.status) {
+        case 'connected':
+          statusDot.style.background = 'var(--success)';
+          statusDot.style.boxShadow = '0 0 8px var(--success)';
+          statusText.textContent = 'Servidor activo';
+          serverStatus.classList.add('status-connected');
+          break;
+        case 'disconnected':
+          statusDot.style.background = 'var(--danger)';
+          statusDot.style.boxShadow = '0 0 8px var(--danger)';
+          statusText.textContent = 'Servidor inactivo';
+          serverStatus.classList.add('status-disconnected');
+          break;
+        case 'reconnecting':
+          statusDot.style.background = 'var(--warning)';
+          statusDot.style.boxShadow = '0 0 8px var(--warning)';
+          statusText.textContent = 'Reconectando...';
+          serverStatus.classList.add('status-reconnecting');
+          break;
+      }
+    },
+
+    updateModalStatus() {
+      const connDot = document.getElementById('connDot');
+      const connLabel = document.getElementById('connLabel');
+
+      if (!connDot || !connLabel) return;
+
+      connDot.classList.remove('connected', 'disconnected', 'reconnecting');
+
+      switch(this.status) {
+        case 'connected':
+          connDot.classList.add('connected');
+          connLabel.textContent = 'Conectado';
+          break;
+        case 'disconnected':
+          connDot.classList.add('disconnected');
+          connLabel.textContent = 'Desconectado';
+          break;
+        case 'reconnecting':
+          connDot.classList.add('reconnecting');
+          connLabel.textContent = 'Reconectando...';
+          break;
+      }
+
+      // Actualizar info general
+      this.updateElement('connType', socket.io?.engine?.transport?.name || 'WebSocket');
+      this.updateElement('connUrl', window.location.origin);
+      this.updateElement('connSessionId', socket.id || '-');
+      this.updateElement('connSince', this.connectedSince ? this.formatTime(this.connectedSince) : '-');
+    },
+
+    updateModalLatency() {
+      this.updateElement('connLatency', this.latency !== null ? `${this.latency} ms` : '-');
+    },
+
+    updateModalDuration() {
+      if (this.connectedSince && this.status === 'connected') {
+        const duration = Date.now() - this.connectedSince.getTime();
+        this.updateElement('connDuration', this.formatDuration(duration));
+      } else {
+        this.updateElement('connDuration', '-');
+      }
+    },
+
+    updateElement(id, value) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = value;
+    },
+
+    formatTime(date) {
+      return date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    },
+
+    formatDuration(ms) {
+      const seconds = Math.floor(ms / 1000);
+      const minutes = Math.floor(seconds / 60);
+      const hours = Math.floor(minutes / 60);
+
+      if (hours > 0) {
+        return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
+      } else if (minutes > 0) {
+        return `${minutes}m ${seconds % 60}s`;
+      } else {
+        return `${seconds}s`;
+      }
+    }
+  };
+
+  // Inicializar métricas
+  ConnectionMetrics.init();
+
+  function openConnectionModal() {
+    ConnectionMetrics.updateModalStatus();
+    ConnectionMetrics.updateModalDuration();
+    ConnectionMetrics.updateModalLatency();
+    $('#connectionModal').modal('show');
+  }
+
+  // ===== CONNECTION STATUS =====
+  // Nota: El mensaje "Conectado al servidor" lo envía el backend via socket
+  socket.on('connect', function() {
+    ConnectionMetrics.setStatus('connected');
+    ConnectionMetrics.incrementReceived();
+  });
+
+  socket.on('disconnect', function() {
+    ConnectionMetrics.setStatus('disconnected');
+    ConnectionMetrics.incrementReceived();
+    Terminal.addEntry({ texto: 'Desconectado del servidor', type: 'error' });
+  });
+
+  socket.on('reconnecting', function() {
+    ConnectionMetrics.setStatus('reconnecting');
+    ConnectionMetrics.incrementReceived();
+    Terminal.addEntry({ texto: 'Intentando reconectar...', type: 'warning' });
+  });
+
+  socket.on('reconnect', function() {
+    ConnectionMetrics.setStatus('connected');
+    ConnectionMetrics.incrementReconnects();
+    ConnectionMetrics.incrementReceived();
+  });
+
+  socket.on('reconnect_failed', function() {
+    ConnectionMetrics.setStatus('disconnected');
+    ConnectionMetrics.incrementReceived();
+    Terminal.addEntry({ texto: 'Fallo al reconectar', type: 'error' });
+  });
+
+  // ===== SOCKET EVENTS =====
+  socket.on("console", (arg) => {
+    Terminal.addEntry(arg);
+    ConnectionMetrics.incrementReceived();
+    ConnectionMetrics.incrementConsoleEvents();
+  });
+  socket.on("addItem", (arg) => {
+    addItemToPendingList(arg);
+    ConnectionMetrics.incrementReceived();
+  });
+  socket.on("deleteItem", (arg) => {
+    deleteItemFromPendingList(arg);
+    ConnectionMetrics.incrementReceived();
+  });
+
+  // ===== DATATABLE =====
+  let tabla = $('#dtList').DataTable({
+    ajax: {
+      type: "GET",
+      url: '/api/routes',
+      dataType: 'json',
+      dataSrc: ''
+    },
+    language: {
+      search: "Buscar:",
+      lengthMenu: "Mostrar _MENU_ rutas",
+      info: "Mostrando _START_ a _END_ de _TOTAL_ rutas",
+      infoEmpty: "No hay rutas configuradas",
+      emptyTable: "No hay rutas configuradas",
+      paginate: { first: "<<", previous: "<", next: ">", last: ">>" }
+    },
+    dom: '<"top"l>rt<"bottom"ip>', // Ocultar busqueda global, usamos filtros custom
+    order: [[1, 'asc']], // Ordenar por columna orden (índice 1) por defecto
+    columnDefs: [
+      { target: 0, visible: false, searchable: false },
+      { "width": "7%", "targets": 1, "type": "num" }, // Orden - tipo numérico para ordenar correctamente
+      { "width": "7%", "targets": 2 },
+      { "width": "30%", "targets": 3 },
+      { "width": "8%", "targets": 4 },
+      { "width": "7%", "targets": 5 },
+      { "width": "5%", "targets": 6 },
+      { "width": "5%", "targets": 7 },
+      { "width": "6%", "targets": 8 },
+      { "width": "19%", "targets": 9 },
+      { "className": "dt-center", "targets": [1,2,4,5,6,7,8,9] }
+    ],
+    columns: [
+      { data: 'id' },
+      {
+        data: 'orden', // Usar el campo orden para ordenar numéricamente
+        render: function (data, type, row) {
+          const orden = row.orden || row.id;
+          // Para ordenación, devolver el número directamente
+          if (type === 'sort' || type === 'type') {
+            return orden;
+          }
+          // Para display, devolver el HTML con controles
+          return `<div class="order-controls">
+            <button class="btn-order btn-order-up" onclick="moveUp(${row.id})" title="Subir prioridad"><i class="fa fa-chevron-up"></i></button>
+            <input type="number" class="order-input" value="${orden}" min="1"
+              onchange="updateOrden(${row.id}, this.value)"
+              onclick="this.select()"
+              title="Editar orden manualmente">
+            <button class="btn-order btn-order-down" onclick="moveDown(${row.id})" title="Bajar prioridad"><i class="fa fa-chevron-down"></i></button>
+          </div>`;
+        }
+      },
+      { data: null, render: function (data) {
+        return `<span class="badge-modern badge-${data.tipo}">${data.tipo.toUpperCase()}</span>`;
+      }},
+      { data: null, render: function (data) {
+        return `<span class="route-path">${data.ruta}</span>`;
+      }},
+      { data: null, render: function (data) {
+        const icons = { json: 'fa-code', xml: 'fa-file-code-o', soap: 'fa-envelope-o', text: 'fa-align-left', html: 'fa-html5', page: 'fa-file-text-o', file: 'fa-file-o', proxy: 'fa-exchange', empty: 'fa-circle-o' };
+        return `<span class="response-type type-${data.tiporespuesta}"><i class="fa ${icons[data.tiporespuesta] || 'fa-question'}"></i> ${data.tiporespuesta}</span>`;
+      }},
+      { data: null, render: function (data) {
+        let badgeClass = 'badge-status-2xx';
+        if (data.codigo >= 300 && data.codigo < 400) badgeClass = 'badge-status-3xx';
+        if (data.codigo >= 400 && data.codigo < 500) badgeClass = 'badge-status-4xx';
+        if (data.codigo >= 500) badgeClass = 'badge-status-5xx';
+        return `<span class="badge-modern ${badgeClass}">${data.codigo}</span>`;
+      }},
+      { data: null, render: function (data) {
+        return data.isRegex === 1
+          ? '<span class="badge-modern badge-regex">.*</span>'
+          : '<span class="badge-modern badge-inactive">-</span>';
+      }},
+      { data: null, render: function (data) {
+        const isWait = data.esperaActiva === 1;
+        const isProxy = data.tiporespuesta === 'proxy';
+
+        // Los proxy no pueden tener espera activa
+        if (isProxy) {
+          return `<span class="badge-modern badge-na" title="Los proxy no soportan espera activa">-</span>`;
+        }
+
+        return isWait
+          ? `<span class="badge-modern badge-wait badge-clickable" onclick="toggleEsperaActiva(${data.id}, false)" title="Desactivar espera activa"><i class="fa fa-pause"></i></span>`
+          : `<span class="badge-modern badge-inactive badge-clickable" onclick="toggleEsperaActiva(${data.id}, true)" title="Activar espera activa">-</span>`;
+      }},
+      { data: null, render: function (data) {
+        const isActive = data.activo !== 0;
+        return isActive
+          ? `<span class="badge-modern badge-active badge-clickable" onclick="toggleActivo(${data.id}, false)" title="Desactivar ruta"><i class="fa fa-check"></i></span>`
+          : `<span class="badge-modern badge-disabled badge-clickable" onclick="toggleActivo(${data.id}, true)" title="Activar ruta"><i class="fa fa-ban"></i></span>`;
+      }},
+      { data: null, render: function (data) {
+        return `<div class="btn-group-modern">
+          <button class="btn-icon btn-icon-primary" onclick="openCurlModal(${data.id})" title="Ver ejemplo"><i class="fa fa-terminal"></i></button>
+          <button class="btn-icon btn-icon-warning" onclick="openModal('edit', ${data.id})" title="Editar"><i class="fa fa-pencil"></i></button>
+          <button class="btn-icon btn-icon-danger" onclick="openDeleteModal(${data.id})" title="Eliminar"><i class="fa fa-trash"></i></button>
+        </div>`;
+      }}
+    ]
+  });
+
+  // ===== FILTROS PERSONALIZADOS =====
+  // Filtro custom para DataTables
+  $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
+    const rowData = tabla.row(dataIndex).data();
+    if (!rowData) return true;
+
+    // Filtro Metodo
+    const filterMethod = document.getElementById('filterMethod').value;
+    if (filterMethod && rowData.tipo !== filterMethod) return false;
+
+    // Filtro Ruta
+    const filterRouteType = document.getElementById('filterRouteType').value;
+    const filterRouteValue = document.getElementById('filterRouteValue').value.toLowerCase();
+    if (filterRouteValue) {
+      const ruta = rowData.ruta.toLowerCase();
+      switch (filterRouteType) {
+        case 'contains':
+          if (!ruta.includes(filterRouteValue)) return false;
+          break;
+        case 'startsWith':
+          if (!ruta.startsWith(filterRouteValue)) return false;
+          break;
+        case 'endsWith':
+          if (!ruta.endsWith(filterRouteValue)) return false;
+          break;
+        case 'equals':
+          if (ruta !== filterRouteValue) return false;
+          break;
+        case 'regex':
+          try {
+            const regex = new RegExp(filterRouteValue, 'i');
+            if (!regex.test(rowData.ruta)) return false;
+          } catch (e) {
+            // Regex invalida, no filtrar
+          }
+          break;
+      }
+    }
+
+    // Filtro Tipo Respuesta
+    const filterType = document.getElementById('filterType').value;
+    if (filterType && rowData.tiporespuesta !== filterType) return false;
+
+    // Filtro Codigo
+    const filterCode = document.getElementById('filterCode').value;
+    if (filterCode) {
+      const code = parseInt(rowData.codigo);
+      switch (filterCode) {
+        case '2xx': if (code < 200 || code >= 300) return false; break;
+        case '3xx': if (code < 300 || code >= 400) return false; break;
+        case '4xx': if (code < 400 || code >= 500) return false; break;
+        case '5xx': if (code < 500 || code >= 600) return false; break;
+      }
+    }
+
+    // Filtro Regex
+    const filterRegex = document.getElementById('filterRegex').value;
+    if (filterRegex !== '') {
+      const isRegex = rowData.isRegex === 1 ? '1' : '0';
+      if (isRegex !== filterRegex) return false;
+    }
+
+    // Filtro Espera
+    const filterWait = document.getElementById('filterWait').value;
+    if (filterWait !== '') {
+      const esperaActiva = rowData.esperaActiva === 1 ? '1' : '0';
+      if (esperaActiva !== filterWait) return false;
+    }
+
+    // Filtro Activo
+    const filterActivo = document.getElementById('filterActivo').value;
+    if (filterActivo !== '') {
+      const activo = rowData.activo !== 0 ? '1' : '0';
+      if (activo !== filterActivo) return false;
+    }
+
+    return true;
+  });
+
+  function applyFilters() {
+    tabla.draw();
+    updateActiveFiltersCount();
+  }
+
+  function clearFilters() {
+    document.getElementById('filterMethod').value = '';
+    document.getElementById('filterRouteType').value = 'contains';
+    document.getElementById('filterRouteValue').value = '';
+    document.getElementById('filterType').value = '';
+    document.getElementById('filterCode').value = '';
+    document.getElementById('filterRegex').value = '';
+    document.getElementById('filterWait').value = '';
+    document.getElementById('filterActivo').value = '';
+    applyFilters();
+  }
+
+  function updateActiveFiltersCount() {
+    let count = 0;
+    if (document.getElementById('filterMethod').value) count++;
+    if (document.getElementById('filterRouteValue').value) count++;
+    if (document.getElementById('filterType').value) count++;
+    if (document.getElementById('filterCode').value) count++;
+    if (document.getElementById('filterRegex').value) count++;
+    if (document.getElementById('filterWait').value) count++;
+    if (document.getElementById('filterActivo').value) count++;
+
+    const btn = document.querySelector('.btn-filter-clear');
+    if (count > 0) {
+      btn.innerHTML = `<i class="fa fa-times"></i> Limpiar (${count})`;
+      btn.classList.add('has-filters');
+    } else {
+      btn.innerHTML = `<i class="fa fa-times"></i> Limpiar`;
+      btn.classList.remove('has-filters');
+    }
+  }
+
+  // ===== FORM FUNCTIONS =====
+  const responsePlaceholders = {
+    json: '{"message": "Hello World", "status": "ok"}',
+    xml: '<?xml version="1.0" encoding="UTF-8"?>\n<response>\n  <message>Hello World</message>\n  <status>ok</status>\n</response>',
+    soap: '<?xml version="1.0" encoding="UTF-8"?>\n<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">\n  <soap:Body>\n    <Response>\n      <Message>Hello World</Message>\n    </Response>\n  </soap:Body>\n</soap:Envelope>',
+    html: '<!DOCTYPE html>\n<html>\n<head>\n  <title>Mock Response</title>\n</head>\n<body>\n  <h1>Hello World</h1>\n</body>\n</html>',
+    text: 'Hello World',
+    page: '<h1>Hello World</h1>\n<p>This is a rendered page.</p>',
+    empty: '',
+    proxy: ''
+  };
+
+  function checkRespuesta() {
+    const tipoResp = document.getElementById("tiporespuesta").value;
+    showElements(['#divtresp', '#divtipo', '#divruta', '#divcodresp', '#divresp', '#divEsperaActiva']);
+    hideElements(['#divDestino', '#divFile']);
+
+    if (tipoResp === 'proxy') {
+      hideElements(['#divtipo', '#divcodresp', '#divEsperaActiva', '#divresp', '#divFile']);
+      showElements(['#divDestino']);
+    } else if (tipoResp === 'file') {
+      hideElements(['#divresp']);
+      showElements(['#divFile']);
+    } else if (tipoResp === 'empty') {
+      hideElements(['#divresp', '#divFile']);
+    }
+
+    // Actualizar placeholder según tipo
+    const textarea = document.getElementById('respuesta');
+    if (textarea) {
+      textarea.placeholder = responsePlaceholders[tipoResp] || '';
+    }
+
+    // Mostrar/ocultar botón formatear
+    const formatBtn = document.getElementById('btnFormatJson');
+    if (formatBtn) {
+      const canFormat = ['json', 'xml', 'soap', 'html'].includes(tipoResp);
+      formatBtn.style.display = canFormat ? '' : 'none';
+    }
+  }
+
+  function formatResponseJson() {
+    const textarea = document.getElementById('respuesta');
+    const tipoResp = document.getElementById('tiporespuesta').value;
+
+    if (!textarea || !textarea.value.trim()) return;
+
+    try {
+      if (tipoResp === 'json') {
+        const parsed = JSON.parse(textarea.value);
+        textarea.value = JSON.stringify(parsed, null, 2);
+      } else if (tipoResp === 'xml' || tipoResp === 'soap') {
+        textarea.value = formatXml(textarea.value);
+      } else if (tipoResp === 'html') {
+        textarea.value = formatHtml(textarea.value);
+      }
+    } catch (e) {
+      const tipos = { json: 'JSON', xml: 'XML', soap: 'SOAP', html: 'HTML' };
+      alert(`${tipos[tipoResp] || tipoResp.toUpperCase()} inválido: ${e.message}`);
+    }
+  }
+
+  const httpCodes = {
+    '200': 'OK', '201': 'Created', '204': 'No Content', '301': 'Moved Permanently',
+    '302': 'Found', '304': 'Not Modified', '400': 'Bad Request', '401': 'Unauthorized',
+    '403': 'Forbidden', '404': 'Not Found', '405': 'Method Not Allowed', '409': 'Conflict',
+    '422': 'Unprocessable Entity', '429': 'Too Many Requests', '500': 'Internal Server Error',
+    '502': 'Bad Gateway', '503': 'Service Unavailable', '504': 'Gateway Timeout'
+  };
+
+  function updateCodeDescription() {
+    const code = document.getElementById("crespuestaInput").value;
+    document.getElementById("codeDescription").textContent = httpCodes[code] || 'Custom';
+  }
+
+  // ===== ORDER FUNCTIONS =====
+  async function normalizeOrder() {
+    if (!confirm('¿Reorganizar todos los órdenes secuencialmente?\n\nLas rutas normales tendrán orden 1, 2, 3...\nLos proxies estarán al final con orden 99999999, 99999998...')) {
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/normalize-order', { method: 'POST' });
+      const data = await response.json();
+      if (data.success) {
+        tabla.ajax.reload(null, false);
+        console.log(`Normalizado: ${data.rutas} rutas, ${data.proxies} proxies`);
+      } else {
+        alert(data.error || 'Error normalizando órdenes');
+      }
+    } catch (e) {
+      console.error('Error normalizando órdenes:', e);
+    }
+  }
+
+  async function moveUp(id) {
+    try {
+      const response = await fetch(`/api/move-up/${id}`, { method: 'PUT' });
+      const data = await response.json();
+      if (data.success) {
+        tabla.ajax.reload(null, false);
+      }
+    } catch (e) {
+      console.error('Error moviendo ruta:', e);
+    }
+  }
+
+  async function moveDown(id) {
+    try {
+      const response = await fetch(`/api/move-down/${id}`, { method: 'PUT' });
+      const data = await response.json();
+      if (data.success) {
+        tabla.ajax.reload(null, false);
+      }
+    } catch (e) {
+      console.error('Error moviendo ruta:', e);
+    }
+  }
+
+  async function updateOrden(id, orden) {
+    const ordenNum = parseInt(orden);
+    if (isNaN(ordenNum) || ordenNum < 1) {
+      alert('El orden debe ser un número positivo');
+      tabla.ajax.reload(null, false);
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/update-order/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orden: ordenNum })
+      });
+      const data = await response.json();
+      if (data.success) {
+        tabla.ajax.reload(null, false);
+      } else {
+        alert(data.error || 'Error actualizando orden');
+      }
+    } catch (e) {
+      console.error('Error actualizando orden:', e);
+    }
+  }
+
+  function toggleRegexMode() {
+    const isRegex = document.getElementById("isRegex").checked;
+    document.getElementById("divRegexValidator").style.display = isRegex ? "block" : "none";
+    if (isRegex) validateRegexIfEnabled();
+    else document.getElementById("regexResult").innerHTML = "";
+  }
+
+  function validateRegexIfEnabled() {
+    if (document.getElementById("isRegex").checked) testRegex();
+  }
+
+  async function testRegex() {
+    const regex = document.getElementById("ruta").value;
+    const testUrl = document.getElementById("regexTestUrl").value;
+    const resultDiv = document.getElementById("regexResult");
+
+    if (!regex) {
+      resultDiv.innerHTML = '<span style="color: var(--text-muted);">Introduce una expresion regular</span>';
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/validateRegex', {
+        method: 'POST',
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ regex, testUrl })
+      });
+      const data = await response.json();
+
+      if (data.valid) {
+        let html = '<span class="badge-modern" style="background: var(--success); color: white;">Regex valida</span>';
+        if (testUrl) {
+          html += data.matches
+            ? ' <span class="badge-modern" style="background: var(--info); color: white;">URL coincide</span>'
+            : ' <span class="badge-modern" style="background: var(--warning); color: white;">URL no coincide</span>';
+        }
+        resultDiv.innerHTML = html;
+      } else {
+        resultDiv.innerHTML = `<span class="badge-modern" style="background: var(--danger); color: white;">Regex invalida</span> <small style="color: var(--danger);">${data.error}</small>`;
+      }
+    } catch (e) {
+      resultDiv.innerHTML = `<span class="badge-modern" style="background: var(--danger); color: white;">Error al validar</span>`;
+    }
+  }
+
+  // ===== XML/SOAP UTILITIES =====
+  function validateXml(xmlString) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(xmlString, 'application/xml');
+    const parseError = doc.querySelector('parsererror');
+    if (parseError) {
+      return { valid: false, error: parseError.textContent };
+    }
+    return { valid: true, doc };
+  }
+
+  function formatXml(xmlString, indent = 2) {
+    const result = validateXml(xmlString);
+    if (!result.valid) {
+      throw new Error(result.error);
+    }
+
+    // Serializar y formatear
+    const serializer = new XMLSerializer();
+    let xml = serializer.serializeToString(result.doc);
+
+    // Formateo manual con indentación
+    const PADDING = ' '.repeat(indent);
+    let formatted = '';
+    let pad = 0;
+
+    xml = xml.replace(/(>)(<)(\/*)/g, '$1\n$2$3');
+    xml.split('\n').forEach(node => {
+      let indentLevel = 0;
+      if (node.match(/.+<\/\w[^>]*>$/)) {
+        indentLevel = 0;
+      } else if (node.match(/^<\/\w/) && pad > 0) {
+        pad -= 1;
+      } else if (node.match(/^<\w[^>]*[^\/]>.*$/)) {
+        indentLevel = 1;
+      } else {
+        indentLevel = 0;
+      }
+      formatted += PADDING.repeat(pad) + node + '\n';
+      pad += indentLevel;
+    });
+
+    return formatted.trim();
+  }
+
+  function formatHtml(htmlString) {
+    // Validar que sea HTML básico
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlString, 'text/html');
+
+    // Si el parseador genera errores significativos, lanzar error
+    const body = doc.body;
+    if (!body || (body.children.length === 0 && !body.textContent.trim())) {
+      throw new Error('HTML vacío o inválido');
+    }
+
+    // Formateo manual con indentación
+    const PADDING = '  ';
+    let formatted = '';
+    let pad = 0;
+
+    // Normalizar y dividir por tags
+    let html = htmlString.trim();
+    html = html.replace(/(>)\s*(<)/g, '$1\n$2');
+
+    const lines = html.split('\n');
+    lines.forEach(line => {
+      line = line.trim();
+      if (!line) return;
+
+      // Tag de cierre
+      if (line.match(/^<\/\w/)) {
+        pad = Math.max(0, pad - 1);
+      }
+
+      formatted += PADDING.repeat(pad) + line + '\n';
+
+      // Tag de apertura (no auto-cerrado y no cierre)
+      if (line.match(/^<\w[^>]*[^\/]>$/) && !line.match(/^<(br|hr|img|input|meta|link|area|base|col|embed|param|source|track|wbr)/i)) {
+        pad += 1;
+      }
+    });
+
+    return formatted.trim();
+  }
+
+  // ===== HEADERS =====
+  let headerCounter = 0;
+
+  function addHeaderRow(name = '', value = '', action = 'set') {
+    headerCounter++;
+    const container = document.getElementById('headersContainer');
+    document.getElementById('noHeadersMsg').style.display = 'none';
+
+    const row = document.createElement('div');
+    row.className = 'd-flex gap-2 mb-2 align-items-center';
+    row.id = `header-row-${headerCounter}`;
+    row.innerHTML = `
+      <select class="form-control-modern form-select-modern" style="width: 100px;" id="header-action-${headerCounter}">
+        <option value="set" ${action === 'set' ? 'selected' : ''}>Set</option>
+        <option value="remove" ${action === 'remove' ? 'selected' : ''}>Remove</option>
+      </select>
+      <input type="text" class="form-control-modern" placeholder="Header name" id="header-name-${headerCounter}" value="${escapeHtml(name)}" style="width: 180px;">
+      <input type="text" class="form-control-modern" placeholder="Header value" id="header-value-${headerCounter}" value="${escapeHtml(value)}" style="flex: 1;">
+      <button class="btn-icon btn-icon-danger" type="button" onclick="removeHeaderRow(${headerCounter})">
+        <i class="fa fa-trash"></i>
+      </button>
+    `;
+    container.appendChild(row);
+    updateHeaderValueVisibility(headerCounter);
+
+    document.getElementById(`header-action-${headerCounter}`).addEventListener('change', function() {
+      updateHeaderValueVisibility(this.id.replace('header-action-', ''));
+    });
+  }
+
+  function updateHeaderValueVisibility(rowId) {
+    const action = document.getElementById(`header-action-${rowId}`).value;
+    const valueInput = document.getElementById(`header-value-${rowId}`);
+    valueInput.style.display = action === 'remove' ? 'none' : 'block';
+    if (action === 'remove') valueInput.value = '';
+  }
+
+  function removeHeaderRow(id) {
+    const row = document.getElementById(`header-row-${id}`);
+    if (row) row.remove();
+
+    const container = document.getElementById('headersContainer');
+    if (container.children.length === 0) {
+      document.getElementById('noHeadersMsg').style.display = 'block';
+    }
+  }
+
+  function getCustomHeaders() {
+    const headers = [];
+    const rows = document.getElementById('headersContainer').querySelectorAll('[id^="header-row-"]');
+    rows.forEach(row => {
+      const id = row.id.replace('header-row-', '');
+      const action = document.getElementById(`header-action-${id}`).value;
+      const name = document.getElementById(`header-name-${id}`).value.trim();
+      const value = document.getElementById(`header-value-${id}`).value;
+      if (name) headers.push({ action, name, value });
+    });
+    return headers.length > 0 ? headers : null;
+  }
+
+  function setCustomHeaders(headers) {
+    clearHeaders();
+    if (headers && Array.isArray(headers)) {
+      headers.forEach(h => addHeaderRow(h.name, h.value, h.action));
+    }
+  }
+
+  function clearHeaders() {
+    document.getElementById('headersContainer').innerHTML = '';
+    document.getElementById('noHeadersMsg').style.display = 'block';
+    headerCounter = 0;
+  }
+
+  function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  function showElements(list) { list.forEach(el => $(el).show()); }
+  function hideElements(list) { list.forEach(el => $(el).hide()); }
+
+  // ===== FILE UPLOAD FUNCTIONS =====
+  let selectedFile = null;
+  let keepExistingFile = false;
+
+  function handleFileSelect(event) {
+    const file = event.target.files[0];
+    if (file) {
+      selectedFile = file;
+      keepExistingFile = false;
+      document.getElementById('fileInfo').style.display = 'flex';
+      document.getElementById('fileName').textContent = file.name;
+      document.getElementById('fileSize').textContent = formatFileSize(file.size);
+      document.getElementById('currentFileInfo').style.display = 'none';
+    }
+  }
+
+  function clearFileSelection() {
+    selectedFile = null;
+    keepExistingFile = false;
+    document.getElementById('fileUpload').value = '';
+    document.getElementById('fileInfo').style.display = 'none';
+    document.getElementById('fileName').textContent = '';
+    document.getElementById('fileSize').textContent = '';
+  }
+
+  function setCurrentFileInfo(fileName, fileSize) {
+    if (fileName) {
+      keepExistingFile = true;
+      document.getElementById('currentFileInfo').style.display = 'flex';
+      document.getElementById('currentFileName').textContent = fileName;
+      document.getElementById('currentFileSize').textContent = fileSize ? formatFileSize(fileSize) : '';
+    } else {
+      document.getElementById('currentFileInfo').style.display = 'none';
+    }
+  }
+
+  function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+
+  // ===== MODAL FUNCTIONS =====
+  function openModal(type = 'create', objId) {
+    if (type === 'create') {
+      checkRespuesta();
+      $("#botoneditar").hide();
+      $("#botonguardar").show();
+      $("#titleModal").html('<i class="fa fa-plus me-2"></i>Nueva Ruta');
+      $("#routesModal").modal('show');
+    }
+    if (type === 'edit') {
+      $("#idmodal").html(objId);
+      $("#botoneditar").show();
+      $("#botonguardar").hide();
+      const obj = Array.from(tabla.rows().data()).find(el => el.id === objId);
+      valuesForModal(obj);
+      checkRespuesta();
+      $("#titleModal").html('<i class="fa fa-pencil me-2"></i>Editar Ruta');
+      $("#routesModal").modal('show');
+    }
+  }
+
+  function openList() { $("#modalLista").modal('show'); }
+
+  let deleteRouteId = null;
+
+  function openDeleteModal(id) {
+    const obj = Array.from(tabla.rows().data()).find(el => el.id === id);
+    if (!obj) return;
+
+    deleteRouteId = id;
+
+    // Llenar información del modal
+    document.getElementById('deleteRouteId').textContent = obj.id;
+    document.getElementById('deleteRouteMethod').innerHTML = `<span class="badge-modern badge-${obj.tipo}">${obj.tipo.toUpperCase()}</span>`;
+    document.getElementById('deleteRoutePath').textContent = obj.ruta;
+    document.getElementById('deleteRouteType').textContent = obj.tiporespuesta;
+    document.getElementById('deleteRouteCode').textContent = obj.codigo;
+
+    $('#deleteModal').modal('show');
+  }
+
+  async function confirmDelete() {
+    if (!deleteRouteId) return;
+
+    const btn = document.getElementById('confirmDeleteBtn');
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Eliminando...';
+    btn.disabled = true;
+
+    const response = await fetch('/api/delete/' + deleteRouteId.toString(), { method: 'DELETE' });
+    if (response.status === 200) {
+      tabla.ajax.reload();
+      $('#deleteModal').modal('hide');
+      $("#routesModal").modal('hide');
+    }
+
+    btn.innerHTML = originalHtml;
+    btn.disabled = false;
+    deleteRouteId = null;
+  }
+
+  $("#routesModal").on("hidden.bs.modal", clearModal);
+
+  function clearModal() {
+    document.getElementById("tipoSelect").value = 0;
+    document.getElementById("ruta").value = '';
+    document.getElementById("crespuestaInput").value = '200';
+    document.getElementById("respuesta").value = '';
+    document.getElementById("destinoProxy").value = '';
+    document.getElementById("tiporespuesta").value = 'json';
+    document.getElementById("esperaActiva").checked = false;
+    document.getElementById("rutaActiva").checked = true;
+    document.getElementById("isRegex").checked = false;
+    document.getElementById("regexTestUrl").value = '';
+    document.getElementById("divRegexValidator").style.display = "none";
+    document.getElementById("regexResult").innerHTML = "";
+    updateCodeDescription();
+    clearHeaders();
+    // Limpiar campos de archivo
+    clearFileSelection();
+    document.getElementById('currentFileInfo').style.display = 'none';
+  }
+
+  function valuesForModal(obj) {
+    document.getElementById("tipoSelect").value = [...document.getElementById('tipoSelect').options].findIndex(opt => opt.text.toLowerCase() === obj.tipo);
+    document.getElementById("ruta").value = obj.ruta;
+    document.getElementById("crespuestaInput").value = obj.codigo;
+    if (obj.tiporespuesta === 'proxy') {
+      document.getElementById("destinoProxy").value = obj.respuesta || '';
+      document.getElementById("respuesta").value = '';
+    } else {
+      document.getElementById("respuesta").value = obj.respuesta || '';
+      document.getElementById("destinoProxy").value = '';
+    }
+    document.getElementById("tiporespuesta").value = obj.tiporespuesta;
+    document.getElementById("esperaActiva").checked = obj.esperaActiva ?? false;
+    document.getElementById("rutaActiva").checked = obj.activo !== 0;
+    document.getElementById("isRegex").checked = obj.isRegex === 1;
+    updateCodeDescription();
+    toggleRegexMode();
+    const headers = obj.customHeaders ? JSON.parse(obj.customHeaders) : null;
+    setCustomHeaders(headers);
+    // Archivo
+    clearFileSelection();
+    if (obj.tiporespuesta === 'file' && obj.fileName) {
+      setCurrentFileInfo(obj.fileName);
+    }
+  }
+
+  async function guardar() {
+    const e = document.getElementById("tipoSelect");
+    const tipo = e.options[e.selectedIndex].text.toLowerCase();
+    const ruta = document.getElementById("ruta").value;
+
+    // Validar que la ruta no comience con /api/
+    if (ruta.startsWith('/api/') || ruta === '/api') {
+      alert('Routes starting with /api/ are reserved for internal use');
+      return;
+    }
+
+    const codigo = document.getElementById("crespuestaInput").value;
+    const tiporespuesta = document.getElementById("tiporespuesta").value;
+    let respuesta = tiporespuesta === 'proxy'
+      ? document.getElementById("destinoProxy").value
+      : document.getElementById("respuesta").value;
+
+    if (tiporespuesta === 'proxy' && respuesta && !respuesta.startsWith('http://') && !respuesta.startsWith('https://')) {
+      respuesta = 'https://' + respuesta;
+      document.getElementById("destinoProxy").value = respuesta;
+    }
+
+    const esperaActiva = document.getElementById("esperaActiva").checked;
+    const activo = document.getElementById("rutaActiva").checked;
+    const isRegex = document.getElementById("isRegex").checked;
+    const customHeaders = getCustomHeaders();
+
+    // Usar FormData para soportar archivos
+    const formData = new FormData();
+    formData.append('tipo', tipo);
+    formData.append('ruta', ruta);
+    formData.append('codigo', codigo);
+    formData.append('respuesta', respuesta);
+    formData.append('tiporespuesta', tiporespuesta);
+    formData.append('esperaActiva', esperaActiva);
+    formData.append('activo', activo);
+    formData.append('isRegex', isRegex);
+    if (customHeaders) {
+      formData.append('customHeaders', JSON.stringify(customHeaders));
+    }
+
+    // Añadir archivo si está seleccionado
+    if (tiporespuesta === 'file' && selectedFile) {
+      formData.append('file', selectedFile);
+    }
+
+    const response = await fetch('/api/create', {
+      method: 'POST',
+      body: formData
+    });
+
+    if (response.status === 200) {
+      tabla.ajax.reload();
+      $("#routesModal").modal('hide');
+    }
+  }
+
+  async function editar() {
+    const id = $("#idmodal").text();
+    const e = document.getElementById("tipoSelect");
+    const tipo = e.options[e.selectedIndex].text.toLowerCase();
+    const ruta = document.getElementById("ruta").value;
+
+    // Validar que la ruta no comience con /api/
+    if (ruta.startsWith('/api/') || ruta === '/api') {
+      alert('Routes starting with /api/ are reserved for internal use');
+      return;
+    }
+
+    const codigo = document.getElementById("crespuestaInput").value;
+    const tiporespuesta = document.getElementById("tiporespuesta").value;
+    let respuesta = tiporespuesta === 'proxy'
+      ? document.getElementById("destinoProxy").value
+      : document.getElementById("respuesta").value;
+
+    if (tiporespuesta === 'proxy' && respuesta && !respuesta.startsWith('http://') && !respuesta.startsWith('https://')) {
+      respuesta = 'https://' + respuesta;
+      document.getElementById("destinoProxy").value = respuesta;
+    }
+
+    const esperaActiva = document.getElementById("esperaActiva").checked;
+    const activo = document.getElementById("rutaActiva").checked;
+    const isRegex = document.getElementById("isRegex").checked;
+    const customHeaders = getCustomHeaders();
+
+    // Usar FormData para soportar archivos
+    const formData = new FormData();
+    formData.append('tipo', tipo);
+    formData.append('ruta', ruta);
+    formData.append('codigo', codigo);
+    formData.append('respuesta', respuesta);
+    formData.append('tiporespuesta', tiporespuesta);
+    formData.append('esperaActiva', esperaActiva);
+    formData.append('activo', activo);
+    formData.append('isRegex', isRegex);
+    if (customHeaders) {
+      formData.append('customHeaders', JSON.stringify(customHeaders));
+    }
+
+    // Manejo de archivo
+    if (tiporespuesta === 'file') {
+      if (selectedFile) {
+        formData.append('file', selectedFile);
+      } else if (keepExistingFile) {
+        formData.append('keepFile', 'true');
+      }
+    }
+
+    const response = await fetch('/api/update/' + id, {
+      method: 'PUT',
+      body: formData
+    });
+
+    if (response.status === 200) {
+      tabla.ajax.reload();
+      $("#routesModal").modal('hide');
+    }
+  }
+
+  async function iniciaTarea(id) {
+    const item = document.getElementById('pl-' + id);
+    const defaults = pendingDefaults[id] || {};
+
+    // Obtener valores de los campos
+    const bodyTextarea = document.getElementById('prt-' + id);
+    const headersTextarea = document.getElementById('prh-' + id);
+    const codeInput = document.getElementById('prc-' + id);
+    const typeSelect = document.getElementById('prtype-' + id);
+
+    const customData = {};
+
+    // Body de respuesta
+    if (bodyTextarea && bodyTextarea.value.trim()) {
+      const defaultResponse = defaults.response || item?.dataset.response || '';
+      if (bodyTextarea.value.trim() !== defaultResponse.trim()) {
+        customData.body = bodyTextarea.value.trim();
+      }
+    }
+
+    // Código de respuesta
+    if (codeInput) {
+      const defaultCode = defaults.code || item?.dataset.code || 200;
+      if (parseInt(codeInput.value) !== parseInt(defaultCode)) {
+        customData.code = parseInt(codeInput.value);
+      }
+    }
+
+    // Tipo de respuesta
+    if (typeSelect) {
+      const defaultType = defaults.type || item?.dataset.type || 'json';
+      if (typeSelect.value !== defaultType) {
+        customData.type = typeSelect.value;
+      }
+    }
+
+    // Headers personalizados
+    if (headersTextarea && headersTextarea.value.trim()) {
+      const defaultHeaders = defaults.headers || item?.dataset.headers || '';
+      if (headersTextarea.value.trim() !== defaultHeaders.trim()) {
+        customData.headers = headersTextarea.value.trim();
+      }
+    }
+
+    // Solo enviar customResponse si hay algún cambio
+    const hasChanges = Object.keys(customData).length > 0;
+
+    await fetch('/api/initTask', {
+      method: 'POST',
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, customResponse: hasChanges ? customData : null })
+    });
+  }
+
+  // Almacena los datos por defecto de cada petición pendiente
+  const pendingDefaults = {};
+
+  function addItemToPendingList(item) {
+    setTotalPending(1);
+    // Guardar datos por defecto
+    pendingDefaults[item.id] = {
+      response: item.defaultResponse || '',
+      code: item.codigo || 200,
+      type: item.tiporespuesta || 'json',
+      headers: item.customHeaders || ''
+    };
+
+    // Ocultar estado vacío si existe
+    const emptyState = document.getElementById('pendingEmptyState');
+    if (emptyState) emptyState.style.display = 'none';
+
+    const canFormat = ['json', 'xml', 'soap', 'html'].includes(item.tiporespuesta);
+    const div = document.createElement("div");
+    div.className = 'pending-item';
+    div.id = 'pl-' + item.id;
+    div.dataset.id = item.id;
+    div.dataset.response = item.defaultResponse || '';
+    div.dataset.type = item.tiporespuesta || 'json';
+    div.dataset.code = item.codigo || 200;
+    div.dataset.headers = item.customHeaders || '{}';
+    div.innerHTML = `
+      <div class="pending-item-header">
+        <div class="pending-item-info">
+          <span class="pending-item-url">${item.url}</span>
+          <span class="pending-item-date">${item.date}</span>
+        </div>
+        <div class="pending-item-actions">
+          <button class="btn-icon btn-icon-primary" onclick="togglePendingResponse('${item.id}')" title="Editar respuesta">
+            <i class="fa fa-pencil"></i>
+          </button>
+          <button class="btn-icon btn-icon-success" onclick="iniciaTarea('${item.id}')" title="Liberar">
+            <i class="fa fa-play"></i>
+          </button>
+        </div>
+      </div>
+      <div class="pending-item-response" id="pr-${item.id}" style="display: none;">
+        <div class="pending-response-row">
+          <div class="form-group-modern pending-code-group">
+            <label class="form-label-modern">Código</label>
+            <input type="number" class="form-control-modern" id="prc-${item.id}" value="${item.codigo || 200}" min="100" max="599">
+          </div>
+          <div class="form-group-modern pending-type-group">
+            <label class="form-label-modern">Tipo</label>
+            <select class="form-control-modern" id="prtype-${item.id}" onchange="togglePendingFormatBtn('${item.id}')">
+              <option value="json" ${item.tiporespuesta === 'json' ? 'selected' : ''}>JSON</option>
+              <option value="xml" ${item.tiporespuesta === 'xml' ? 'selected' : ''}>XML</option>
+              <option value="soap" ${item.tiporespuesta === 'soap' ? 'selected' : ''}>SOAP</option>
+              <option value="text" ${item.tiporespuesta === 'text' ? 'selected' : ''}>Texto</option>
+              <option value="html" ${item.tiporespuesta === 'html' ? 'selected' : ''}>HTML</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group-modern">
+          <label class="form-label-modern">Body de respuesta</label>
+          <textarea class="form-control-modern" id="prt-${item.id}" rows="6" placeholder="Dejar vacío para usar la respuesta por defecto">${item.defaultResponse || ''}</textarea>
+        </div>
+        <div class="form-group-modern">
+          <label class="form-label-modern">Headers personalizados (JSON)</label>
+          <textarea class="form-control-modern" id="prh-${item.id}" rows="3" placeholder='{"Content-Type": "application/json"}'>${item.customHeaders || ''}</textarea>
+        </div>
+        <div class="pending-response-actions">
+          <button class="btn-modern btn-modern-secondary btn-sm" onclick="resetPendingResponse('${item.id}')">
+            <i class="fa fa-undo"></i> Restaurar
+          </button>
+          <button class="btn-modern btn-modern-primary btn-sm" id="prfmt-${item.id}" onclick="formatPendingContent('${item.id}')" style="${!canFormat ? 'display:none' : ''}">
+            <i class="fa fa-align-left"></i> Formatear
+          </button>
+        </div>
+      </div>
+    `;
+    document.getElementById('pendingListContainer').appendChild(div);
+  }
+
+  function deleteItemFromPendingList(id) {
+    setTotalPending(-1);
+    delete pendingDefaults[id];
+    const el = document.getElementById("pl-" + id);
+    if (el) el.remove();
+
+    // Mostrar estado vacío si no hay más elementos
+    const container = document.getElementById('pendingListContainer');
+    if (container && container.children.length === 0) {
+      const emptyState = document.getElementById('pendingEmptyState');
+      if (emptyState) emptyState.style.display = 'block';
+    }
+  }
+
+  function togglePendingResponse(id) {
+    const responseDiv = document.getElementById('pr-' + id);
+    if (responseDiv) {
+      const isHidden = responseDiv.style.display === 'none';
+      responseDiv.style.display = isHidden ? 'block' : 'none';
+    }
+  }
+
+  function togglePendingFormatBtn(id) {
+    const typeSelect = document.getElementById('prtype-' + id);
+    const formatBtn = document.getElementById('prfmt-' + id);
+    if (typeSelect && formatBtn) {
+      const canFormat = ['json', 'xml', 'soap', 'html'].includes(typeSelect.value);
+      formatBtn.style.display = canFormat ? '' : 'none';
+    }
+  }
+
+  function resetPendingResponse(id) {
+    const item = document.getElementById('pl-' + id);
+    const defaults = pendingDefaults[id] || {};
+
+    const bodyTextarea = document.getElementById('prt-' + id);
+    const headersTextarea = document.getElementById('prh-' + id);
+    const codeInput = document.getElementById('prc-' + id);
+    const typeSelect = document.getElementById('prtype-' + id);
+
+    if (bodyTextarea) bodyTextarea.value = defaults.response || item?.dataset.response || '';
+    if (headersTextarea) headersTextarea.value = defaults.headers || item?.dataset.headers || '';
+    if (codeInput) codeInput.value = defaults.code || item?.dataset.code || 200;
+    if (typeSelect) {
+      typeSelect.value = defaults.type || item?.dataset.type || 'json';
+      togglePendingFormatBtn(id);
+    }
+  }
+
+  function formatPendingContent(id) {
+    const textarea = document.getElementById('prt-' + id);
+    const typeSelect = document.getElementById('prtype-' + id);
+
+    if (!textarea || !textarea.value.trim()) return;
+
+    const tipo = typeSelect ? typeSelect.value : 'json';
+
+    try {
+      if (tipo === 'json') {
+        const parsed = JSON.parse(textarea.value);
+        textarea.value = JSON.stringify(parsed, null, 2);
+      } else if (tipo === 'xml' || tipo === 'soap') {
+        textarea.value = formatXml(textarea.value);
+      } else if (tipo === 'html') {
+        textarea.value = formatHtml(textarea.value);
+      }
+    } catch (e) {
+      const tipoLabels = { json: 'JSON', xml: 'XML', soap: 'SOAP', html: 'HTML' };
+      alert(`${tipoLabels[tipo] || tipo.toUpperCase()} inválido: ${e.message}`);
+    }
+  }
+
+  function setTotalPending(number) {
+    totalPending = totalPending + number;
+    const badge = document.getElementById('pendingBadge');
+    badge.textContent = totalPending;
+    badge.style.display = totalPending > 0 ? 'flex' : 'none';
+  }
+
+  // ===== TOGGLE ACTIVO =====
+  async function toggleActivo(id, activo) {
+    const response = await fetch('/api/toggle-active/' + id, {
+      method: 'PUT',
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ activo })
+    });
+    if (response.status === 200) {
+      tabla.ajax.reload();
+    }
+  }
+
+  async function toggleEsperaActiva(id, esperaActiva) {
+    const response = await fetch('/api/toggle-wait/' + id, {
+      method: 'PUT',
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ esperaActiva })
+    });
+    if (response.status === 200) {
+      tabla.ajax.reload();
+    }
+  }
+
+  // ===== CURL MODAL =====
+  let currentCurlRoute = null;
+
+  function openCurlModal(id) {
+    const obj = Array.from(tabla.rows().data()).find(el => el.id === id);
+    if (!obj) return;
+
+    currentCurlRoute = obj;
+    const baseUrl = window.location.origin;
+    const method = obj.tipo.toUpperCase();
+    const isRegex = obj.isRegex === 1;
+
+    // Generar ruta de ejemplo para regex (limpiar caracteres especiales)
+    let exampleRoute = obj.ruta;
+    if (isRegex) {
+      exampleRoute = obj.ruta
+        .replace(/\\\?/g, '?')          // Convertir \? a ?
+        .replace(/\\&/g, '&')           // Convertir \& a &
+        .replace(/\\=/g, '=')           // Convertir \= a =
+        .replace(/\\\./g, '.')          // Convertir \. a .
+        .replace(/\.\*/g, '')           // Eliminar .*
+        .replace(/\.\+/g, '')           // Eliminar .+
+        .replace(/\[.*?\]/g, 'x')       // Reemplazar [abc] por x
+        .replace(/\(.*?\)/g, '')        // Eliminar grupos (...)
+        .replace(/\^/g, '')             // Eliminar ^
+        .replace(/\$/g, '')             // Eliminar $
+        .replace(/\{.*?\}/g, '')        // Eliminar cuantificadores {n,m}
+        .replace(/\+/g, '')             // Eliminar +
+        .replace(/\*/g, '')             // Eliminar *
+        .replace(/\/+/g, '/')           // Normalizar múltiples /
+        .replace(/\/$/g, '');           // Eliminar / final
+      if (!exampleRoute.startsWith('/')) exampleRoute = '/' + exampleRoute;
+    }
+
+    const fullUrl = baseUrl + exampleRoute;
+    const cleanRoute = exampleRoute; // Guardar ruta limpia para el botón
+
+    // Actualizar info
+    document.getElementById('curlMethod').textContent = method;
+    document.getElementById('curlMethod').className = `badge-modern badge-${obj.tipo}`;
+    document.getElementById('curlRoute').textContent = isRegex ? `${obj.ruta} (regex)` : obj.ruta;
+    document.getElementById('curlFullUrl').textContent = fullUrl;
+
+    // Generar comando curl
+    let curlCmd = `curl -X ${method} "${fullUrl}"`;
+
+    if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
+      curlCmd += ` \\\n  -H "Content-Type: application/json" \\\n  -d '{}'`;
+    }
+
+    document.getElementById('curlCommand').textContent = curlCmd;
+
+    // Mostrar boton de abrir solo para GET (incluyendo rutas regex)
+    const openSection = document.getElementById('curlOpenSection');
+    if (method === 'GET') {
+      openSection.style.display = 'block';
+      // Guardar la ruta limpia para usar en el botón
+      openSection.dataset.cleanRoute = cleanRoute;
+    } else {
+      openSection.style.display = 'none';
+    }
+
+    $("#curlModal").modal('show');
+  }
+
+  function copyCurl() {
+    const curlText = document.getElementById('curlCommand').textContent;
+    navigator.clipboard.writeText(curlText).then(() => {
+      const btn = document.querySelector('#curlModal .btn-modern-secondary.btn-sm');
+      const originalHtml = btn.innerHTML;
+      btn.innerHTML = '<i class="fa fa-check"></i> Copiado';
+      setTimeout(() => {
+        btn.innerHTML = originalHtml;
+      }, 2000);
+    });
+  }
+
+  function openRouteInBrowser() {
+    if (currentCurlRoute && currentCurlRoute.tipo === 'get') {
+      const openSection = document.getElementById('curlOpenSection');
+      const cleanRoute = openSection.dataset.cleanRoute || currentCurlRoute.ruta;
+      window.open(cleanRoute, '_blank');
+    }
+  }
+
+  // Initialize tooltips
+  var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+  tooltipTriggerList.map(el => new bootstrap.Tooltip(el));
+</script>

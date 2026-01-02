@@ -1,0 +1,24 @@
+{
+  "name": "mock-server",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "start": "node app.js",
+    "start:local": "nodemon app.js"
+  },
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "cors": "^2.8.5",
+    "ejs": "~3.1.10",
+    "express": "^4.22.1",
+    "express-ejs-layouts": "^2.5.1",
+    "moment": "^2.29.4",
+    "morgan": "^1.10.1",
+    "multer": "^1.4.5-lts.1",
+    "socket.io": "^4.7.2",
+    "sqlite3": "^5.1.6"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}
