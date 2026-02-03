@@ -2,12 +2,27 @@
     <div class="d-flex align-items-center justify-content-between w-100">
         <a class="navbar-brand" href="/">
             <img src="/images/favicon/favicon-32x32.png" alt="logo" width="32" height="32">
-            <span class="brand-text">Mock Server</span>
+            <span class="brand-text"><%= __('app.title') %></span>
         </a>
-        <button class="navbar-status-btn" id="serverStatus" onclick="openConnectionModal()" title="Ver estado de conexión">
-            <span class="status-dot" id="statusDot"></span>
-            <span id="statusText">Conectando...</span>
-            <i class="fa fa-chevron-down status-arrow"></i>
-        </button>
+        <div class="d-flex align-items-center gap-3">
+            <!-- Selector de idioma -->
+            <div class="language-selector dropdown">
+                <button class="btn-language dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <img src="/images/flags/<%= locale %>.svg" alt="<%= locale %>" class="lang-flag-img">
+                    <span class="lang-code"><%= locale.toUpperCase() %></span>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li><a class="dropdown-item <%= locale === 'es' ? 'active' : '' %>" href="/lang/es"><img src="/images/flags/es.svg" alt="ES" class="lang-flag-img"> <%= __('languages.es') %></a></li>
+                    <li><a class="dropdown-item <%= locale === 'en' ? 'active' : '' %>" href="/lang/en"><img src="/images/flags/en.svg" alt="EN" class="lang-flag-img"> <%= __('languages.en') %></a></li>
+                    <li><a class="dropdown-item <%= locale === 'gl' ? 'active' : '' %>" href="/lang/gl"><img src="/images/flags/gl.svg" alt="GL" class="lang-flag-img"> <%= __('languages.gl') %></a></li>
+                </ul>
+            </div>
+            <!-- Estado del servidor -->
+            <button class="navbar-status-btn" id="serverStatus" onclick="openConnectionModal()" title="<%= __('nav.viewStatus') %>">
+                <span class="status-dot" id="statusDot"></span>
+                <span id="statusText"><%= __('nav.connecting') %></span>
+                <i class="fa fa-chevron-down status-arrow"></i>
+            </button>
+        </div>
     </div>
 </nav>
