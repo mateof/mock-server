@@ -56,6 +56,9 @@ app.set('views', path.join(__dirname, 'views'));
 app.set('layout', './layout/layout');
 app.set('view engine', 'ejs');
 
+// Variables globales para vistas
+app.locals.version = require('./package.json').version;
+
 // Middlewares
 app.use(cors({ credentials: true, origin: '*' }));
 app.use(expressLayouts);
@@ -82,6 +85,25 @@ console.log('[APP] Rutas registradas');
 app.use(routesMiddleware.checkRoute);
 
 // ============================================
+// MIDDLEWARE DE PROXY (placeholder)
+// Se configura después de inicializar la BD
+// ============================================
+
+// Middleware de proxy que se activa después de la inicialización
+let proxyHandler = null;
+app.use((req, res, next) => {
+  if (proxyHandler) {
+    return proxyHandler(req, res, next);
+  }
+  next();
+});
+
+// Función para establecer el handler de proxy
+app.setProxyHandler = (handler) => {
+  proxyHandler = handler;
+};
+
+// ============================================
 // MANEJO DE ERRORES
 // ============================================
 
@@ -98,6 +120,7 @@ app.use(function (err, req, res, next) {
 
   res.locals.message = err.message;
   res.locals.error = req.app.get('env') === 'development' ? err : {};
+  res.locals.version = require('./package.json').version;
 
   res.status(err.status || 500);
   res.render('error');

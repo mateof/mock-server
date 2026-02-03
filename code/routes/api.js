@@ -75,6 +75,7 @@ router.post('/create', upload.single('file'), async function(req, res, next) {
     const db = sqliteService.getDatabase();
     const customHeaders = req.body.customHeaders ? JSON.stringify(req.body.customHeaders) : null;
     const activo = req.body.activo !== 'false' && req.body.activo !== false ? 1 : 0;
+    const esperaActiva = req.body.esperaActiva === 'true' || req.body.esperaActiva === true ? 1 : 0;
     const isProxy = req.body.tiporespuesta === 'proxy';
     const isFile = req.body.tiporespuesta === 'file';
 
@@ -94,7 +95,7 @@ router.post('/create', upload.single('file'), async function(req, res, next) {
     }
 
     db.run(`INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders, activo, orden, fileName, filePath, fileMimeType) values (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-        [req.body.tipo, req.body.ruta, req.body.codigo, req.body.respuesta, req.body.tiporespuesta, req.body.esperaActiva, req.body.isRegex === 'true' || req.body.isRegex === true ? 1 : 0, customHeaders, activo, orden, fileName, filePath, fileMimeType],
+        [req.body.tipo, req.body.ruta, req.body.codigo, req.body.respuesta, req.body.tiporespuesta, esperaActiva, req.body.isRegex === 'true' || req.body.isRegex === true ? 1 : 0, customHeaders, activo, orden, fileName, filePath, fileMimeType],
         function(err) {
             if (err) {
                 console.log(err.message);
@@ -133,6 +134,7 @@ router.put('/update/:id', upload.single('file'), async function(req, res) {
     const id = req.params.id;
     const customHeaders = req.body.customHeaders ? JSON.stringify(req.body.customHeaders) : null;
     const activo = req.body.activo !== 'false' && req.body.activo !== false ? 1 : 0;
+    const esperaActiva = req.body.esperaActiva === 'true' || req.body.esperaActiva === true ? 1 : 0;
     const isProxy = req.body.tiporespuesta === 'proxy';
     const isFile = req.body.tiporespuesta === 'file';
 
@@ -191,7 +193,7 @@ router.put('/update/:id', upload.single('file'), async function(req, res) {
     }
 
     db.run(`UPDATE rutas SET tipo = ?, ruta = ?, codigo = ?, respuesta = ?, tiporespuesta = ?, esperaActiva = ?, isRegex = ?, customHeaders = ?, activo = ?, orden = ?, fileName = ?, filePath = ?, fileMimeType = ? WHERE id = ?`,
-        [req.body.tipo, req.body.ruta, req.body.codigo, req.body.respuesta, req.body.tiporespuesta, req.body.esperaActiva, req.body.isRegex === 'true' || req.body.isRegex === true ? 1 : 0, customHeaders, activo, newOrden, fileName, filePath, fileMimeType, id],
+        [req.body.tipo, req.body.ruta, req.body.codigo, req.body.respuesta, req.body.tiporespuesta, esperaActiva, req.body.isRegex === 'true' || req.body.isRegex === true ? 1 : 0, customHeaders, activo, newOrden, fileName, filePath, fileMimeType, id],
         function(err) {
             if (err) {
                 console.log(err.message);

@@ -123,11 +123,15 @@ async function configureProxy(app) {
 
     if (proxyConfigs.length === 0) {
         console.log('[PROXY] No existen proxys en la base de datos');
+        // Establecer handler vacío que pasa al siguiente middleware
+        if (app.setProxyHandler) {
+            app.setProxyHandler((req, res, next) => next());
+        }
         return;
     }
 
     // Middleware de proxy personalizado
-    app.use(async (req, res, next) => {
+    const proxyHandler = async (req, res, next) => {
         const requestStart = Date.now();
         const requestPath = req.url;
 
@@ -191,6 +195,13 @@ async function configureProxy(app) {
             }
 
             console.log(`[PROXY] Path final: ${targetPath}`);
+
+            // Log prominente de la URL destino completa
+            const fullTargetUrl = `${targetUrl.protocol}//${targetUrl.host}${targetPath}`;
+            console.log(`[PROXY] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>`);
+            console.log(`[PROXY] >>> PROXY: ${req.method} ${requestPath}`);
+            console.log(`[PROXY] >>> DESTINO: ${fullTargetUrl}`);
+            console.log(`[PROXY] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>`);
 
             const options = {
                 hostname: targetUrl.hostname,
@@ -360,9 +371,17 @@ async function configureProxy(app) {
                 res.status(500).json({ error: 'Proxy configuration error', message: err.message });
             }
         }
-    });
+    };
 
-    console.log('[PROXY] Middleware de proxy configurado correctamente');
+    // Registrar el handler en el app
+    if (app.setProxyHandler) {
+        app.setProxyHandler(proxyHandler);
+        console.log('[PROXY] Middleware de proxy configurado correctamente via setProxyHandler');
+    } else {
+        // Fallback para compatibilidad
+        app.use(proxyHandler);
+        console.log('[PROXY] Middleware de proxy configurado correctamente via app.use');
+    }
 }
 
 // Función para recargar la configuración de proxy sin reiniciar
