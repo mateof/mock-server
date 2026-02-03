@@ -20,6 +20,7 @@ COPY routes ./routes
 COPY services ./services
 COPY views ./views
 COPY public ./public
+COPY locales ./locales
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S appgroup && \
