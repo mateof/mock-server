@@ -1,0 +1,246 @@
+{
+  "app": {
+    "title": "Mock Server"
+  },
+  "nav": {
+    "connecting": "Conectando...",
+    "serverActive": "Servidor activo",
+    "serverInactive": "Servidor inactivo",
+    "reconnecting": "Reconectando...",
+    "viewStatus": "Ver estado de conexión"
+  },
+  "routes": {
+    "title": "Rutas Configuradas",
+    "newRoute": "Nueva Ruta",
+    "editRoute": "Editar Ruta",
+    "pendingList": "Pendientes",
+    "normalize": "Normalizar",
+    "normalizeTitle": "Reorganizar órdenes secuencialmente"
+  },
+  "table": {
+    "id": "id",
+    "order": "Orden",
+    "method": "Metodo",
+    "route": "Ruta",
+    "type": "Tipo",
+    "code": "Codigo",
+    "regex": "Regex",
+    "wait": "Espera",
+    "active": "Activo",
+    "actions": "Acciones",
+    "search": "Buscar:",
+    "showEntries": "Mostrar _MENU_ rutas",
+    "info": "Mostrando _START_ a _END_ de _TOTAL_ rutas",
+    "emptyTable": "No hay rutas configuradas",
+    "noResults": "No hay rutas configuradas"
+  },
+  "filters": {
+    "method": "Metodo",
+    "route": "Ruta",
+    "responseType": "Tipo Resp.",
+    "code": "Codigo",
+    "regex": "Regex",
+    "wait": "Espera",
+    "active": "Activo",
+    "clear": "Limpiar",
+    "all": "Todos",
+    "contains": "Contiene",
+    "startsWith": "Empieza por",
+    "endsWith": "Termina por",
+    "equals": "Es igual a",
+    "regexOption": "Regex",
+    "searchRoute": "Buscar ruta...",
+    "success2xx": "2xx (Exito)",
+    "redirect3xx": "3xx (Redireccion)",
+    "clientError4xx": "4xx (Error cliente)",
+    "serverError5xx": "5xx (Error servidor)",
+    "yes": "Si",
+    "no": "No"
+  },
+  "form": {
+    "responseType": "Tipo de Respuesta",
+    "httpMethod": "Metodo HTTP",
+    "route": "Ruta",
+    "responseCode": "Codigo de Respuesta",
+    "response": "Respuesta",
+    "proxyDestination": "URL Destino",
+    "fileToReturn": "Archivo a devolver",
+    "customHeaders": "Headers Personalizados",
+    "waitMode": "Modo Espera Activa",
+    "routeActive": "Ruta Activa",
+    "testRegex": "Probar Regex",
+    "placeholder": {
+      "route": "/api/ejemplo",
+      "proxyUrl": "https://api.example.com",
+      "response": "{\"message\": \"Hello World\"}",
+      "testUrl": "/api/users/123",
+      "headersJson": "{\"Content-Type\": \"application/json\"}",
+      "leaveEmpty": "Dejar vacío para usar la respuesta por defecto"
+    },
+    "help": {
+      "proxyExample": "Ejemplo: Si ruta es /fake-api/ y destino es https://api.real.com, una petición a /fake-api/users se redirigirá a https://api.real.com/users",
+      "fileHelp": "El archivo se devolverá con el Content-Type correspondiente a su tipo MIME",
+      "waitModeDesc": "Las peticiones se pausaran hasta que las liberes manualmente desde \"Lista Pendientes\".",
+      "routeActiveDesc": "Si esta desactivada, las peticiones no seran interceptadas por esta ruta.",
+      "headersHelp": "Set: Añade o sobreescribe el header | Remove: Elimina el header de la respuesta"
+    }
+  },
+  "responseTypes": {
+    "json": "JSON",
+    "xml": "XML",
+    "soap": "SOAP",
+    "text": "Texto plano",
+    "html": "HTML",
+    "page": "Page (render)",
+    "file": "Archivo",
+    "proxy": "Proxy",
+    "empty": "Sin Body"
+  },
+  "buttons": {
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "deleting": "Eliminando...",
+    "update": "Actualizar",
+    "close": "Cerrar",
+    "validate": "Validar",
+    "format": "Formatear",
+    "add": "Añadir",
+    "copy": "Copiar",
+    "copied": "Copiado",
+    "clear": "Clear",
+    "auto": "Auto",
+    "export": "Export",
+    "release": "Liberar",
+    "restore": "Restaurar",
+    "openNewTab": "Abrir en nueva pestaña"
+  },
+  "modal": {
+    "confirmDelete": "Confirmar Eliminación",
+    "deleteMessage": "¿Estás seguro de que deseas eliminar esta ruta?",
+    "deleteWarning": "Esta acción no se puede deshacer.",
+    "curlExample": "Ejemplo de Petición",
+    "connectionStatus": "Estado de Conexión",
+    "pendingRequests": "Lista de Pendientes",
+    "editResponse": "Editar respuesta",
+    "releaseRequest": "Liberar"
+  },
+  "curl": {
+    "method": "Metodo:",
+    "route": "Ruta:",
+    "fullUrl": "URL completa:",
+    "command": "Comando cURL"
+  },
+  "pending": {
+    "id": "id",
+    "url": "Url",
+    "date": "Date",
+    "actions": "Acciones",
+    "code": "Código",
+    "type": "Tipo",
+    "responseBody": "Body de respuesta",
+    "customHeadersJson": "Headers personalizados (JSON)",
+    "noPending": "No hay peticiones pendientes"
+  },
+  "connection": {
+    "connected": "Conectado",
+    "disconnected": "Desconectado",
+    "reconnecting": "Reconectando...",
+    "generalInfo": "Información General",
+    "type": "Tipo de conexión:",
+    "serverUrl": "URL del servidor:",
+    "sessionId": "ID de sesión:",
+    "time": "Tiempo",
+    "connectedSince": "Conectado desde:",
+    "connectedTime": "Tiempo conectado:",
+    "latency": "Latencia (ping):",
+    "dataTransfer": "Transferencia de Datos",
+    "messagesReceived": "Mensajes recibidos:",
+    "messagesSent": "Mensajes enviados:",
+    "consoleEvents": "Eventos de consola:",
+    "reconnections": "Reconexiones",
+    "reconnectCount": "Reconexiones:",
+    "lastReconnect": "Última reconexión:"
+  },
+  "terminal": {
+    "title": "Mock Server Terminal",
+    "clearTitle": "Limpiar terminal",
+    "autoScrollTitle": "Auto-scroll",
+    "exportTitle": "Exportar logs",
+    "cleared": "Terminal limpiado",
+    "disconnected": "Desconectado del servidor",
+    "reconnecting": "Intentando reconectar...",
+    "reconnectFailed": "Fallo al reconectar"
+  },
+  "validation": {
+    "regexValid": "Regex valida",
+    "regexInvalid": "Regex invalida",
+    "urlMatches": "URL coincide",
+    "urlNoMatch": "URL no coincide",
+    "enterRegex": "Introduce una expresion regular",
+    "errorValidating": "Error al validar",
+    "jsonInvalid": "JSON inválido",
+    "xmlInvalid": "XML inválido",
+    "soapInvalid": "SOAP inválido",
+    "htmlInvalid": "HTML inválido",
+    "orderPositive": "El orden debe ser un número positivo"
+  },
+  "confirm": {
+    "normalizeOrder": "¿Reorganizar todos los órdenes secuencialmente?\n\nLas rutas normales tendrán orden 1, 2, 3...\nLos proxies estarán al final con orden 99999999, 99999998...",
+    "reservedRoute": "Las rutas que comienzan con /api/ están reservadas para uso interno"
+  },
+  "errors": {
+    "normalizing": "Error normalizando órdenes",
+    "movingRoute": "Error moviendo ruta",
+    "updatingOrder": "Error actualizando orden"
+  },
+  "empty": {
+    "noHeaders": "No hay headers configurados"
+  },
+  "actions": {
+    "moveUp": "Subir prioridad",
+    "moveDown": "Bajar prioridad",
+    "editOrder": "Editar orden manualmente",
+    "proxyNoWait": "Los proxy no soportan espera activa",
+    "disableWait": "Desactivar espera activa",
+    "enableWait": "Activar espera activa",
+    "disableRoute": "Desactivar ruta",
+    "enableRoute": "Activar ruta",
+    "viewExample": "Ver ejemplo",
+    "edit": "Editar",
+    "deleteRoute": "Eliminar"
+  },
+  "footer": {
+    "github": "GitHub",
+    "docs": "Docs"
+  },
+  "httpCodes": {
+    "200": "OK",
+    "201": "Created",
+    "204": "No Content",
+    "301": "Moved Permanently",
+    "302": "Found",
+    "304": "Not Modified",
+    "400": "Bad Request",
+    "401": "Unauthorized",
+    "403": "Forbidden",
+    "404": "Not Found",
+    "405": "Method Not Allowed",
+    "409": "Conflict",
+    "422": "Unprocessable Entity",
+    "429": "Too Many Requests",
+    "500": "Internal Server Error",
+    "502": "Bad Gateway",
+    "503": "Service Unavailable",
+    "504": "Gateway Timeout"
+  },
+  "headerActions": {
+    "set": "Set",
+    "remove": "Remove"
+  },
+  "languages": {
+    "es": "Español",
+    "en": "English",
+    "gl": "Galego"
+  }
+}

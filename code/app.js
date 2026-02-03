@@ -12,6 +12,8 @@ const http = require('http');
 const expressLayouts = require('express-ejs-layouts');
 const cors = require('cors');
 const chalk = require('chalk');
+const cookieParser = require('cookie-parser');
+const i18n = require('i18n');
 
 // ===== SERVICIOS =====
 const sqliteService = require('./services/sqlite.service');
@@ -59,8 +61,36 @@ app.set('view engine', 'ejs');
 // Variables globales para vistas
 app.locals.version = require('./package.json').version;
 
+// ============================================
+// CONFIGURACIÓN DE INTERNACIONALIZACIÓN (i18n)
+// ============================================
+
+i18n.configure({
+  locales: ['es', 'en', 'gl'],
+  defaultLocale: 'es',
+  directory: path.join(__dirname, 'locales'),
+  cookie: 'mock-server-lang',
+  queryParameter: 'lang',
+  autoReload: true,
+  updateFiles: false,
+  syncFiles: false,
+  objectNotation: true
+});
+
 // Middlewares
 app.use(cors({ credentials: true, origin: '*' }));
+app.use(cookieParser());
+app.use(i18n.init);
+
+// Middleware para exponer i18n a las vistas
+app.use((req, res, next) => {
+  res.locals.__ = res.__;
+  res.locals.__n = res.__n;
+  res.locals.locale = req.getLocale();
+  res.locals.locales = i18n.getLocales();
+  next();
+});
+
 app.use(expressLayouts);
 app.use(logger('dev'));
 app.use(express.json({ limit: '50mb' }));

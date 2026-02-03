@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="<%= locale %>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mock Server</title>
+    <title><%= __('app.title') %></title>
     <link rel="icon" type="image/x-icon" href="/images/favicon/favicon.ico">
 
     <!-- Fonts -->
@@ -24,6 +24,44 @@
     <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.js"></script>
+
+    <!-- i18n para JavaScript frontend -->
+    <script>
+        window.i18n = {
+            locale: '<%= locale %>',
+            translations: <%- JSON.stringify({
+                nav: __('nav'),
+                table: __('table'),
+                terminal: __('terminal'),
+                validation: __('validation'),
+                confirm: __('confirm'),
+                errors: __('errors'),
+                buttons: __('buttons'),
+                connection: __('connection'),
+                responseTypes: __('responseTypes'),
+                httpCodes: __('httpCodes')
+            }) %>
+        };
+
+        // Helper function para traducciones en JS
+        function t(key, params = {}) {
+            const keys = key.split('.');
+            let value = window.i18n.translations;
+            for (const k of keys) {
+                if (value && typeof value === 'object' && k in value) {
+                    value = value[k];
+                } else {
+                    return key;
+                }
+            }
+            if (typeof value === 'string') {
+                Object.entries(params).forEach(([param, val]) => {
+                    value = value.replace(new RegExp(`{{${param}}}`, 'g'), val);
+                });
+            }
+            return value || key;
+        }
+    </script>
 </head>
 <body>
     <%- include('../partials/header.ejs') %>

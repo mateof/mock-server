@@ -2,13 +2,13 @@
   <!-- Routes Card -->
   <div class="card-modern animate-fade-in">
     <div class="card-header-modern">
-      <h2><i class="fa fa-sitemap"></i> Rutas Configuradas</h2>
+      <h2><i class="fa fa-sitemap"></i> <%= __('routes.title') %></h2>
       <div class="d-flex gap-2">
-        <button type="button" class="btn-modern btn-modern-secondary" onclick="normalizeOrder()" title="Reorganizar órdenes secuencialmente">
-          <i class="fa fa-sort-numeric-asc"></i> Normalizar
+        <button type="button" class="btn-modern btn-modern-secondary" onclick="normalizeOrder()" title="<%= __('routes.normalizeTitle') %>">
+          <i class="fa fa-sort-numeric-asc"></i> <%= __('routes.normalize') %>
         </button>
         <button type="button" class="btn-modern btn-modern-secondary" onclick="openList()" style="position: relative;">
-          <i class="fa fa-list"></i> Pendientes
+          <i class="fa fa-list"></i> <%= __('routes.pendingList') %>
           <% if (listaEspera.length > 0) { %>
           <span id="pendingBadge" class="pending-badge"><%=listaEspera.length %></span>
           <% } else { %>
@@ -16,7 +16,7 @@
           <% } %>
         </button>
         <button type="button" class="btn-modern btn-modern-primary" onclick="openModal('create')">
-          <i class="fa fa-plus"></i> Nueva Ruta
+          <i class="fa fa-plus"></i> <%= __('routes.newRoute') %>
         </button>
       </div>
     </div>
@@ -24,9 +24,9 @@
       <!-- Filtros de tabla -->
       <div class="table-filters">
         <div class="filter-group">
-          <label class="filter-label" for="filterMethod">Metodo</label>
+          <label class="filter-label" for="filterMethod"><%= __('filters.method') %></label>
           <select id="filterMethod" name="filterMethod" class="filter-select" onchange="applyFilters()">
-            <option value="">Todos</option>
+            <option value=""><%= __('filters.all') %></option>
             <option value="get">GET</option>
             <option value="post">POST</option>
             <option value="put">PUT</option>
@@ -38,22 +38,22 @@
           </select>
         </div>
         <div class="filter-group filter-group-large">
-          <label class="filter-label" for="filterRouteValue">Ruta</label>
+          <label class="filter-label" for="filterRouteValue"><%= __('filters.route') %></label>
           <div class="filter-route-wrapper">
             <select id="filterRouteType" name="filterRouteType" class="filter-select filter-route-type" onchange="applyFilters()">
-              <option value="contains">Contiene</option>
-              <option value="startsWith">Empieza por</option>
-              <option value="endsWith">Termina por</option>
-              <option value="equals">Es igual a</option>
-              <option value="regex">Regex</option>
+              <option value="contains"><%= __('filters.contains') %></option>
+              <option value="startsWith"><%= __('filters.startsWith') %></option>
+              <option value="endsWith"><%= __('filters.endsWith') %></option>
+              <option value="equals"><%= __('filters.equals') %></option>
+              <option value="regex"><%= __('filters.regexOption') %></option>
             </select>
-            <input type="text" id="filterRouteValue" name="filterRouteValue" class="filter-input" placeholder="Buscar ruta..." oninput="applyFilters()">
+            <input type="text" id="filterRouteValue" name="filterRouteValue" class="filter-input" placeholder="<%= __('filters.searchRoute') %>" oninput="applyFilters()">
           </div>
         </div>
         <div class="filter-group">
-          <label class="filter-label" for="filterType">Tipo Resp.</label>
+          <label class="filter-label" for="filterType"><%= __('filters.responseType') %></label>
           <select id="filterType" name="filterType" class="filter-select" onchange="applyFilters()">
-            <option value="">Todos</option>
+            <option value=""><%= __('filters.all') %></option>
             <option value="json">JSON</option>
             <option value="xml">XML</option>
             <option value="soap">SOAP</option>
@@ -66,42 +66,42 @@
           </select>
         </div>
         <div class="filter-group">
-          <label class="filter-label" for="filterCode">Codigo</label>
+          <label class="filter-label" for="filterCode"><%= __('filters.code') %></label>
           <select id="filterCode" name="filterCode" class="filter-select" onchange="applyFilters()">
-            <option value="">Todos</option>
-            <option value="2xx">2xx (Exito)</option>
-            <option value="3xx">3xx (Redireccion)</option>
-            <option value="4xx">4xx (Error cliente)</option>
-            <option value="5xx">5xx (Error servidor)</option>
+            <option value=""><%= __('filters.all') %></option>
+            <option value="2xx"><%= __('filters.success2xx') %></option>
+            <option value="3xx"><%= __('filters.redirect3xx') %></option>
+            <option value="4xx"><%= __('filters.clientError4xx') %></option>
+            <option value="5xx"><%= __('filters.serverError5xx') %></option>
           </select>
         </div>
         <div class="filter-group">
-          <label class="filter-label" for="filterRegex">Regex</label>
+          <label class="filter-label" for="filterRegex"><%= __('filters.regex') %></label>
           <select id="filterRegex" name="filterRegex" class="filter-select" onchange="applyFilters()">
-            <option value="">Todos</option>
-            <option value="1">Si</option>
-            <option value="0">No</option>
+            <option value=""><%= __('filters.all') %></option>
+            <option value="1"><%= __('filters.yes') %></option>
+            <option value="0"><%= __('filters.no') %></option>
           </select>
         </div>
         <div class="filter-group">
-          <label class="filter-label" for="filterWait">Espera</label>
+          <label class="filter-label" for="filterWait"><%= __('filters.wait') %></label>
           <select id="filterWait" name="filterWait" class="filter-select" onchange="applyFilters()">
-            <option value="">Todos</option>
-            <option value="1">Si</option>
-            <option value="0">No</option>
+            <option value=""><%= __('filters.all') %></option>
+            <option value="1"><%= __('filters.yes') %></option>
+            <option value="0"><%= __('filters.no') %></option>
           </select>
         </div>
         <div class="filter-group">
-          <label class="filter-label" for="filterActivo">Activo</label>
+          <label class="filter-label" for="filterActivo"><%= __('filters.active') %></label>
           <select id="filterActivo" name="filterActivo" class="filter-select" onchange="applyFilters()">
-            <option value="">Todos</option>
-            <option value="1">Si</option>
-            <option value="0">No</option>
+            <option value=""><%= __('filters.all') %></option>
+            <option value="1"><%= __('filters.yes') %></option>
+            <option value="0"><%= __('filters.no') %></option>
           </select>
         </div>
         <div class="filter-group filter-actions">
-          <button class="btn-filter-clear" onclick="clearFilters()" title="Limpiar filtros">
-            <i class="fa fa-times"></i> Limpiar
+          <button class="btn-filter-clear" onclick="clearFilters()" title="<%= __('filters.clear') %>">
+            <i class="fa fa-times"></i> <%= __('filters.clear') %>
           </button>
         </div>
       </div>
@@ -110,16 +110,16 @@
         <table id="dtList" class="table-modern" style="width:100%">
           <thead>
             <tr>
-              <th>id</th>
-              <th>Orden</th>
-              <th>Metodo</th>
-              <th>Ruta</th>
-              <th>Tipo</th>
-              <th>Codigo</th>
-              <th>Regex</th>
-              <th>Espera</th>
-              <th>Activo</th>
-              <th>Acciones</th>
+              <th><%= __('table.id') %></th>
+              <th><%= __('table.order') %></th>
+              <th><%= __('table.method') %></th>
+              <th><%= __('table.route') %></th>
+              <th><%= __('table.type') %></th>
+              <th><%= __('table.code') %></th>
+              <th><%= __('table.regex') %></th>
+              <th><%= __('table.wait') %></th>
+              <th><%= __('table.active') %></th>
+              <th><%= __('table.actions') %></th>
             </tr>
           </thead>
           <tbody>
@@ -138,16 +138,16 @@
           <span class="dot yellow"></span>
           <span class="dot green"></span>
         </div>
-        <span class="title">Mock Server Terminal</span>
+        <span class="title"><%= __('terminal.title') %></span>
         <div class="terminal-actions">
-          <button onclick="Terminal.clear()" title="Limpiar terminal">
-            <i class="fa fa-trash"></i> Clear
+          <button onclick="Terminal.clear()" title="<%= __('terminal.clearTitle') %>">
+            <i class="fa fa-trash"></i> <%= __('buttons.clear') %>
           </button>
-          <button onclick="Terminal.toggleAutoScroll()" id="btnAutoScroll" title="Auto-scroll">
-            <i class="fa fa-arrow-down"></i> Auto
+          <button onclick="Terminal.toggleAutoScroll()" id="btnAutoScroll" title="<%= __('terminal.autoScrollTitle') %>">
+            <i class="fa fa-arrow-down"></i> <%= __('buttons.auto') %>
           </button>
-          <button onclick="Terminal.exportLogs()" title="Exportar logs">
-            <i class="fa fa-download"></i> Export
+          <button onclick="Terminal.exportLogs()" title="<%= __('terminal.exportTitle') %>">
+            <i class="fa fa-download"></i> <%= __('buttons.export') %>
           </button>
         </div>
       </div>
@@ -164,7 +164,7 @@
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="titleModal"><i class="fa fa-route me-2"></i>Nueva Ruta</h5>
+        <h5 class="modal-title" id="titleModal"><i class="fa fa-route me-2"></i><%= __('routes.newRoute') %></h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
@@ -172,23 +172,23 @@
 
         <!-- Tipo de Respuesta -->
         <div class="form-group-modern" id="divtresp">
-          <label class="form-label-modern" for="tiporespuesta">Tipo de Respuesta</label>
+          <label class="form-label-modern" for="tiporespuesta"><%= __('form.responseType') %></label>
           <select class="form-control-modern form-select-modern" onchange="checkRespuesta()" id="tiporespuesta" name="tiporespuesta">
-            <option value="json" selected>JSON</option>
-            <option value="xml">XML</option>
-            <option value="soap">SOAP</option>
-            <option value="text">Texto plano</option>
-            <option value="html">HTML</option>
-            <option value="page">Page (render)</option>
-            <option value="file">Archivo</option>
-            <option value="proxy">Proxy</option>
-            <option value="empty">Sin Body</option>
+            <option value="json" selected><%= __('responseTypes.json') %></option>
+            <option value="xml"><%= __('responseTypes.xml') %></option>
+            <option value="soap"><%= __('responseTypes.soap') %></option>
+            <option value="text"><%= __('responseTypes.text') %></option>
+            <option value="html"><%= __('responseTypes.html') %></option>
+            <option value="page"><%= __('responseTypes.page') %></option>
+            <option value="file"><%= __('responseTypes.file') %></option>
+            <option value="proxy"><%= __('responseTypes.proxy') %></option>
+            <option value="empty"><%= __('responseTypes.empty') %></option>
           </select>
         </div>
 
         <!-- Metodo HTTP -->
         <div class="form-group-modern" id="divtipo">
-          <label class="form-label-modern" for="tipoSelect">Metodo HTTP</label>
+          <label class="form-label-modern" for="tipoSelect"><%= __('form.httpMethod') %></label>
           <select class="form-control-modern form-select-modern" id="tipoSelect" name="tipoSelect">
             <option value="0" selected>GET</option>
             <option value="1">POST</option>
@@ -203,24 +203,24 @@
 
         <!-- Ruta -->
         <div class="form-group-modern" id="divruta">
-          <label class="form-label-modern" for="ruta">Ruta</label>
+          <label class="form-label-modern" for="ruta"><%= __('form.route') %></label>
           <div class="input-group-modern">
-            <input type="text" class="form-control-modern" id="ruta" name="ruta" placeholder="/api/ejemplo"
+            <input type="text" class="form-control-modern" id="ruta" name="ruta" placeholder="<%= __('form.placeholder.route') %>"
               oninput="validateRegexIfEnabled()">
             <div class="input-addon">
               <input class="form-check-input me-2" type="checkbox" id="isRegex" name="isRegex" onchange="toggleRegexMode()">
-              <label class="form-check-label" for="isRegex">Regex</label>
+              <label class="form-check-label" for="isRegex"><%= __('filters.regex') %></label>
             </div>
           </div>
         </div>
 
         <!-- Validador Regex -->
         <div class="form-group-modern" id="divRegexValidator" style="display: none;">
-          <label class="form-label-modern" for="regexTestUrl">Probar Regex</label>
+          <label class="form-label-modern" for="regexTestUrl"><%= __('form.testRegex') %></label>
           <div class="input-group-modern">
-            <input type="text" class="form-control-modern" id="regexTestUrl" name="regexTestUrl" placeholder="/api/users/123" oninput="testRegex()">
+            <input type="text" class="form-control-modern" id="regexTestUrl" name="regexTestUrl" placeholder="<%= __('form.placeholder.testUrl') %>" oninput="testRegex()">
             <button class="btn-modern btn-modern-secondary" type="button" onclick="testRegex()" style="border-radius: 0 var(--border-radius-sm) var(--border-radius-sm) 0;">
-              Validar
+              <%= __('buttons.validate') %>
             </button>
           </div>
           <div id="regexResult" class="mt-2"></div>
@@ -228,7 +228,7 @@
 
         <!-- Codigo de Respuesta -->
         <div class="form-group-modern" id="divcodresp">
-          <label class="form-label-modern" for="crespuestaInput">Codigo de Respuesta</label>
+          <label class="form-label-modern" for="crespuestaInput"><%= __('form.responseCode') %></label>
           <div class="d-flex gap-3 align-items-center">
             <input type="text" class="form-control-modern" id="crespuestaInput" name="crespuestaInput" list="httpCodes" value="200"
               oninput="updateCodeDescription()" autocomplete="off" style="max-width: 100px;">
@@ -259,27 +259,26 @@
         <!-- Respuesta -->
         <div class="form-group-modern" id="divresp">
           <div class="form-label-row">
-            <label class="form-label-modern" for="respuesta">Respuesta</label>
-            <button type="button" class="btn-modern btn-modern-secondary btn-sm" id="btnFormatJson" onclick="formatResponseJson()" title="Formatear JSON">
-              <i class="fa fa-align-left"></i> Formatear
+            <label class="form-label-modern" for="respuesta"><%= __('form.response') %></label>
+            <button type="button" class="btn-modern btn-modern-secondary btn-sm" id="btnFormatJson" onclick="formatResponseJson()" title="<%= __('buttons.format') %>">
+              <i class="fa fa-align-left"></i> <%= __('buttons.format') %>
             </button>
           </div>
-          <textarea class="form-control-modern" id="respuesta" name="respuesta" rows="5" placeholder='{"message": "Hello World"}'></textarea>
+          <textarea class="form-control-modern" id="respuesta" name="respuesta" rows="5" placeholder="<%= __('form.placeholder.response') %>"></textarea>
         </div>
 
         <!-- Destino Proxy -->
         <div class="form-group-modern" id="divDestino" style="display: none;">
-          <label class="form-label-modern" for="destinoProxy">URL Destino</label>
-          <input type="text" class="form-control-modern" id="destinoProxy" name="destinoProxy" placeholder="https://api.example.com">
+          <label class="form-label-modern" for="destinoProxy"><%= __('form.proxyDestination') %></label>
+          <input type="text" class="form-control-modern" id="destinoProxy" name="destinoProxy" placeholder="<%= __('form.placeholder.proxyUrl') %>">
           <small style="color: var(--text-muted); margin-top: 0.5rem; display: block;">
-            Ejemplo: Si ruta es <code style="color: var(--primary);">/fake-api/</code> y destino es <code style="color: var(--primary);">https://api.example.com</code>,
-            una peticion a <code style="color: var(--primary);">/fake-api/users</code> se enviara a <code style="color: var(--primary);">https://api.example.com/users</code>
+            <%= __('form.help.proxyExample') %>
           </small>
         </div>
 
         <!-- Archivo -->
         <div class="form-group-modern" id="divFile" style="display: none;">
-          <label class="form-label-modern" for="fileUpload">Archivo a devolver</label>
+          <label class="form-label-modern" for="fileUpload"><%= __('form.fileToReturn') %></label>
           <div class="file-upload-wrapper">
             <input type="file" class="form-control-modern" id="fileUpload" name="fileUpload" onchange="handleFileSelect(event)">
             <div id="fileInfo" class="file-info" style="display: none;">
@@ -298,7 +297,7 @@
             </div>
           </div>
           <small style="color: var(--text-muted); margin-top: 0.5rem; display: block;">
-            El archivo se devolverá con el Content-Type apropiado según su extensión.
+            <%= __('form.help.fileHelp') %>
           </small>
         </div>
 
@@ -306,8 +305,8 @@
         <div class="alert-modern alert-modern-warning" id="divEsperaActiva">
           <i class="fa fa-pause-circle alert-icon" aria-hidden="true"></i>
           <div class="alert-content">
-            <div class="alert-title">Modo Espera Activa</div>
-            <div class="alert-text">Las peticiones se pausaran hasta que las liberes manualmente desde "Lista Pendientes".</div>
+            <div class="alert-title"><%= __('form.waitMode') %></div>
+            <div class="alert-text"><%= __('form.help.waitModeDesc') %></div>
           </div>
           <label class="switch-modern" for="esperaActiva">
             <input type="checkbox" id="esperaActiva" name="esperaActiva">
@@ -319,8 +318,8 @@
         <div class="alert-modern alert-modern-info" id="divActivo">
           <i class="fa fa-power-off alert-icon" aria-hidden="true"></i>
           <div class="alert-content">
-            <div class="alert-title">Ruta Activa</div>
-            <div class="alert-text">Si esta desactivada, las peticiones no seran interceptadas por esta ruta.</div>
+            <div class="alert-title"><%= __('form.routeActive') %></div>
+            <div class="alert-text"><%= __('form.help.routeActiveDesc') %></div>
           </div>
           <label class="switch-modern" for="rutaActiva">
             <input type="checkbox" id="rutaActiva" name="rutaActiva" checked>
@@ -331,33 +330,32 @@
         <!-- Headers Personalizados -->
         <div class="collapsible-section" id="divHeaders" style="margin-top: 1.25rem;">
           <div class="collapsible-header" onclick="toggleHeadersSection()">
-            <h4><i class="fa fa-list-ul"></i> Headers Personalizados</h4>
+            <h4><i class="fa fa-list-ul"></i> <%= __('form.customHeaders') %></h4>
             <button type="button" class="btn-modern btn-modern-success" onclick="event.stopPropagation(); addHeaderRow()">
-              <i class="fa fa-plus"></i> Añadir
+              <i class="fa fa-plus"></i> <%= __('buttons.add') %>
             </button>
           </div>
           <div class="collapsible-body">
             <small style="color: var(--text-muted); margin-bottom: 1rem; display: block;">
-              <strong>Set:</strong> Añade o sobreescribe el header |
-              <strong>Remove:</strong> Elimina el header de la respuesta
+              <%= __('form.help.headersHelp') %>
             </small>
             <div id="headersContainer">
               <!-- Headers dinamicos aqui -->
             </div>
             <div id="noHeadersMsg" class="empty-state" style="padding: 1rem;">
               <i class="fa fa-inbox"></i>
-              <p>No hay headers configurados</p>
+              <p><%= __('empty.noHeaders') %></p>
             </div>
           </div>
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn-modern btn-modern-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn-modern btn-modern-secondary" data-bs-dismiss="modal"><%= __('buttons.cancel') %></button>
         <button type="button" class="btn-modern btn-modern-primary" id="botonguardar" onclick="guardar()">
-          <i class="fa fa-save"></i> Guardar
+          <i class="fa fa-save"></i> <%= __('buttons.save') %>
         </button>
         <button type="button" class="btn-modern btn-modern-warning" id="botoneditar" onclick="editar()">
-          <i class="fa fa-edit"></i> Actualizar
+          <i class="fa fa-edit"></i> <%= __('buttons.update') %>
         </button>
       </div>
     </div>
@@ -369,7 +367,7 @@
   <div class="modal-dialog modal-xl">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="titleModalList"><i class="fa fa-clock-o me-2"></i>Lista de Pendientes</h5>
+        <h5 class="modal-title" id="titleModalList"><i class="fa fa-clock-o me-2"></i><%= __('modal.pendingRequests') %></h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
@@ -387,10 +385,10 @@
                 <span class="pending-item-date"><%= element.date %></span>
               </div>
               <div class="pending-item-actions">
-                <button class="btn-icon btn-icon-primary" onclick="togglePendingResponse('<%= element.id %>')" title="Editar respuesta">
+                <button class="btn-icon btn-icon-primary" onclick="togglePendingResponse('<%= element.id %>')" title="<%= __('modal.editResponse') %>">
                   <i class="fa fa-pencil" aria-hidden="true"></i>
                 </button>
-                <button class="btn-icon btn-icon-success" onclick="iniciaTarea('<%= element.id %>')" title="Liberar">
+                <button class="btn-icon btn-icon-success" onclick="iniciaTarea('<%= element.id %>')" title="<%= __('modal.releaseRequest') %>">
                   <i class="fa fa-play" aria-hidden="true"></i>
                 </button>
               </div>
@@ -398,11 +396,11 @@
             <div class="pending-item-response" id="pr-<%= element.id %>" style="display: none;">
               <div class="pending-response-row">
                 <div class="form-group-modern pending-code-group">
-                  <label class="form-label-modern" for="prc-<%= element.id %>">Código</label>
+                  <label class="form-label-modern" for="prc-<%= element.id %>"><%= __('pending.code') %></label>
                   <input type="number" class="form-control-modern" id="prc-<%= element.id %>" name="prc-<%= element.id %>" value="<%= element.codigo || 200 %>" min="100" max="599">
                 </div>
                 <div class="form-group-modern pending-type-group">
-                  <label class="form-label-modern" for="prtype-<%= element.id %>">Tipo</label>
+                  <label class="form-label-modern" for="prtype-<%= element.id %>"><%= __('pending.type') %></label>
                   <select class="form-control-modern" id="prtype-<%= element.id %>" name="prtype-<%= element.id %>" onchange="togglePendingFormatBtn('<%= element.id %>')">
                     <option value="json" <%= element.tiporespuesta === 'json' ? 'selected' : '' %>>JSON</option>
                     <option value="xml" <%= element.tiporespuesta === 'xml' ? 'selected' : '' %>>XML</option>
@@ -413,19 +411,19 @@
                 </div>
               </div>
               <div class="form-group-modern">
-                <label class="form-label-modern" for="prt-<%= element.id %>">Body de respuesta</label>
-                <textarea class="form-control-modern" id="prt-<%= element.id %>" name="prt-<%= element.id %>" rows="6" placeholder="Dejar vacío para usar la respuesta por defecto"><%= element.defaultResponse || '' %></textarea>
+                <label class="form-label-modern" for="prt-<%= element.id %>"><%= __('pending.responseBody') %></label>
+                <textarea class="form-control-modern" id="prt-<%= element.id %>" name="prt-<%= element.id %>" rows="6" placeholder="<%= __('form.placeholder.leaveEmpty') %>"><%= element.defaultResponse || '' %></textarea>
               </div>
               <div class="form-group-modern">
-                <label class="form-label-modern" for="prh-<%= element.id %>">Headers personalizados (JSON)</label>
-                <textarea class="form-control-modern" id="prh-<%= element.id %>" name="prh-<%= element.id %>" rows="3" placeholder='{"Content-Type": "application/json"}'><%= element.customHeaders || '' %></textarea>
+                <label class="form-label-modern" for="prh-<%= element.id %>"><%= __('pending.customHeadersJson') %></label>
+                <textarea class="form-control-modern" id="prh-<%= element.id %>" name="prh-<%= element.id %>" rows="3" placeholder="<%= __('form.placeholder.headersJson') %>"><%= element.customHeaders || '' %></textarea>
               </div>
               <div class="pending-response-actions">
                 <button class="btn-modern btn-modern-secondary btn-sm" onclick="resetPendingResponse('<%= element.id %>')">
-                  <i class="fa fa-undo"></i> Restaurar
+                  <i class="fa fa-undo"></i> <%= __('buttons.restore') %>
                 </button>
                 <button class="btn-modern btn-modern-primary btn-sm" id="prfmt-<%= element.id %>" onclick="formatPendingContent('<%= element.id %>')" style="<%= !['json', 'xml', 'soap', 'html'].includes(element.tiporespuesta) ? 'display:none' : '' %>">
-                  <i class="fa fa-align-left"></i> Formatear
+                  <i class="fa fa-align-left"></i> <%= __('buttons.format') %>
                 </button>
               </div>
             </div>
@@ -435,12 +433,12 @@
         <% if (listaEspera.length === 0) { %>
         <div class="empty-state" id="pendingEmptyState">
           <i class="fa fa-check-circle"></i>
-          <p>No hay peticiones pendientes</p>
+          <p><%= __('pending.noPending') %></p>
         </div>
         <% } %>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn-modern btn-modern-secondary" data-bs-dismiss="modal">Cerrar</button>
+        <button type="button" class="btn-modern btn-modern-secondary" data-bs-dismiss="modal"><%= __('buttons.close') %></button>
       </div>
     </div>
   </div>
@@ -451,30 +449,30 @@
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="curlModalTitle"><i class="fa fa-terminal me-2"></i>Ejemplo de Peticion</h5>
+        <h5 class="modal-title" id="curlModalTitle"><i class="fa fa-terminal me-2"></i><%= __('modal.curlExample') %></h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
         <div class="curl-info">
           <div class="curl-row">
-            <span class="curl-label">Metodo:</span>
+            <span class="curl-label"><%= __('curl.method') %></span>
             <span id="curlMethod" class="badge-modern"></span>
           </div>
           <div class="curl-row">
-            <span class="curl-label">Ruta:</span>
+            <span class="curl-label"><%= __('curl.route') %></span>
             <code id="curlRoute" class="curl-code"></code>
           </div>
           <div class="curl-row">
-            <span class="curl-label">URL completa:</span>
+            <span class="curl-label"><%= __('curl.fullUrl') %></span>
             <code id="curlFullUrl" class="curl-code"></code>
           </div>
         </div>
 
         <div class="curl-section">
           <div class="curl-section-header">
-            <h6><i class="fa fa-code"></i> Comando cURL</h6>
-            <button class="btn-modern btn-modern-secondary btn-sm" onclick="copyCurl()" title="Copiar">
-              <i class="fa fa-copy"></i> Copiar
+            <h6><i class="fa fa-code"></i> <%= __('curl.command') %></h6>
+            <button class="btn-modern btn-modern-secondary btn-sm" onclick="copyCurl()" title="<%= __('buttons.copy') %>">
+              <i class="fa fa-copy"></i> <%= __('buttons.copy') %>
             </button>
           </div>
           <pre id="curlCommand" class="curl-pre"></pre>
@@ -482,12 +480,12 @@
 
         <div id="curlOpenSection" class="curl-open-section" style="display: none;">
           <button class="btn-modern btn-modern-primary" onclick="openRouteInBrowser()">
-            <i class="fa fa-external-link"></i> Abrir en nueva pestaña
+            <i class="fa fa-external-link"></i> <%= __('buttons.openNewTab') %>
           </button>
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn-modern btn-modern-secondary" data-bs-dismiss="modal">Cerrar</button>
+        <button type="button" class="btn-modern btn-modern-secondary" data-bs-dismiss="modal"><%= __('buttons.close') %></button>
       </div>
     </div>
   </div>
@@ -498,7 +496,7 @@
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header" style="border-bottom-color: var(--danger);">
-        <h5 class="modal-title" style="color: var(--danger);"><i class="fa fa-exclamation-triangle me-2"></i>Confirmar Eliminación</h5>
+        <h5 class="modal-title" style="color: var(--danger);"><i class="fa fa-exclamation-triangle me-2"></i><%= __('modal.confirmDelete') %></h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
@@ -506,8 +504,8 @@
           <div class="delete-icon">
             <i class="fa fa-trash"></i>
           </div>
-          <p class="delete-message">¿Estás seguro de que deseas eliminar esta ruta?</p>
-          <p class="delete-submessage">Esta acción no se puede deshacer.</p>
+          <p class="delete-message"><%= __('modal.deleteMessage') %></p>
+          <p class="delete-submessage"><%= __('modal.deleteWarning') %></p>
         </div>
 
         <div class="delete-route-info">
@@ -516,29 +514,29 @@
             <span class="delete-info-value" id="deleteRouteId">-</span>
           </div>
           <div class="delete-info-row">
-            <span class="delete-info-label">Método:</span>
+            <span class="delete-info-label"><%= __('table.method') %>:</span>
             <span id="deleteRouteMethod"></span>
           </div>
           <div class="delete-info-row">
-            <span class="delete-info-label">Ruta:</span>
+            <span class="delete-info-label"><%= __('table.route') %>:</span>
             <code class="delete-info-value delete-route-path" id="deleteRoutePath">-</code>
           </div>
           <div class="delete-info-row">
-            <span class="delete-info-label">Tipo:</span>
+            <span class="delete-info-label"><%= __('table.type') %>:</span>
             <span class="delete-info-value" id="deleteRouteType">-</span>
           </div>
           <div class="delete-info-row">
-            <span class="delete-info-label">Código:</span>
+            <span class="delete-info-label"><%= __('table.code') %>:</span>
             <span class="delete-info-value" id="deleteRouteCode">-</span>
           </div>
         </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn-modern btn-modern-secondary" data-bs-dismiss="modal">
-          <i class="fa fa-times"></i> Cancelar
+          <i class="fa fa-times"></i> <%= __('buttons.cancel') %>
         </button>
         <button type="button" class="btn-modern btn-modern-danger" id="confirmDeleteBtn" onclick="confirmDelete()">
-          <i class="fa fa-trash"></i> Eliminar
+          <i class="fa fa-trash"></i> <%= __('buttons.delete') %>
         </button>
       </div>
     </div>
@@ -550,81 +548,81 @@
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title"><i class="fa fa-wifi me-2"></i>Estado de Conexión</h5>
+        <h5 class="modal-title"><i class="fa fa-wifi me-2"></i><%= __('modal.connectionStatus') %></h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
         <div class="connection-status-card" id="connectionStatusCard">
           <div class="connection-status-indicator">
             <span class="connection-dot" id="connDot"></span>
-            <span class="connection-label" id="connLabel">Conectando...</span>
+            <span class="connection-label" id="connLabel"><%= __('nav.connecting') %></span>
           </div>
         </div>
 
         <div class="connection-stats">
           <div class="stat-group">
-            <h6><i class="fa fa-info-circle"></i> Información General</h6>
+            <h6><i class="fa fa-info-circle"></i> <%= __('connection.generalInfo') %></h6>
             <div class="stat-row">
-              <span class="stat-label">Tipo de conexión:</span>
+              <span class="stat-label"><%= __('connection.type') %></span>
               <span class="stat-value" id="connType">-</span>
             </div>
             <div class="stat-row">
-              <span class="stat-label">URL del servidor:</span>
+              <span class="stat-label"><%= __('connection.serverUrl') %></span>
               <span class="stat-value" id="connUrl">-</span>
             </div>
             <div class="stat-row">
-              <span class="stat-label">ID de sesión:</span>
+              <span class="stat-label"><%= __('connection.sessionId') %></span>
               <span class="stat-value stat-value-mono" id="connSessionId">-</span>
             </div>
           </div>
 
           <div class="stat-group">
-            <h6><i class="fa fa-clock-o"></i> Tiempo</h6>
+            <h6><i class="fa fa-clock-o"></i> <%= __('connection.time') %></h6>
             <div class="stat-row">
-              <span class="stat-label">Conectado desde:</span>
+              <span class="stat-label"><%= __('connection.connectedSince') %></span>
               <span class="stat-value" id="connSince">-</span>
             </div>
             <div class="stat-row">
-              <span class="stat-label">Tiempo conectado:</span>
+              <span class="stat-label"><%= __('connection.connectedTime') %></span>
               <span class="stat-value" id="connDuration">-</span>
             </div>
             <div class="stat-row">
-              <span class="stat-label">Latencia (ping):</span>
+              <span class="stat-label"><%= __('connection.latency') %></span>
               <span class="stat-value" id="connLatency">-</span>
             </div>
           </div>
 
           <div class="stat-group">
-            <h6><i class="fa fa-exchange"></i> Transferencia de Datos</h6>
+            <h6><i class="fa fa-exchange"></i> <%= __('connection.dataTransfer') %></h6>
             <div class="stat-row">
-              <span class="stat-label">Mensajes recibidos:</span>
+              <span class="stat-label"><%= __('connection.messagesReceived') %></span>
               <span class="stat-value" id="connMsgReceived">0</span>
             </div>
             <div class="stat-row">
-              <span class="stat-label">Mensajes enviados:</span>
+              <span class="stat-label"><%= __('connection.messagesSent') %></span>
               <span class="stat-value" id="connMsgSent">0</span>
             </div>
             <div class="stat-row">
-              <span class="stat-label">Eventos de consola:</span>
+              <span class="stat-label"><%= __('connection.consoleEvents') %></span>
               <span class="stat-value" id="connConsoleEvents">0</span>
             </div>
           </div>
 
           <div class="stat-group">
-            <h6><i class="fa fa-refresh"></i> Reconexiones</h6>
+            <h6><i class="fa fa-refresh"></i> <%= __('connection.reconnections') %></h6>
             <div class="stat-row">
-              <span class="stat-label">Reconexiones:</span>
+              <span class="stat-label"><%= __('connection.reconnectCount') %></span>
               <span class="stat-value" id="connReconnects">0</span>
             </div>
             <div class="stat-row">
-              <span class="stat-label">Última reconexión:</span>
+              <span class="stat-label"><%= __('connection.lastReconnect') %></span>
               <span class="stat-value" id="connLastReconnect">-</span>
             </div>
           </div>
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn-modern btn-modern-secondary" data-bs-dismiss="modal">Cerrar</button>
+        <button type="button" class="btn-modern btn-modern-secondary" data-bs-dismiss="modal"><%= __('buttons.close') %></button>
       </div>
     </div>
   </div>
@@ -792,7 +790,7 @@
     clear() {
       this.container.innerHTML = '';
       this.logs = [];
-      this.addEntry({ texto: 'Terminal limpiado', type: 'info' });
+      this.addEntry({ texto: t('terminal.cleared'), type: 'info' });
     },
 
     toggleAutoScroll() {
@@ -921,19 +919,19 @@
         case 'connected':
           statusDot.style.background = 'var(--success)';
           statusDot.style.boxShadow = '0 0 8px var(--success)';
-          statusText.textContent = 'Servidor activo';
+          statusText.textContent = t('nav.serverActive');
           serverStatus.classList.add('status-connected');
           break;
         case 'disconnected':
           statusDot.style.background = 'var(--danger)';
           statusDot.style.boxShadow = '0 0 8px var(--danger)';
-          statusText.textContent = 'Servidor inactivo';
+          statusText.textContent = t('nav.serverInactive');
           serverStatus.classList.add('status-disconnected');
           break;
         case 'reconnecting':
           statusDot.style.background = 'var(--warning)';
           statusDot.style.boxShadow = '0 0 8px var(--warning)';
-          statusText.textContent = 'Reconectando...';
+          statusText.textContent = t('nav.reconnecting');
           serverStatus.classList.add('status-reconnecting');
           break;
       }
@@ -950,15 +948,15 @@
       switch(this.status) {
         case 'connected':
           connDot.classList.add('connected');
-          connLabel.textContent = 'Conectado';
+          connLabel.textContent = t('connection.connected');
           break;
         case 'disconnected':
           connDot.classList.add('disconnected');
-          connLabel.textContent = 'Desconectado';
+          connLabel.textContent = t('connection.disconnected');
           break;
         case 'reconnecting':
           connDot.classList.add('reconnecting');
-          connLabel.textContent = 'Reconectando...';
+          connLabel.textContent = t('connection.reconnecting');
           break;
       }
 
@@ -1026,13 +1024,13 @@
   socket.on('disconnect', function() {
     ConnectionMetrics.setStatus('disconnected');
     ConnectionMetrics.incrementReceived();
-    Terminal.addEntry({ texto: 'Desconectado del servidor', type: 'error' });
+    Terminal.addEntry({ texto: t('terminal.disconnected'), type: 'error' });
   });
 
   socket.on('reconnecting', function() {
     ConnectionMetrics.setStatus('reconnecting');
     ConnectionMetrics.incrementReceived();
-    Terminal.addEntry({ texto: 'Intentando reconectar...', type: 'warning' });
+    Terminal.addEntry({ texto: t('terminal.reconnecting'), type: 'warning' });
   });
 
   socket.on('reconnect', function() {
@@ -1044,7 +1042,7 @@
   socket.on('reconnect_failed', function() {
     ConnectionMetrics.setStatus('disconnected');
     ConnectionMetrics.incrementReceived();
-    Terminal.addEntry({ texto: 'Fallo al reconectar', type: 'error' });
+    Terminal.addEntry({ texto: t('terminal.reconnectFailed'), type: 'error' });
   });
 
   // ===== SOCKET EVENTS =====
@@ -1071,11 +1069,11 @@
       dataSrc: ''
     },
     language: {
-      search: "Buscar:",
-      lengthMenu: "Mostrar _MENU_ rutas",
-      info: "Mostrando _START_ a _END_ de _TOTAL_ rutas",
-      infoEmpty: "No hay rutas configuradas",
-      emptyTable: "No hay rutas configuradas",
+      search: t('table.search'),
+      lengthMenu: t('table.showEntries'),
+      info: t('table.info'),
+      infoEmpty: t('table.noResults'),
+      emptyTable: t('table.emptyTable'),
       paginate: { first: "<<", previous: "<", next: ">", last: ">>" }
     },
     dom: '<"top"l>rt<"bottom"ip>', // Ocultar busqueda global, usamos filtros custom
@@ -1338,18 +1336,12 @@
         textarea.value = formatHtml(textarea.value);
       }
     } catch (e) {
-      const tipos = { json: 'JSON', xml: 'XML', soap: 'SOAP', html: 'HTML' };
-      alert(`${tipos[tipoResp] || tipoResp.toUpperCase()} inválido: ${e.message}`);
+      alert(`${t('responseTypes.' + tipoResp) || tipoResp.toUpperCase()} ${t('validation.' + tipoResp + 'Invalid')}: ${e.message}`);
     }
   }
 
-  const httpCodes = {
-    '200': 'OK', '201': 'Created', '204': 'No Content', '301': 'Moved Permanently',
-    '302': 'Found', '304': 'Not Modified', '400': 'Bad Request', '401': 'Unauthorized',
-    '403': 'Forbidden', '404': 'Not Found', '405': 'Method Not Allowed', '409': 'Conflict',
-    '422': 'Unprocessable Entity', '429': 'Too Many Requests', '500': 'Internal Server Error',
-    '502': 'Bad Gateway', '503': 'Service Unavailable', '504': 'Gateway Timeout'
-  };
+  // Usar httpCodes de las traducciones
+  const httpCodes = t('httpCodes') || {};
 
   function updateCodeDescription() {
     const code = document.getElementById("crespuestaInput").value;
@@ -1358,7 +1350,7 @@
 
   // ===== ORDER FUNCTIONS =====
   async function normalizeOrder() {
-    if (!confirm('¿Reorganizar todos los órdenes secuencialmente?\n\nLas rutas normales tendrán orden 1, 2, 3...\nLos proxies estarán al final con orden 99999999, 99999998...')) {
+    if (!confirm(t('confirm.normalizeOrder'))) {
       return;
     }
 
@@ -1369,10 +1361,10 @@
         tabla.ajax.reload(null, false);
         console.log(`Normalizado: ${data.rutas} rutas, ${data.proxies} proxies`);
       } else {
-        alert(data.error || 'Error normalizando órdenes');
+        alert(data.error || t('errors.normalizing'));
       }
     } catch (e) {
-      console.error('Error normalizando órdenes:', e);
+      console.error(t('errors.normalizing') + ':', e);
     }
   }
 
@@ -1403,7 +1395,7 @@
   async function updateOrden(id, orden) {
     const ordenNum = parseInt(orden);
     if (isNaN(ordenNum) || ordenNum < 1) {
-      alert('El orden debe ser un número positivo');
+      alert(t('validation.orderPositive'));
       tabla.ajax.reload(null, false);
       return;
     }
@@ -1418,10 +1410,10 @@
       if (data.success) {
         tabla.ajax.reload(null, false);
       } else {
-        alert(data.error || 'Error actualizando orden');
+        alert(data.error || t('errors.updatingOrder'));
       }
     } catch (e) {
-      console.error('Error actualizando orden:', e);
+      console.error(t('errors.updatingOrder') + ':', e);
     }
   }
 
@@ -1442,7 +1434,7 @@
     const resultDiv = document.getElementById("regexResult");
 
     if (!regex) {
-      resultDiv.innerHTML = '<span style="color: var(--text-muted);">Introduce una expresion regular</span>';
+      resultDiv.innerHTML = `<span style="color: var(--text-muted);">${t('validation.enterRegex')}</span>`;
       return;
     }
 
@@ -1455,18 +1447,18 @@
       const data = await response.json();
 
       if (data.valid) {
-        let html = '<span class="badge-modern" style="background: var(--success); color: white;">Regex valida</span>';
+        let html = `<span class="badge-modern" style="background: var(--success); color: white;">${t('validation.regexValid')}</span>`;
         if (testUrl) {
           html += data.matches
-            ? ' <span class="badge-modern" style="background: var(--info); color: white;">URL coincide</span>'
-            : ' <span class="badge-modern" style="background: var(--warning); color: white;">URL no coincide</span>';
+            ? ` <span class="badge-modern" style="background: var(--info); color: white;">${t('validation.urlMatches')}</span>`
+            : ` <span class="badge-modern" style="background: var(--warning); color: white;">${t('validation.urlNoMatch')}</span>`;
         }
         resultDiv.innerHTML = html;
       } else {
-        resultDiv.innerHTML = `<span class="badge-modern" style="background: var(--danger); color: white;">Regex invalida</span> <small style="color: var(--danger);">${data.error}</small>`;
+        resultDiv.innerHTML = `<span class="badge-modern" style="background: var(--danger); color: white;">${t('validation.regexInvalid')}</span> <small style="color: var(--danger);">${data.error}</small>`;
       }
     } catch (e) {
-      resultDiv.innerHTML = `<span class="badge-modern" style="background: var(--danger); color: white;">Error al validar</span>`;
+      resultDiv.innerHTML = `<span class="badge-modern" style="background: var(--danger); color: white;">${t('validation.errorValidating')}</span>`;
     }
   }
 
@@ -1729,7 +1721,7 @@
 
     const btn = document.getElementById('confirmDeleteBtn');
     const originalHtml = btn.innerHTML;
-    btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Eliminando...';
+    btn.innerHTML = `<i class="fa fa-spinner fa-spin"></i> ${t('buttons.deleting')}`;
     btn.disabled = true;
 
     const response = await fetch('/api/delete/' + deleteRouteId.toString(), { method: 'DELETE' });
@@ -1799,7 +1791,7 @@
 
     // Validar que la ruta no comience con /api/
     if (ruta.startsWith('/api/') || ruta === '/api') {
-      alert('Routes starting with /api/ are reserved for internal use');
+      alert(t('confirm.reservedRoute'));
       return;
     }
 
@@ -1857,7 +1849,7 @@
 
     // Validar que la ruta no comience con /api/
     if (ruta.startsWith('/api/') || ruta === '/api') {
-      alert('Routes starting with /api/ are reserved for internal use');
+      alert(t('confirm.reservedRoute'));
       return;
     }
 
@@ -2111,8 +2103,7 @@
         textarea.value = formatHtml(textarea.value);
       }
     } catch (e) {
-      const tipoLabels = { json: 'JSON', xml: 'XML', soap: 'SOAP', html: 'HTML' };
-      alert(`${tipoLabels[tipo] || tipo.toUpperCase()} inválido: ${e.message}`);
+      alert(`${t('responseTypes.' + tipo) || tipo.toUpperCase()} ${t('validation.' + tipo + 'Invalid')}: ${e.message}`);
     }
   }
 
@@ -2216,7 +2207,7 @@
     navigator.clipboard.writeText(curlText).then(() => {
       const btn = document.querySelector('#curlModal .btn-modern-secondary.btn-sm');
       const originalHtml = btn.innerHTML;
-      btn.innerHTML = '<i class="fa fa-check"></i> Copiado';
+      btn.innerHTML = `<i class="fa fa-check"></i> ${t('buttons.copied')}`;
       setTimeout(() => {
         btn.innerHTML = originalHtml;
       }, 2000);
