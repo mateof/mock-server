@@ -78,7 +78,7 @@
       "leaveEmpty": "Deixar baleiro para usar a resposta por defecto"
     },
     "help": {
-      "proxyExample": "Exemplo: Se a ruta é /fake-api/ e o destino é https://api.real.com, unha petición a /fake-api/users redirixirase a https://api.real.com/users",
+      "proxyExample": "Exemplo: Se a ruta é [route] e o destino é [target], unha petición a [request] redirixirase a [result]",
       "fileHelp": "O arquivo devolverase co Content-Type correspondente ao seu tipo MIME",
       "waitModeDesc": "As peticións pausaranse ata que as liberes manualmente desde \"Lista Pendentes\".",
       "routeActiveDesc": "Se está desactivada, as peticións non serán interceptadas por esta ruta.",

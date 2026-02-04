@@ -272,7 +272,12 @@
           <label class="form-label-modern" for="destinoProxy"><%= __('form.proxyDestination') %></label>
           <input type="text" class="form-control-modern" id="destinoProxy" name="destinoProxy" placeholder="<%= __('form.placeholder.proxyUrl') %>">
           <small style="color: var(--text-muted); margin-top: 0.5rem; display: block;">
-            <%= __('form.help.proxyExample') %>
+            <%- __('form.help.proxyExample')
+              .replace('[route]', '<code style="color: var(--primary);">/fake-api/</code>')
+              .replace('[target]', '<code style="color: var(--primary);">https://api.example.com</code>')
+              .replace('[request]', '<code style="color: var(--primary);">/fake-api/users</code>')
+              .replace('[result]', '<code style="color: var(--primary);">https://api.example.com/users</code>')
+            %>
           </small>
         </div>
 

@@ -94,29 +94,40 @@ router.post('/create', upload.single('file'), async function(req, res, next) {
         console.log(`[API] Archivo subido: ${fileName} (${fileMimeType})`);
     }
 
-    db.run(`INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders, activo, orden, fileName, filePath, fileMimeType) values (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-        [req.body.tipo, req.body.ruta, req.body.codigo, req.body.respuesta, req.body.tiporespuesta, esperaActiva, req.body.isRegex === 'true' || req.body.isRegex === true ? 1 : 0, customHeaders, activo, orden, fileName, filePath, fileMimeType],
-        function(err) {
-            if (err) {
-                console.log(err.message);
-                db.close();
-                // Si hubo error y se subió archivo, eliminarlo
-                if (req.file) {
-                    fs.unlink(path.join(UPLOADS_DIR, req.file.filename), () => {});
-                }
-                res.statusCode = 500;
-                res.end();
-                return;
-            }
-            console.log(`Ruta insertada con id ${this.lastID} y orden ${orden}`);
-            db.close();
-            if (isProxy) {
-                console.log('Recargando configuración de proxy');
-                pm.reloadProxyConfigs();
-            }
-            res.statusCode = 200;
-            res.json({ id: this.lastID });
+    try {
+        const result = await new Promise((resolve, reject) => {
+            db.run(`INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders, activo, orden, fileName, filePath, fileMimeType) values (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                [req.body.tipo, req.body.ruta, req.body.codigo, req.body.respuesta, req.body.tiporespuesta, esperaActiva, req.body.isRegex === 'true' || req.body.isRegex === true ? 1 : 0, customHeaders, activo, orden, fileName, filePath, fileMimeType],
+                function(err) {
+                    if (err) {
+                        reject(err);
+                    } else {
+                        resolve({ lastID: this.lastID });
+                    }
+                });
         });
+
+        console.log(`Ruta insertada con id ${result.lastID} y orden ${orden}`);
+        db.close();
+
+        if (isProxy) {
+            console.log('Recargando configuración de proxy...');
+            await pm.reloadProxyConfigs();
+            console.log('Configuración de proxy recargada');
+        }
+
+        res.statusCode = 200;
+        res.json({ id: result.lastID });
+    } catch (err) {
+        console.log(err.message);
+        db.close();
+        // Si hubo error y se subió archivo, eliminarlo
+        if (req.file) {
+            fs.unlink(path.join(UPLOADS_DIR, req.file.filename), () => {});
+        }
+        res.statusCode = 500;
+        res.end();
+    }
 });
 
 router.put('/update/:id', upload.single('file'), async function(req, res) {
@@ -192,42 +203,52 @@ router.put('/update/:id', upload.single('file'), async function(req, res) {
         });
     }
 
-    db.run(`UPDATE rutas SET tipo = ?, ruta = ?, codigo = ?, respuesta = ?, tiporespuesta = ?, esperaActiva = ?, isRegex = ?, customHeaders = ?, activo = ?, orden = ?, fileName = ?, filePath = ?, fileMimeType = ? WHERE id = ?`,
-        [req.body.tipo, req.body.ruta, req.body.codigo, req.body.respuesta, req.body.tiporespuesta, esperaActiva, req.body.isRegex === 'true' || req.body.isRegex === true ? 1 : 0, customHeaders, activo, newOrden, fileName, filePath, fileMimeType, id],
-        function(err) {
-            if (err) {
-                console.log(err.message);
-                db.close();
-                // Si hubo error y se subió archivo nuevo, eliminarlo
-                if (req.file) {
-                    fs.unlink(path.join(UPLOADS_DIR, req.file.filename), () => {});
-                }
-                res.statusCode = 500;
-                res.end();
-                return;
-            }
-            console.log(`Ruta ${id} actualizada con orden ${newOrden}`);
-            db.close();
-            console.log('Recargando configuración de proxy');
-            pm.reloadProxyConfigs();
-            res.statusCode = 200;
-            res.json({ success: true });
+    try {
+        await new Promise((resolve, reject) => {
+            db.run(`UPDATE rutas SET tipo = ?, ruta = ?, codigo = ?, respuesta = ?, tiporespuesta = ?, esperaActiva = ?, isRegex = ?, customHeaders = ?, activo = ?, orden = ?, fileName = ?, filePath = ?, fileMimeType = ? WHERE id = ?`,
+                [req.body.tipo, req.body.ruta, req.body.codigo, req.body.respuesta, req.body.tiporespuesta, esperaActiva, req.body.isRegex === 'true' || req.body.isRegex === true ? 1 : 0, customHeaders, activo, newOrden, fileName, filePath, fileMimeType, id],
+                function(err) {
+                    if (err) {
+                        reject(err);
+                    } else {
+                        resolve();
+                    }
+                });
         });
+
+        console.log(`Ruta ${id} actualizada con orden ${newOrden}`);
+        db.close();
+
+        console.log('Recargando configuración de proxy...');
+        await pm.reloadProxyConfigs();
+        console.log('Configuración de proxy recargada');
+
+        res.statusCode = 200;
+        res.json({ success: true });
+    } catch (err) {
+        console.log(err.message);
+        db.close();
+        // Si hubo error y se subió archivo nuevo, eliminarlo
+        if (req.file) {
+            fs.unlink(path.join(UPLOADS_DIR, req.file.filename), () => {});
+        }
+        res.statusCode = 500;
+        res.end();
+    }
 });
 
-router.delete('/delete/:id', function(req, res) {
+router.delete('/delete/:id', async function(req, res) {
     const db = sqliteService.getDatabase();
     const id = req.params.id;
 
-    // Primero obtener info del archivo si existe
-    db.get(`SELECT filePath FROM rutas WHERE id = ?`, [id], (err, row) => {
-        if (err) {
-            console.log(err.message);
-            db.close();
-            res.statusCode = 500;
-            res.end();
-            return;
-        }
+    try {
+        // Primero obtener info del archivo si existe
+        const row = await new Promise((resolve, reject) => {
+            db.get(`SELECT filePath FROM rutas WHERE id = ?`, [id], (err, row) => {
+                if (err) reject(err);
+                else resolve(row);
+            });
+        });
 
         // Eliminar archivo si existe
         if (row && row.filePath) {
@@ -238,22 +259,28 @@ router.delete('/delete/:id', function(req, res) {
         }
 
         // Eliminar registro
-        db.run(`DELETE FROM rutas WHERE id = ?`, [id], function(deleteErr) {
-            if (deleteErr) {
-                console.log(deleteErr.message);
-                db.close();
-                res.statusCode = 500;
-                res.end();
-                return;
-            }
-            console.log(`Ruta eliminada con id ${id}`);
-            db.close();
-            console.log('Recargando configuración de proxy');
-            pm.reloadProxyConfigs();
-            res.statusCode = 200;
-            res.end();
+        await new Promise((resolve, reject) => {
+            db.run(`DELETE FROM rutas WHERE id = ?`, [id], function(deleteErr) {
+                if (deleteErr) reject(deleteErr);
+                else resolve();
+            });
         });
-    });
+
+        console.log(`Ruta eliminada con id ${id}`);
+        db.close();
+
+        console.log('Recargando configuración de proxy...');
+        await pm.reloadProxyConfigs();
+        console.log('Configuración de proxy recargada');
+
+        res.statusCode = 200;
+        res.end();
+    } catch (err) {
+        console.log(err.message);
+        db.close();
+        res.statusCode = 500;
+        res.end();
+    }
 });
 
 router.get('/routes', function(req, res, next) {
@@ -303,21 +330,34 @@ router.post('/validateRegex', function(req, res, next) {
   }
 });
 
-router.put('/toggle-active/:id', function(req, res, next) {
+router.put('/toggle-active/:id', async function(req, res, next) {
     const db = sqliteService.getDatabase();
     const id = req.params.id;
     const activo = req.body.activo ? 1 : 0;
-    db.run(`UPDATE rutas SET activo = ? WHERE id = ?`, [activo, id], function(err) {
-        if (err) {
-          return console.log(err.message);
-        }
-        console.log(`Ruta ${id} activo cambiado a ${activo}`);
-        console.log('Recargando configuración de proxy');
-        pm.reloadProxyConfigs();
-      });
 
-      res.statusCode = 200;
-      res.end();
+    try {
+        await new Promise((resolve, reject) => {
+            db.run(`UPDATE rutas SET activo = ? WHERE id = ?`, [activo, id], function(err) {
+                if (err) reject(err);
+                else resolve();
+            });
+        });
+
+        console.log(`Ruta ${id} activo cambiado a ${activo}`);
+        db.close();
+
+        console.log('Recargando configuración de proxy...');
+        await pm.reloadProxyConfigs();
+        console.log('Configuración de proxy recargada');
+
+        res.statusCode = 200;
+        res.end();
+    } catch (err) {
+        console.log(err.message);
+        db.close();
+        res.statusCode = 500;
+        res.end();
+    }
 });
 
 router.put('/toggle-wait/:id', function(req, res, next) {

@@ -139,21 +139,14 @@ app.setProxyHandler = (handler) => {
 
 // 404 handler
 app.use(function (req, res, next) {
-  const err = new Error('Not Found');
-  err.status = 404;
-  next(err);
+  res.status(404).json({ error: 'Not Found', status: 404, path: req.originalUrl });
 });
 
 // Error handler
 app.use(function (err, req, res, next) {
   console.error(`[APP] ERROR: ${err.message}`);
-
-  res.locals.message = err.message;
-  res.locals.error = req.app.get('env') === 'development' ? err : {};
-  res.locals.version = require('./package.json').version;
-
-  res.status(err.status || 500);
-  res.render('error');
+  const status = err.status || 500;
+  res.status(status).json({ error: err.message, status });
 });
 
 // ============================================

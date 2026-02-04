@@ -78,7 +78,7 @@
       "leaveEmpty": "Leave empty to use default response"
     },
     "help": {
-      "proxyExample": "Example: If route is /fake-api/ and destination is https://api.real.com, a request to /fake-api/users will be redirected to https://api.real.com/users",
+      "proxyExample": "Example: If route is [route] and destination is [target], a request to [request] will be redirected to [result]",
       "fileHelp": "The file will be returned with the Content-Type corresponding to its MIME type",
       "waitModeDesc": "Requests will be paused until you manually release them from \"Pending List\".",
       "routeActiveDesc": "If disabled, requests will not be intercepted by this route.",
