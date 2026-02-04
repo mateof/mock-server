@@ -4,11 +4,12 @@ const yaml = require('js-yaml');
 
 // Configurar json-schema-faker
 jsf.option({
-    alwaysFakeOptionals: true,
+    alwaysFakeOptionals: false,
     useExamplesValue: true,
     useDefaultValue: true,
+    fillProperties: false,
     minItems: 1,
-    maxItems: 3
+    maxItems: 1
 });
 
 /**
