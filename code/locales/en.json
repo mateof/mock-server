@@ -15,7 +15,8 @@
     "editRoute": "Edit Route",
     "pendingList": "Pending",
     "normalize": "Normalize",
-    "normalizeTitle": "Reorganize orders sequentially"
+    "normalizeTitle": "Reorganize orders sequentially",
+    "importOpenApi": "Import OpenAPI"
   },
   "table": {
     "id": "id",
@@ -237,6 +238,41 @@
   "headerActions": {
     "set": "Set",
     "remove": "Remove"
+  },
+  "import": {
+    "title": "Import OpenAPI / Swagger",
+    "uploadFile": "Upload File",
+    "pasteContent": "Paste Content",
+    "specUrl": "Specification URL",
+    "specUrlPlaceholder": "https://api.example.com/openapi.json",
+    "specUrlHelp": "Public URL of the server's OpenAPI/Swagger file",
+    "specFile": "Specification File",
+    "fileFormats": "Supported formats: JSON (.json) or YAML (.yaml, .yml)",
+    "pasteSpec": "Paste Specification",
+    "pastePlaceholder": "Paste your OpenAPI/Swagger JSON or YAML here...",
+    "specFormat": "Format",
+    "autoDetect": "Auto-detect",
+    "basePath": "Base Path Prefix",
+    "basePathPlaceholder": "myhost",
+    "basePathHelp": "All imported routes will be prefixed with this path. Example: if prefix is 'myhost', route /users becomes /myhost/users",
+    "conflictStrategy": "If route already exists",
+    "skipExisting": "Skip (keep existing)",
+    "overwriteExisting": "Overwrite (update existing)",
+    "preview": "Preview",
+    "back": "Back",
+    "importRoutes": "Import Routes",
+    "importing": "Importing...",
+    "parsing": "Parsing specification...",
+    "selectAll": "Select all",
+    "description": "Description",
+    "status": "Status",
+    "new": "New",
+    "conflict": "Exists",
+    "noSpecProvided": "Please provide a specification file or paste its content",
+    "errorTitle": "Import Error",
+    "successMessage": "Import completed",
+    "importedCount": "imported",
+    "skippedCount": "skipped"
   },
   "languages": {
     "es": "Español",

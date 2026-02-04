@@ -15,6 +15,9 @@
           <span id="pendingBadge" class="pending-badge" style="display: none;">0</span>
           <% } %>
         </button>
+        <button type="button" class="btn-modern btn-modern-secondary" onclick="openImportModal()">
+          <i class="fa fa-upload"></i> <%= __('routes.importOpenApi') %>
+        </button>
         <button type="button" class="btn-modern btn-modern-primary" onclick="openModal('create')">
           <i class="fa fa-plus"></i> <%= __('routes.newRoute') %>
         </button>
@@ -154,6 +157,152 @@
       <div class="console">
         <div class="output" id="salidaconsola">
         </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Importar OpenAPI -->
+<div class="modal fade modal-modern" id="importOpenApiModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fa fa-upload me-2"></i><%= __('import.title') %>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <!-- Step 1: Input -->
+        <div id="importStep1">
+          <ul class="nav nav-tabs mb-3" role="tablist">
+            <li class="nav-item">
+              <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#importTabFile" type="button">
+                <i class="fa fa-file"></i> <%= __('import.uploadFile') %>
+              </button>
+            </li>
+            <li class="nav-item">
+              <button class="nav-link" data-bs-toggle="tab" data-bs-target="#importTabUrl" type="button">
+                <i class="fa fa-link"></i> URL
+              </button>
+            </li>
+            <li class="nav-item">
+              <button class="nav-link" data-bs-toggle="tab" data-bs-target="#importTabPaste" type="button">
+                <i class="fa fa-paste"></i> <%= __('import.pasteContent') %>
+              </button>
+            </li>
+          </ul>
+
+          <div class="tab-content">
+            <div class="tab-pane fade show active" id="importTabFile">
+              <div class="form-group-modern">
+                <label class="form-label-modern"><%= __('import.specFile') %></label>
+                <input type="file" class="form-control-modern" id="importSpecFile" accept=".json,.yaml,.yml">
+                <small style="color: var(--text-muted);"><%= __('import.fileFormats') %></small>
+              </div>
+            </div>
+            <div class="tab-pane fade" id="importTabUrl">
+              <div class="form-group-modern">
+                <label class="form-label-modern"><%= __('import.specUrl') %></label>
+                <input type="url" class="form-control-modern" id="importSpecUrl" placeholder="<%= __('import.specUrlPlaceholder') %>">
+                <small style="color: var(--text-muted);"><%= __('import.specUrlHelp') %></small>
+              </div>
+            </div>
+            <div class="tab-pane fade" id="importTabPaste">
+              <div class="form-group-modern">
+                <label class="form-label-modern"><%= __('import.pasteSpec') %></label>
+                <textarea class="form-control-modern" id="importSpecContent" rows="8" placeholder="<%= __('import.pastePlaceholder') %>"></textarea>
+              </div>
+              <div class="form-group-modern">
+                <label class="form-label-modern"><%= __('import.specFormat') %></label>
+                <select class="form-control-modern form-select-modern" id="importSpecFormat">
+                  <option value="auto"><%= __('import.autoDetect') %></option>
+                  <option value="json">JSON</option>
+                  <option value="yaml">YAML</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group-modern" style="margin-top: 1rem;">
+            <label class="form-label-modern"><%= __('import.basePath') %></label>
+            <div style="display: flex; align-items: center; gap: 0;">
+              <span style="padding: 0.5rem 0.75rem; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-right: none; border-radius: 8px 0 0 8px; color: var(--text-secondary);">/</span>
+              <input type="text" class="form-control-modern" id="importBasePath" placeholder="<%= __('import.basePathPlaceholder') %>" style="border-radius: 0 8px 8px 0;">
+            </div>
+            <small style="color: var(--text-muted);"><%= __('import.basePathHelp') %></small>
+          </div>
+
+          <div class="form-group-modern">
+            <label class="form-label-modern"><%= __('import.conflictStrategy') %></label>
+            <select class="form-control-modern form-select-modern" id="importConflictStrategy">
+              <option value="skip"><%= __('import.skipExisting') %></option>
+              <option value="overwrite"><%= __('import.overwriteExisting') %></option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Step 2: Preview -->
+        <div id="importStep2" style="display: none;">
+          <div class="alert-modern alert-modern-info" id="importSpecInfo" style="margin-bottom: 1rem;">
+            <i class="fa fa-info-circle alert-icon"></i>
+            <div class="alert-content">
+              <div class="alert-title" id="importSpecTitle"></div>
+              <div class="alert-text" id="importSpecDetails"></div>
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+              <input type="checkbox" id="importSelectAll" checked onchange="toggleAllImportRoutes(this.checked)">
+              <label for="importSelectAll" style="cursor: pointer;"><%= __('import.selectAll') %></label>
+              <span id="importSelectedCount" class="ms-2" style="color: var(--text-secondary);"></span>
+            </div>
+          </div>
+
+          <div style="max-height: 400px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px;">
+            <table class="table-modern" style="width: 100%; margin: 0;">
+              <thead>
+                <tr>
+                  <th style="width: 40px;"></th>
+                  <th><%= __('table.method') %></th>
+                  <th><%= __('table.route') %></th>
+                  <th><%= __('table.code') %></th>
+                  <th><%= __('import.description') %></th>
+                  <th><%= __('import.status') %></th>
+                </tr>
+              </thead>
+              <tbody id="importRoutesPreview"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Loading -->
+        <div id="importLoading" style="display: none; text-align: center; padding: 2rem;">
+          <i class="fa fa-spinner fa-spin fa-2x"></i>
+          <p style="margin-top: 1rem;"><%= __('import.parsing') %></p>
+        </div>
+
+        <!-- Error -->
+        <div id="importError" class="alert-modern alert-modern-danger" style="display: none;">
+          <i class="fa fa-exclamation-triangle alert-icon"></i>
+          <div class="alert-content">
+            <div class="alert-title"><%= __('import.errorTitle') %></div>
+            <div class="alert-text" id="importErrorMsg"></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-modern btn-modern-secondary" data-bs-dismiss="modal"><%= __('buttons.cancel') %></button>
+        <button type="button" class="btn-modern btn-modern-primary" id="importPreviewBtn" onclick="previewImport()">
+          <i class="fa fa-eye"></i> <%= __('import.preview') %>
+        </button>
+        <button type="button" class="btn-modern btn-modern-secondary" id="importBackBtn" onclick="importGoBack()" style="display: none;">
+          <i class="fa fa-arrow-left"></i> <%= __('import.back') %>
+        </button>
+        <button type="button" class="btn-modern btn-modern-primary" id="importConfirmBtn" onclick="confirmImport()" style="display: none;">
+          <i class="fa fa-download"></i> <%= __('import.importRoutes') %>
+        </button>
       </div>
     </div>
   </div>
@@ -2225,6 +2374,198 @@
       const cleanRoute = openSection.dataset.cleanRoute || currentCurlRoute.ruta;
       window.open(cleanRoute, '_blank');
     }
+  }
+
+  // ===== OPENAPI IMPORT =====
+  let importPreviewData = null;
+
+  function openImportModal() {
+    importPreviewData = null;
+    document.getElementById('importStep1').style.display = 'block';
+    document.getElementById('importStep2').style.display = 'none';
+    document.getElementById('importLoading').style.display = 'none';
+    document.getElementById('importError').style.display = 'none';
+    document.getElementById('importPreviewBtn').style.display = 'inline-flex';
+    document.getElementById('importBackBtn').style.display = 'none';
+    document.getElementById('importConfirmBtn').style.display = 'none';
+    document.getElementById('importSpecFile').value = '';
+    document.getElementById('importSpecUrl').value = '';
+    document.getElementById('importSpecContent').value = '';
+    document.getElementById('importBasePath').value = '';
+    $('#importOpenApiModal').modal('show');
+  }
+
+  async function previewImport() {
+    const formData = new FormData();
+    const fileInput = document.getElementById('importSpecFile');
+    const contentInput = document.getElementById('importSpecContent');
+    const urlInput = document.getElementById('importSpecUrl');
+    const basePath = document.getElementById('importBasePath').value;
+    const format = document.getElementById('importSpecFormat').value;
+
+    const activeTab = document.querySelector('#importOpenApiModal .nav-link.active');
+    const activeTarget = activeTab.getAttribute('data-bs-target');
+
+    if (activeTarget === '#importTabFile' && fileInput.files.length > 0) {
+      formData.append('specFile', fileInput.files[0]);
+    } else if (activeTarget === '#importTabUrl' && urlInput.value.trim()) {
+      formData.append('specUrl', urlInput.value.trim());
+    } else if (activeTarget === '#importTabPaste' && contentInput.value.trim()) {
+      formData.append('content', contentInput.value.trim());
+      formData.append('format', format);
+    } else {
+      showImportError(t('import.noSpecProvided'));
+      return;
+    }
+
+    formData.append('basePath', basePath);
+
+    document.getElementById('importStep1').style.display = 'none';
+    document.getElementById('importLoading').style.display = 'block';
+    document.getElementById('importError').style.display = 'none';
+    document.getElementById('importPreviewBtn').style.display = 'none';
+
+    try {
+      const response = await fetch('/api/import-openapi/preview', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await response.json();
+
+      if (!data.success) {
+        showImportError(data.error);
+        importGoBack();
+        return;
+      }
+
+      importPreviewData = data;
+      renderImportPreview(data);
+    } catch (err) {
+      showImportError(err.message);
+      importGoBack();
+    }
+  }
+
+  function renderImportPreview(data) {
+    document.getElementById('importLoading').style.display = 'none';
+    document.getElementById('importStep2').style.display = 'block';
+    document.getElementById('importBackBtn').style.display = 'inline-flex';
+    document.getElementById('importConfirmBtn').style.display = 'inline-flex';
+
+    document.getElementById('importSpecTitle').textContent =
+      `${data.specInfo.title} v${data.specInfo.version}`;
+    document.getElementById('importSpecDetails').textContent =
+      `${data.specInfo.format} | ${data.specInfo.pathCount} paths | ${data.specInfo.operationCount} operations`;
+
+    const tbody = document.getElementById('importRoutesPreview');
+    tbody.innerHTML = '';
+
+    data.routes.forEach((route, index) => {
+      const methodColors = {
+        get: '#61affe', post: '#49cc90', put: '#fca130',
+        delete: '#f93e3e', patch: '#50e3c2', options: '#0d5aa7', head: '#9012fe'
+      };
+      const color = methodColors[route.tipo] || '#999';
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><input type="checkbox" class="import-route-check" data-index="${index}" checked onchange="updateImportCount()"></td>
+        <td><span style="background: ${color}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75em; font-weight: 600;">${route.tipo.toUpperCase()}</span></td>
+        <td><code style="font-size: 0.85em;">${escapeHtml(route.ruta)}</code>
+          ${route.isRegex ? '<i class="fa fa-asterisk" style="color: var(--warning); font-size: 0.7em;" title="Regex"></i>' : ''}</td>
+        <td>${route.codigo}</td>
+        <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+            title="${escapeHtml(route._summary || route._operationId || '')}">
+          ${escapeHtml(route._summary || route._operationId || '-')}</td>
+        <td>${route._conflict
+          ? '<span style="background: var(--warning); color: #000; padding: 2px 8px; border-radius: 4px; font-size: 0.75em;">' + t('import.conflict') + '</span>'
+          : '<span style="background: var(--success); color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 0.75em;">' + t('import.new') + '</span>'
+        }</td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    updateImportCount();
+  }
+
+  function toggleAllImportRoutes(checked) {
+    document.querySelectorAll('.import-route-check').forEach(cb => cb.checked = checked);
+    updateImportCount();
+  }
+
+  function updateImportCount() {
+    const checked = document.querySelectorAll('.import-route-check:checked').length;
+    const total = document.querySelectorAll('.import-route-check').length;
+    document.getElementById('importSelectedCount').textContent = `(${checked}/${total})`;
+  }
+
+  function importGoBack() {
+    document.getElementById('importStep1').style.display = 'block';
+    document.getElementById('importStep2').style.display = 'none';
+    document.getElementById('importLoading').style.display = 'none';
+    document.getElementById('importPreviewBtn').style.display = 'inline-flex';
+    document.getElementById('importBackBtn').style.display = 'none';
+    document.getElementById('importConfirmBtn').style.display = 'none';
+  }
+
+  async function confirmImport() {
+    if (!importPreviewData) return;
+
+    const selectedRoutes = [];
+    document.querySelectorAll('.import-route-check:checked').forEach(cb => {
+      const index = parseInt(cb.dataset.index);
+      const route = importPreviewData.routes[index];
+      selectedRoutes.push({
+        tipo: route.tipo,
+        ruta: route.ruta,
+        codigo: route.codigo,
+        tiporespuesta: route.tiporespuesta,
+        respuesta: route.respuesta,
+        isRegex: route.isRegex
+      });
+    });
+
+    if (selectedRoutes.length === 0) return;
+
+    const conflictStrategy = document.getElementById('importConflictStrategy').value;
+    const btn = document.getElementById('importConfirmBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> ' + t('import.importing');
+
+    try {
+      const response = await fetch('/api/import-openapi/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ routes: selectedRoutes, conflictStrategy })
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        tabla.ajax.reload();
+        $('#importOpenApiModal').modal('hide');
+        alert(`${t('import.successMessage')}: ${data.imported} ${t('import.importedCount')}` +
+          (data.skipped > 0 ? `, ${data.skipped} ${t('import.skippedCount')}` : ''));
+      } else {
+        showImportError(data.error);
+      }
+    } catch (err) {
+      showImportError(err.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa fa-download"></i> ' + t('import.importRoutes');
+    }
+  }
+
+  function showImportError(message) {
+    document.getElementById('importError').style.display = 'flex';
+    document.getElementById('importErrorMsg').textContent = message;
+  }
+
+  function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   }
 
   // Initialize tooltips

@@ -6,6 +6,7 @@ const semaphore = require('../services/semaphore.service');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const openapiService = require('../services/openapi.service');
 
 // Configuración de multer para subida de archivos
 const UPLOADS_DIR = path.join(__dirname, '..', 'data', 'uploads');
@@ -626,6 +627,170 @@ router.post('/normalize-order', async function(req, res, next) {
         console.error('Error normalizando órdenes:', err);
         res.statusCode = 500;
         res.json({ error: err.message });
+    }
+});
+
+// ===== IMPORT OPENAPI =====
+
+// Preview: parsea spec y devuelve rutas sin insertar
+router.post('/import-openapi/preview', upload.single('specFile'), async function(req, res) {
+    try {
+        let content = '';
+        let format = req.body.format || 'auto';
+
+        if (req.file) {
+            content = fs.readFileSync(req.file.path, 'utf-8');
+            fs.unlink(req.file.path, () => {});
+            if (format === 'auto') {
+                format = req.file.originalname.match(/\.ya?ml$/i) ? 'yaml' : 'json';
+            }
+        } else if (req.body.specUrl) {
+            // Fetch spec from remote URL
+            const specUrl = req.body.specUrl;
+            console.log(`[OPENAPI] Fetching spec from URL: ${specUrl}`);
+            const fetchModule = specUrl.startsWith('https') ? require('https') : require('http');
+            content = await new Promise((resolve, reject) => {
+                fetchModule.get(specUrl, { headers: { 'Accept': 'application/json, application/yaml, */*' } }, (response) => {
+                    if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+                        // Follow redirect
+                        const redirectModule = response.headers.location.startsWith('https') ? require('https') : require('http');
+                        redirectModule.get(response.headers.location, (redirectRes) => {
+                            let data = '';
+                            redirectRes.on('data', chunk => data += chunk);
+                            redirectRes.on('end', () => resolve(data));
+                        }).on('error', reject);
+                        return;
+                    }
+                    if (response.statusCode !== 200) {
+                        reject(new Error(`HTTP ${response.statusCode} fetching spec from URL`));
+                        return;
+                    }
+                    let data = '';
+                    response.on('data', chunk => data += chunk);
+                    response.on('end', () => resolve(data));
+                }).on('error', reject);
+            });
+            if (format === 'auto') {
+                format = specUrl.match(/\.ya?ml$/i) ? 'yaml' : 'json';
+            }
+        } else if (req.body.content) {
+            content = req.body.content;
+        } else {
+            return res.status(400).json({ success: false, error: 'No specification provided' });
+        }
+
+        const basePath = req.body.basePath || '';
+
+        // Parsear y validar
+        const spec = await openapiService.parseSpec(content, format);
+        const specInfo = openapiService.getSpecInfo(spec);
+
+        // Generar rutas
+        const routes = openapiService.generateRoutes(spec, basePath);
+        specInfo.operationCount = routes.length;
+
+        // Detectar conflictos con rutas existentes
+        const db = sqliteService.getDatabase();
+        for (const route of routes) {
+            const existing = await new Promise((resolve, reject) => {
+                db.get(
+                    'SELECT id FROM rutas WHERE ruta = ? AND tipo = ?',
+                    [route.ruta, route.tipo],
+                    (err, row) => {
+                        if (err) reject(err);
+                        else resolve(row);
+                    }
+                );
+            });
+            route._conflict = !!existing;
+            route._existingId = existing ? existing.id : null;
+        }
+        db.close();
+
+        res.json({ success: true, specInfo, routes });
+    } catch (err) {
+        console.error('[OPENAPI] Preview error:', err.message);
+        res.status(400).json({ success: false, error: err.message });
+    }
+});
+
+// Confirm: inserta las rutas seleccionadas en la BD
+router.post('/import-openapi/confirm', async function(req, res) {
+    const { routes, conflictStrategy = 'skip' } = req.body;
+
+    if (!Array.isArray(routes) || routes.length === 0) {
+        return res.status(400).json({ success: false, error: 'No routes provided' });
+    }
+
+    // Validar que ninguna ruta empiece con /api/
+    const reserved = routes.filter(r => r.ruta.startsWith('/api/') || r.ruta === '/api');
+    if (reserved.length > 0) {
+        return res.status(400).json({ success: false, error: 'Routes starting with /api/ are reserved' });
+    }
+
+    const db = sqliteService.getDatabase();
+    let imported = 0;
+    let skipped = 0;
+
+    try {
+        // Obtener orden inicial una vez
+        let currentOrder = await getNextOrder(db, false);
+
+        for (const route of routes) {
+            // Verificar si ya existe
+            const existing = await new Promise((resolve, reject) => {
+                db.get(
+                    'SELECT id FROM rutas WHERE ruta = ? AND tipo = ?',
+                    [route.ruta, route.tipo],
+                    (err, row) => {
+                        if (err) reject(err);
+                        else resolve(row);
+                    }
+                );
+            });
+
+            if (existing) {
+                if (conflictStrategy === 'skip') {
+                    skipped++;
+                    continue;
+                } else if (conflictStrategy === 'overwrite') {
+                    await new Promise((resolve, reject) => {
+                        db.run(
+                            `UPDATE rutas SET codigo = ?, respuesta = ?, tiporespuesta = ?, isRegex = ? WHERE id = ?`,
+                            [route.codigo, route.respuesta, route.tiporespuesta, route.isRegex ? 1 : 0, existing.id],
+                            function(err) {
+                                if (err) reject(err);
+                                else resolve();
+                            }
+                        );
+                    });
+                    imported++;
+                    continue;
+                }
+            }
+
+            // Insertar nueva ruta
+            await new Promise((resolve, reject) => {
+                db.run(
+                    `INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders, activo, orden) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+                    [route.tipo, route.ruta, route.codigo, route.respuesta, route.tiporespuesta, 0, route.isRegex ? 1 : 0, null, 1, currentOrder],
+                    function(err) {
+                        if (err) reject(err);
+                        else resolve();
+                    }
+                );
+            });
+            currentOrder++;
+            imported++;
+        }
+
+        db.close();
+        console.log(`[OPENAPI] Import completado: ${imported} importadas, ${skipped} omitidas`);
+        res.json({ success: true, imported, skipped });
+    } catch (err) {
+        db.close();
+        console.error('[OPENAPI] Import error:', err.message);
+        res.status(500).json({ success: false, error: err.message, imported, skipped });
     }
 });
 

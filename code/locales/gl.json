@@ -15,7 +15,8 @@
     "editRoute": "Editar Ruta",
     "pendingList": "Pendentes",
     "normalize": "Normalizar",
-    "normalizeTitle": "Reorganizar ordes secuencialmente"
+    "normalizeTitle": "Reorganizar ordes secuencialmente",
+    "importOpenApi": "Importar OpenAPI"
   },
   "table": {
     "id": "id",
@@ -237,6 +238,41 @@
   "headerActions": {
     "set": "Set",
     "remove": "Remove"
+  },
+  "import": {
+    "title": "Importar OpenAPI / Swagger",
+    "uploadFile": "Subir Arquivo",
+    "pasteContent": "Pegar Contido",
+    "specUrl": "URL da Especificacion",
+    "specUrlPlaceholder": "https://api.example.com/openapi.json",
+    "specUrlHelp": "URL publica do arquivo OpenAPI/Swagger do servidor",
+    "specFile": "Arquivo de Especificacion",
+    "fileFormats": "Formatos soportados: JSON (.json) ou YAML (.yaml, .yml)",
+    "pasteSpec": "Pegar Especificacion",
+    "pastePlaceholder": "Pega o teu OpenAPI/Swagger JSON ou YAML aqui...",
+    "specFormat": "Formato",
+    "autoDetect": "Auto-detectar",
+    "basePath": "Prefixo de Ruta Base",
+    "basePathPlaceholder": "meuhost",
+    "basePathHelp": "Todas as rutas importadas prefixaranse con esta ruta. Exemplo: se o prefixo e 'meuhost', a ruta /users convertese en /meuhost/users",
+    "conflictStrategy": "Se a ruta xa existe",
+    "skipExisting": "Omitir (manter existente)",
+    "overwriteExisting": "Sobrescribir (actualizar existente)",
+    "preview": "Previsualizar",
+    "back": "Volver",
+    "importRoutes": "Importar Rutas",
+    "importing": "Importando...",
+    "parsing": "Analizando especificacion...",
+    "selectAll": "Seleccionar todo",
+    "description": "Descricion",
+    "status": "Estado",
+    "new": "Nova",
+    "conflict": "Existe",
+    "noSpecProvided": "Proporcione un arquivo de especificacion ou pegue o seu contido",
+    "errorTitle": "Erro de Importacion",
+    "successMessage": "Importacion completada",
+    "importedCount": "importadas",
+    "skippedCount": "omitidas"
   },
   "languages": {
     "es": "Español",
