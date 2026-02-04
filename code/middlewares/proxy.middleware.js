@@ -122,16 +122,15 @@ async function configureProxy(app) {
     await loadProxyConfigs();
 
     if (proxyConfigs.length === 0) {
-        console.log('[PROXY] No existen proxys en la base de datos');
-        // Establecer handler vacío que pasa al siguiente middleware
-        if (app.setProxyHandler) {
-            app.setProxyHandler((req, res, next) => next());
-        }
-        return;
+        console.log('[PROXY] No existen proxys en la base de datos (se cargarán dinámicamente)');
     }
 
-    // Middleware de proxy personalizado
+    // Middleware de proxy personalizado (siempre activo, usa proxyConfigs dinámicamente)
     const proxyHandler = async (req, res, next) => {
+        // Si no hay configuraciones de proxy, pasar al siguiente middleware
+        if (proxyConfigs.length === 0) {
+            return next();
+        }
         const requestStart = Date.now();
         const requestPath = req.url;
 

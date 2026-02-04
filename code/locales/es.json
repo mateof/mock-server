@@ -15,7 +15,8 @@
     "editRoute": "Editar Ruta",
     "pendingList": "Pendientes",
     "normalize": "Normalizar",
-    "normalizeTitle": "Reorganizar órdenes secuencialmente"
+    "normalizeTitle": "Reorganizar órdenes secuencialmente",
+    "importOpenApi": "Importar OpenAPI"
   },
   "table": {
     "id": "id",
@@ -78,7 +79,7 @@
       "leaveEmpty": "Dejar vacío para usar la respuesta por defecto"
     },
     "help": {
-      "proxyExample": "Ejemplo: Si ruta es /fake-api/ y destino es https://api.real.com, una petición a /fake-api/users se redirigirá a https://api.real.com/users",
+      "proxyExample": "Ejemplo: Si ruta es [route] y destino es [target], una petición a [request] se enviará a [result]",
       "fileHelp": "El archivo se devolverá con el Content-Type correspondiente a su tipo MIME",
       "waitModeDesc": "Las peticiones se pausaran hasta que las liberes manualmente desde \"Lista Pendientes\".",
       "routeActiveDesc": "Si esta desactivada, las peticiones no seran interceptadas por esta ruta.",
@@ -237,6 +238,46 @@
   "headerActions": {
     "set": "Set",
     "remove": "Remove"
+  },
+  "import": {
+    "title": "Importar OpenAPI / Swagger",
+    "uploadFile": "Subir Archivo",
+    "pasteContent": "Pegar Contenido",
+    "specUrl": "URL de la Especificacion",
+    "specUrlPlaceholder": "https://api.example.com/openapi.json",
+    "specUrlHelp": "URL publica del archivo OpenAPI/Swagger del servidor",
+    "specFile": "Archivo de Especificacion",
+    "fileFormats": "Formatos soportados: JSON (.json) o YAML (.yaml, .yml)",
+    "pasteSpec": "Pegar Especificacion",
+    "pastePlaceholder": "Pega tu OpenAPI/Swagger JSON o YAML aqui...",
+    "specFormat": "Formato",
+    "autoDetect": "Auto-detectar",
+    "basePath": "Prefijo de Ruta Base",
+    "basePathPlaceholder": "mihost",
+    "basePathHelp": "Todas las rutas importadas se prefijaran con esta ruta. Ejemplo: si el prefijo es 'mihost', la ruta /users se convierte en /mihost/users",
+    "conflictStrategy": "Si la ruta ya existe",
+    "skipExisting": "Omitir (mantener existente)",
+    "overwriteExisting": "Sobrescribir (actualizar existente)",
+    "preview": "Previsualizar",
+    "back": "Volver",
+    "importRoutes": "Importar Rutas",
+    "importing": "Importando...",
+    "parsing": "Analizando especificacion...",
+    "selectAll": "Seleccionar todo",
+    "description": "Descripcion",
+    "status": "Estado",
+    "new": "Nueva",
+    "conflict": "Existe",
+    "noSpecProvided": "Proporcione un archivo de especificacion o pegue su contenido",
+    "errorTitle": "Error de Importacion",
+    "successMessage": "Importacion completada",
+    "importedCount": "importadas",
+    "skippedCount": "omitidas"
+  },
+  "bulk": {
+    "selectAll": "Seleccionar todo",
+    "deleteSelected": "Eliminar seleccionadas",
+    "confirmMessage": "¿Estás seguro de que deseas eliminar las rutas seleccionadas?"
   },
   "languages": {
     "es": "Español",

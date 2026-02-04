@@ -71,10 +71,10 @@ async function getRuta(ruta, tipo) {
 
     // Primero buscar rutas exactas (no regex) con tipo específico o 'any' y que estén activas
     // Ordenar por: 1) tipo específico primero, 2) orden de prioridad (menor = mayor prioridad)
-    let sql = `SELECT * FROM rutas WHERE (? LIKE ruta || '%' OR ruta = ?) AND (tipo = ? OR tipo = 'any') AND (isRegex IS NULL OR isRegex = 0) AND (activo IS NULL OR activo = 1) ORDER BY CASE WHEN tipo = ? THEN 0 ELSE 1 END, COALESCE(orden, 999999) ASC LIMIT 1`;
+    let sql = `SELECT * FROM rutas WHERE ruta = ? AND (tipo = ? OR tipo = 'any') AND (isRegex IS NULL OR isRegex = 0) AND (activo IS NULL OR activo = 1) ORDER BY CASE WHEN tipo = ? THEN 0 ELSE 1 END, COALESCE(orden, 999999) ASC LIMIT 1`;
     console.log(`[DB] Buscando coincidencia exacta...`);
     let result = await new Promise((resolve, reject) => {
-        db.get(sql, [rutaSinQuery, rutaSinQuery, tipo, tipo], (err, result) => {
+        db.get(sql, [rutaSinQuery, tipo, tipo], (err, result) => {
             if (err) {
                 console.error(`[DB] Error en consulta: ${err.message}`);
                 reject(err);
@@ -199,6 +199,18 @@ async function createTables(newdb) {
     await addColumn(newdb, 'fileName', 'TEXT');
     await addColumn(newdb, 'filePath', 'TEXT');
     await addColumn(newdb, 'fileMimeType', 'TEXT');
+
+    // Crear índices para optimizar búsquedas de rutas
+    await new Promise((resolve) => {
+        newdb.exec(`
+            CREATE INDEX IF NOT EXISTS idx_rutas_ruta_tipo ON rutas(ruta, tipo);
+            CREATE INDEX IF NOT EXISTS idx_rutas_tiporespuesta_activo ON rutas(tiporespuesta, activo);
+            CREATE INDEX IF NOT EXISTS idx_rutas_orden ON rutas(orden);
+        `, (err) => {
+            if (!err) console.log('[DB] Indices verificados');
+            resolve();
+        });
+    });
 
     // Inicializar orden para rutas existentes que no lo tengan
     // Proxies empiezan en 99999999 y decrementan

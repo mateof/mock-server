@@ -15,7 +15,8 @@
     "editRoute": "Editar Ruta",
     "pendingList": "Pendentes",
     "normalize": "Normalizar",
-    "normalizeTitle": "Reorganizar ordes secuencialmente"
+    "normalizeTitle": "Reorganizar ordes secuencialmente",
+    "importOpenApi": "Importar OpenAPI"
   },
   "table": {
     "id": "id",
@@ -78,7 +79,7 @@
       "leaveEmpty": "Deixar baleiro para usar a resposta por defecto"
     },
     "help": {
-      "proxyExample": "Exemplo: Se a ruta é /fake-api/ e o destino é https://api.real.com, unha petición a /fake-api/users redirixirase a https://api.real.com/users",
+      "proxyExample": "Exemplo: Se a ruta é [route] e o destino é [target], unha petición a [request] redirixirase a [result]",
       "fileHelp": "O arquivo devolverase co Content-Type correspondente ao seu tipo MIME",
       "waitModeDesc": "As peticións pausaranse ata que as liberes manualmente desde \"Lista Pendentes\".",
       "routeActiveDesc": "Se está desactivada, as peticións non serán interceptadas por esta ruta.",
@@ -237,6 +238,46 @@
   "headerActions": {
     "set": "Set",
     "remove": "Remove"
+  },
+  "import": {
+    "title": "Importar OpenAPI / Swagger",
+    "uploadFile": "Subir Arquivo",
+    "pasteContent": "Pegar Contido",
+    "specUrl": "URL da Especificacion",
+    "specUrlPlaceholder": "https://api.example.com/openapi.json",
+    "specUrlHelp": "URL publica do arquivo OpenAPI/Swagger do servidor",
+    "specFile": "Arquivo de Especificacion",
+    "fileFormats": "Formatos soportados: JSON (.json) ou YAML (.yaml, .yml)",
+    "pasteSpec": "Pegar Especificacion",
+    "pastePlaceholder": "Pega o teu OpenAPI/Swagger JSON ou YAML aqui...",
+    "specFormat": "Formato",
+    "autoDetect": "Auto-detectar",
+    "basePath": "Prefixo de Ruta Base",
+    "basePathPlaceholder": "meuhost",
+    "basePathHelp": "Todas as rutas importadas prefixaranse con esta ruta. Exemplo: se o prefixo e 'meuhost', a ruta /users convertese en /meuhost/users",
+    "conflictStrategy": "Se a ruta xa existe",
+    "skipExisting": "Omitir (manter existente)",
+    "overwriteExisting": "Sobrescribir (actualizar existente)",
+    "preview": "Previsualizar",
+    "back": "Volver",
+    "importRoutes": "Importar Rutas",
+    "importing": "Importando...",
+    "parsing": "Analizando especificacion...",
+    "selectAll": "Seleccionar todo",
+    "description": "Descricion",
+    "status": "Estado",
+    "new": "Nova",
+    "conflict": "Existe",
+    "noSpecProvided": "Proporcione un arquivo de especificacion ou pegue o seu contido",
+    "errorTitle": "Erro de Importacion",
+    "successMessage": "Importacion completada",
+    "importedCount": "importadas",
+    "skippedCount": "omitidas"
+  },
+  "bulk": {
+    "selectAll": "Seleccionar todo",
+    "deleteSelected": "Eliminar seleccionadas",
+    "confirmMessage": "Estás seguro de que desexas eliminar as rutas seleccionadas?"
   },
   "languages": {
     "es": "Español",
