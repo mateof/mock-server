@@ -176,6 +176,7 @@
 <%- include('modals/delete') %>
 <%- include('modals/bulk-delete') %>
 <%- include('modals/connection') %>
+<%- include('modals/duplicate') %>
 
 <script src="/js/socket.io.js"></script>
 
@@ -708,9 +709,10 @@
       }},
       { data: null, render: function (data) {
         return `<div class="btn-group-modern">
-          <button class="btn-icon btn-icon-primary" onclick="openCurlModal(${data.id})" title="Ver ejemplo"><i class="fa fa-terminal"></i></button>
-          <button class="btn-icon btn-icon-warning" onclick="openModal('edit', ${data.id})" title="Editar"><i class="fa fa-pencil"></i></button>
-          <button class="btn-icon btn-icon-danger" onclick="openDeleteModal(${data.id})" title="Eliminar"><i class="fa fa-trash"></i></button>
+          <button class="btn-icon btn-icon-primary" onclick="openCurlModal(${data.id})" title="${t('actions.viewExample')}"><i class="fa fa-terminal"></i></button>
+          <button class="btn-icon btn-icon-info" onclick="openDuplicateModal(${data.id})" title="${t('actions.duplicate')}"><i class="fa fa-copy"></i></button>
+          <button class="btn-icon btn-icon-warning" onclick="openModal('edit', ${data.id})" title="${t('actions.edit')}"><i class="fa fa-pencil"></i></button>
+          <button class="btn-icon btn-icon-danger" onclick="openDeleteModal(${data.id})" title="${t('actions.deleteRoute')}"><i class="fa fa-trash"></i></button>
         </div>`;
       }}
     ]
@@ -1287,6 +1289,73 @@
     btn.innerHTML = originalHtml;
     btn.disabled = false;
     deleteRouteId = null;
+  }
+
+  // Duplicate route functions
+  let duplicateRouteId = null;
+
+  function openDuplicateModal(id) {
+    const obj = Array.from(tabla.rows().data()).find(el => el.id === id);
+    if (!obj) return;
+
+    duplicateRouteId = id;
+
+    document.getElementById('duplicateRouteMethod').innerHTML = `<span class="badge-modern badge-${obj.tipo}">${obj.tipo.toUpperCase()}</span>`;
+    document.getElementById('duplicateRouteOriginal').textContent = obj.ruta;
+    document.getElementById('duplicateRouteType').textContent = obj.tiporespuesta;
+    document.getElementById('duplicateRouteCode').textContent = obj.codigo;
+    document.getElementById('duplicateNewRoute').value = obj.ruta;
+
+    $('#duplicateModal').modal('show');
+
+    // Focus en el input de ruta tras abrir el modal
+    $('#duplicateModal').on('shown.bs.modal', function () {
+      document.getElementById('duplicateNewRoute').focus();
+      document.getElementById('duplicateNewRoute').select();
+    });
+  }
+
+  async function confirmDuplicate() {
+    if (!duplicateRouteId) return;
+
+    const newRoute = document.getElementById('duplicateNewRoute').value.trim();
+    if (!newRoute) {
+      showToast(t('duplicate.routeRequired'), 'error');
+      return;
+    }
+
+    if (newRoute.startsWith('/api/') || newRoute === '/api') {
+      showToast(t('confirm.reservedRoute'), 'warning');
+      return;
+    }
+
+    const btn = document.getElementById('confirmDuplicateBtn');
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = `<i class="fa fa-spinner fa-spin"></i> ${t('duplicate.duplicating')}`;
+    btn.disabled = true;
+
+    try {
+      const response = await fetch(`/api/duplicate/${duplicateRouteId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newRoute })
+      });
+
+      if (response.ok) {
+        tabla.ajax.reload();
+        $('#duplicateModal').modal('hide');
+        showToast(t('duplicate.success'), 'success');
+      } else {
+        const err = await response.json().catch(() => ({}));
+        showToast(err.error || t('duplicate.error'), 'error');
+      }
+    } catch (e) {
+      showToast(t('duplicate.error'), 'error');
+    }
+
+    btn.innerHTML = originalHtml;
+    btn.disabled = false;
+    duplicateRouteId = null;
   }
 
   // Bulk delete functions

@@ -114,7 +114,8 @@
     "export": "Export",
     "release": "Release",
     "restore": "Restore",
-    "openNewTab": "Open in new tab"
+    "openNewTab": "Open in new tab",
+    "duplicate": "Duplicate"
   },
   "modal": {
     "confirmDelete": "Confirm Deletion",
@@ -124,7 +125,8 @@
     "connectionStatus": "Connection Status",
     "pendingRequests": "Pending List",
     "editResponse": "Edit response",
-    "releaseRequest": "Release"
+    "releaseRequest": "Release",
+    "duplicateRoute": "Duplicate Route"
   },
   "curl": {
     "method": "Method:",
@@ -209,7 +211,8 @@
     "enableRoute": "Enable route",
     "viewExample": "View example",
     "edit": "Edit",
-    "deleteRoute": "Delete"
+    "deleteRoute": "Delete",
+    "duplicate": "Duplicate"
   },
   "footer": {
     "github": "GitHub",
@@ -278,6 +281,13 @@
     "selectAll": "Select all",
     "deleteSelected": "Delete selected",
     "confirmMessage": "Are you sure you want to delete the selected routes?"
+  },
+  "duplicate": {
+    "newRoute": "New route",
+    "routeRequired": "Route is required",
+    "duplicating": "Duplicating...",
+    "success": "Route duplicated successfully",
+    "error": "Error duplicating route"
   },
   "languages": {
     "es": "Español",

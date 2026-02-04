@@ -1,0 +1,44 @@
+<!-- Modal Duplicar Ruta -->
+<div class="modal fade modal-modern" id="duplicateModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-copy me-2"></i><%= __('modal.duplicateRoute') %></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="duplicate-route-info mb-3">
+          <div class="delete-info-row">
+            <span class="delete-info-label"><%= __('table.method') %>:</span>
+            <span id="duplicateRouteMethod"></span>
+          </div>
+          <div class="delete-info-row">
+            <span class="delete-info-label"><%= __('table.route') %>:</span>
+            <code class="delete-info-value delete-route-path" id="duplicateRouteOriginal">-</code>
+          </div>
+          <div class="delete-info-row">
+            <span class="delete-info-label"><%= __('table.type') %>:</span>
+            <span class="delete-info-value" id="duplicateRouteType">-</span>
+          </div>
+          <div class="delete-info-row">
+            <span class="delete-info-label"><%= __('table.code') %>:</span>
+            <span class="delete-info-value" id="duplicateRouteCode">-</span>
+          </div>
+        </div>
+
+        <div class="form-group-modern">
+          <label class="form-label-modern" for="duplicateNewRoute"><%= __('duplicate.newRoute') %></label>
+          <input type="text" class="form-control form-control-modern" id="duplicateNewRoute" placeholder="<%= __('form.placeholder.route') %>">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-modern btn-modern-secondary" data-bs-dismiss="modal">
+          <i class="fa fa-times"></i> <%= __('buttons.cancel') %>
+        </button>
+        <button type="button" class="btn-modern btn-modern-primary" id="confirmDuplicateBtn" onclick="confirmDuplicate()">
+          <i class="fa fa-copy"></i> <%= __('buttons.duplicate') %>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
