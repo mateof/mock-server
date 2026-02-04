@@ -6,6 +6,9 @@ var fs = require('fs');
 const DB_DIR = path.join(__dirname, '..', 'data');
 const DB_PATH = path.join(DB_DIR, 'database.db');
 
+// Conexión persistente (singleton)
+let _db = null;
+
 async function initSql(){
     console.log('[DB] Inicializando base de datos SQLite...');
     console.log(`[DB] Ruta: ${DB_PATH}`);
@@ -16,56 +19,35 @@ async function initSql(){
         fs.mkdirSync(DB_DIR, { recursive: true });
     }
 
-    // Verificar si el archivo de base de datos existe
-    const dbExists = fs.existsSync(DB_PATH);
+    // Crear conexión persistente
+    _db = await new Promise((resolve, reject) => {
+        const db = new sqlite3.Database(DB_PATH, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, (err) => {
+            if (err) {
+                console.error("[DB] Error abriendo base de datos: " + err);
+                reject(err);
+                return;
+            }
+            resolve(db);
+        });
+    });
 
-    if (!dbExists) {
-        console.log('[DB] Base de datos no existe, creando nueva...');
-        await createDatabase();
-        console.log('[DB] Base de datos creada correctamente');
-        return;
-    }
+    // Habilitar WAL mode para mejor concurrencia
+    await new Promise((resolve) => {
+        _db.run('PRAGMA journal_mode=WAL', () => resolve());
+    });
 
-    console.log('[DB] Base de datos existente encontrada');
-    // Verificar/actualizar esquema de base de datos existente
-    await createDatabase();
+    console.log('[DB] Conexión persistente establecida');
+    await createTables(_db);
     console.log('[DB] Esquema verificado correctamente');
 }
 
 function getDatabase() {
-    return new sqlite3.Database(DB_PATH, sqlite3.OPEN_READWRITE);
-}
-
-function createDatabase() {
-    console.log('[DB] Creando/verificando base de datos...');
-    return new Promise((resolve, reject) => {
-        var newdb = new sqlite3.Database(DB_PATH, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, async (err) => {
-            if (err) {
-                console.error("[DB] Error creando base de datos: " + err);
-                reject(err);
-                return;
-            }
-            console.log('[DB] Base de datos lista, verificando tablas...');
-            try {
-                await createTables(newdb);
-                newdb.close((closeErr) => {
-                    if (closeErr) {
-                        console.error('[DB] Error cerrando conexión:', closeErr.message);
-                    }
-                    resolve();
-                });
-            } catch (tableErr) {
-                console.error('[DB] Error en createTables:', tableErr);
-                newdb.close();
-                reject(tableErr);
-            }
-        });
-    });
+    return _db;
 }
 
 async function getRuta(ruta, tipo) {
     console.log(`[DB] Buscando ruta: ${ruta} (método: ${tipo})`);
-    const db = getDatabase();
+    const db = _db;
     const rutaSinQuery = ruta.split("?")[0];
     console.log(`[DB] Ruta sin query params: ${rutaSinQuery}`);
 
@@ -120,8 +102,6 @@ async function getRuta(ruta, tipo) {
         }
     }
 
-    db.close();
-
     if (result) {
         console.log(`[DB] Resultado final: ID=${result.id}, tiporespuesta=${result.tiporespuesta}, codigo=${result.codigo}`);
     } else {
@@ -133,10 +113,9 @@ async function getRuta(ruta, tipo) {
 
 async function getProxys() {
     console.log(`[DB] Obteniendo configuraciones de proxy...`);
-    const db = getDatabase();
     let sql = `SELECT * FROM rutas WHERE tiporespuesta = 'proxy' AND (activo IS NULL OR activo = 1)`;
     const result = await new Promise((resolve, reject) => {
-        db.all(sql, [], (err, result) => {
+        _db.all(sql, [], (err, result) => {
         if (err) {
           console.error(`[DB] Error obteniendo proxys: ${err.message}`);
           reject(err);
@@ -144,7 +123,6 @@ async function getProxys() {
         resolve(result);
       });
     });
-    db.close();
     console.log(`[DB] Proxys encontrados: ${result ? result.length : 0}`);
     return result;
 }
