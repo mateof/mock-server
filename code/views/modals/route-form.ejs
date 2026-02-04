@@ -1,0 +1,207 @@
+<!-- Modal Nueva/Editar Ruta -->
+<div class="modal fade modal-modern" id="routesModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="titleModal"><i class="fa fa-route me-2"></i><%= __('routes.newRoute') %></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p id="idmodal" hidden></p>
+
+        <!-- Tipo de Respuesta -->
+        <div class="form-group-modern" id="divtresp">
+          <label class="form-label-modern" for="tiporespuesta"><%= __('form.responseType') %></label>
+          <select class="form-control-modern form-select-modern" onchange="checkRespuesta()" id="tiporespuesta" name="tiporespuesta">
+            <option value="json" selected><%= __('responseTypes.json') %></option>
+            <option value="xml"><%= __('responseTypes.xml') %></option>
+            <option value="soap"><%= __('responseTypes.soap') %></option>
+            <option value="text"><%= __('responseTypes.text') %></option>
+            <option value="html"><%= __('responseTypes.html') %></option>
+            <option value="page"><%= __('responseTypes.page') %></option>
+            <option value="file"><%= __('responseTypes.file') %></option>
+            <option value="proxy"><%= __('responseTypes.proxy') %></option>
+            <option value="empty"><%= __('responseTypes.empty') %></option>
+          </select>
+        </div>
+
+        <!-- Metodo HTTP -->
+        <div class="form-group-modern" id="divtipo">
+          <label class="form-label-modern" for="tipoSelect"><%= __('form.httpMethod') %></label>
+          <select class="form-control-modern form-select-modern" id="tipoSelect" name="tipoSelect">
+            <option value="0" selected>GET</option>
+            <option value="1">POST</option>
+            <option value="2">PUT</option>
+            <option value="3">DELETE</option>
+            <option value="4">PATCH</option>
+            <option value="5">OPTIONS</option>
+            <option value="6">HEAD</option>
+            <option value="7">ANY</option>
+          </select>
+        </div>
+
+        <!-- Ruta -->
+        <div class="form-group-modern" id="divruta">
+          <label class="form-label-modern" for="ruta"><%= __('form.route') %></label>
+          <div class="input-group-modern">
+            <input type="text" class="form-control-modern" id="ruta" name="ruta" placeholder="<%= __('form.placeholder.route') %>"
+              oninput="validateRegexIfEnabled()">
+            <div class="input-addon">
+              <input class="form-check-input me-2" type="checkbox" id="isRegex" name="isRegex" onchange="toggleRegexMode()">
+              <label class="form-check-label" for="isRegex"><%= __('filters.regex') %></label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Validador Regex -->
+        <div class="form-group-modern" id="divRegexValidator" style="display: none;">
+          <label class="form-label-modern" for="regexTestUrl"><%= __('form.testRegex') %></label>
+          <div class="input-group-modern">
+            <input type="text" class="form-control-modern" id="regexTestUrl" name="regexTestUrl" placeholder="<%= __('form.placeholder.testUrl') %>" oninput="testRegex()">
+            <button class="btn-modern btn-modern-secondary" type="button" onclick="testRegex()" style="border-radius: 0 var(--border-radius-sm) var(--border-radius-sm) 0;">
+              <%= __('buttons.validate') %>
+            </button>
+          </div>
+          <div id="regexResult" class="mt-2"></div>
+        </div>
+
+        <!-- Codigo de Respuesta -->
+        <div class="form-group-modern" id="divcodresp">
+          <label class="form-label-modern" for="crespuestaInput"><%= __('form.responseCode') %></label>
+          <div class="d-flex gap-3 align-items-center">
+            <input type="text" class="form-control-modern" id="crespuestaInput" name="crespuestaInput" list="httpCodes" value="200"
+              oninput="updateCodeDescription()" autocomplete="off" style="max-width: 100px;">
+            <span id="codeDescription" style="color: var(--text-secondary);">OK</span>
+          </div>
+          <datalist id="httpCodes">
+            <option value="200">OK</option>
+            <option value="201">Created</option>
+            <option value="204">No Content</option>
+            <option value="301">Moved Permanently</option>
+            <option value="302">Found (Redirect)</option>
+            <option value="304">Not Modified</option>
+            <option value="400">Bad Request</option>
+            <option value="401">Unauthorized</option>
+            <option value="403">Forbidden</option>
+            <option value="404">Not Found</option>
+            <option value="405">Method Not Allowed</option>
+            <option value="409">Conflict</option>
+            <option value="422">Unprocessable Entity</option>
+            <option value="429">Too Many Requests</option>
+            <option value="500">Internal Server Error</option>
+            <option value="502">Bad Gateway</option>
+            <option value="503">Service Unavailable</option>
+            <option value="504">Gateway Timeout</option>
+          </datalist>
+        </div>
+
+        <!-- Respuesta -->
+        <div class="form-group-modern" id="divresp">
+          <div class="form-label-row">
+            <label class="form-label-modern" for="respuesta"><%= __('form.response') %></label>
+            <button type="button" class="btn-modern btn-modern-secondary btn-sm" id="btnFormatJson" onclick="formatResponseJson()" title="<%= __('buttons.format') %>">
+              <i class="fa fa-align-left"></i> <%= __('buttons.format') %>
+            </button>
+          </div>
+          <textarea class="form-control-modern" id="respuesta" name="respuesta" rows="5" placeholder="<%= __('form.placeholder.response') %>"></textarea>
+        </div>
+
+        <!-- Destino Proxy -->
+        <div class="form-group-modern" id="divDestino" style="display: none;">
+          <label class="form-label-modern" for="destinoProxy"><%= __('form.proxyDestination') %></label>
+          <input type="text" class="form-control-modern" id="destinoProxy" name="destinoProxy" placeholder="<%= __('form.placeholder.proxyUrl') %>">
+          <small style="color: var(--text-muted); margin-top: 0.5rem; display: block;">
+            <%- __('form.help.proxyExample')
+              .replace('[route]', '<code style="color: var(--primary);">/fake-api/</code>')
+              .replace('[target]', '<code style="color: var(--primary);">https://api.example.com</code>')
+              .replace('[request]', '<code style="color: var(--primary);">/fake-api/users</code>')
+              .replace('[result]', '<code style="color: var(--primary);">https://api.example.com/users</code>')
+            %>
+          </small>
+        </div>
+
+        <!-- Archivo -->
+        <div class="form-group-modern" id="divFile" style="display: none;">
+          <label class="form-label-modern" for="fileUpload"><%= __('form.fileToReturn') %></label>
+          <div class="file-upload-wrapper">
+            <input type="file" class="form-control-modern" id="fileUpload" name="fileUpload" onchange="handleFileSelect(event)">
+            <div id="fileInfo" class="file-info" style="display: none;">
+              <i class="fa fa-file"></i>
+              <span id="fileName"></span>
+              <span id="fileSize" class="file-size"></span>
+              <button type="button" class="btn-file-remove" onclick="clearFileSelection()" title="Quitar archivo">
+                <i class="fa fa-times"></i>
+              </button>
+            </div>
+            <div id="currentFileInfo" class="current-file-info" style="display: none;">
+              <i class="fa fa-check-circle" style="color: var(--success);"></i>
+              <span>Archivo actual: </span>
+              <strong id="currentFileName"></strong>
+              <span id="currentFileSize" class="file-size"></span>
+            </div>
+          </div>
+          <small style="color: var(--text-muted); margin-top: 0.5rem; display: block;">
+            <%= __('form.help.fileHelp') %>
+          </small>
+        </div>
+
+        <!-- Espera Activa -->
+        <div class="alert-modern alert-modern-warning" id="divEsperaActiva">
+          <i class="fa fa-pause-circle alert-icon" aria-hidden="true"></i>
+          <div class="alert-content">
+            <div class="alert-title"><%= __('form.waitMode') %></div>
+            <div class="alert-text"><%= __('form.help.waitModeDesc') %></div>
+          </div>
+          <label class="switch-modern" for="esperaActiva">
+            <input type="checkbox" id="esperaActiva" name="esperaActiva">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <!-- Ruta Activa -->
+        <div class="alert-modern alert-modern-info" id="divActivo">
+          <i class="fa fa-power-off alert-icon" aria-hidden="true"></i>
+          <div class="alert-content">
+            <div class="alert-title"><%= __('form.routeActive') %></div>
+            <div class="alert-text"><%= __('form.help.routeActiveDesc') %></div>
+          </div>
+          <label class="switch-modern" for="rutaActiva">
+            <input type="checkbox" id="rutaActiva" name="rutaActiva" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <!-- Headers Personalizados -->
+        <div class="collapsible-section" id="divHeaders" style="margin-top: 1.25rem;">
+          <div class="collapsible-header" onclick="toggleHeadersSection()">
+            <h4><i class="fa fa-list-ul"></i> <%= __('form.customHeaders') %></h4>
+            <button type="button" class="btn-modern btn-modern-success" onclick="event.stopPropagation(); addHeaderRow()">
+              <i class="fa fa-plus"></i> <%= __('buttons.add') %>
+            </button>
+          </div>
+          <div class="collapsible-body">
+            <small style="color: var(--text-muted); margin-bottom: 1rem; display: block;">
+              <%= __('form.help.headersHelp') %>
+            </small>
+            <div id="headersContainer">
+              <!-- Headers dinamicos aqui -->
+            </div>
+            <div id="noHeadersMsg" class="empty-state" style="padding: 1rem;">
+              <i class="fa fa-inbox"></i>
+              <p><%= __('empty.noHeaders') %></p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-modern btn-modern-secondary" data-bs-dismiss="modal"><%= __('buttons.cancel') %></button>
+        <button type="button" class="btn-modern btn-modern-primary" id="botonguardar" onclick="guardar()">
+          <i class="fa fa-save"></i> <%= __('buttons.save') %>
+        </button>
+        <button type="button" class="btn-modern btn-modern-warning" id="botoneditar" onclick="editar()">
+          <i class="fa fa-edit"></i> <%= __('buttons.update') %>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

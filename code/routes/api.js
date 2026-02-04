@@ -284,6 +284,56 @@ router.delete('/delete/:id', async function(req, res) {
     }
 });
 
+router.post('/delete-bulk', async function(req, res) {
+    const { ids } = req.body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ success: false, error: 'No IDs provided' });
+    }
+
+    const db = sqliteService.getDatabase();
+
+    try {
+        // Obtener archivos asociados antes de eliminar
+        const placeholders = ids.map(() => '?').join(',');
+        const rows = await new Promise((resolve, reject) => {
+            db.all(`SELECT id, filePath FROM rutas WHERE id IN (${placeholders})`, ids, (err, rows) => {
+                if (err) reject(err);
+                else resolve(rows || []);
+            });
+        });
+
+        // Eliminar archivos asociados
+        for (const row of rows) {
+            if (row.filePath) {
+                const fullPath = path.join(UPLOADS_DIR, row.filePath);
+                fs.unlink(fullPath, (err) => {
+                    if (!err) console.log(`[API] Archivo eliminado: ${row.filePath}`);
+                });
+            }
+        }
+
+        // Eliminar registros
+        await new Promise((resolve, reject) => {
+            db.run(`DELETE FROM rutas WHERE id IN (${placeholders})`, ids, function(err) {
+                if (err) reject(err);
+                else resolve();
+            });
+        });
+
+        console.log(`[API] ${ids.length} rutas eliminadas en bulk`);
+        db.close();
+
+        await pm.reloadProxyConfigs();
+
+        res.json({ success: true, deleted: ids.length });
+    } catch (err) {
+        console.error('[API] Error en bulk delete:', err.message);
+        db.close();
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 router.get('/routes', function(req, res, next) {
     let sql = `SELECT * FROM rutas
            ORDER BY COALESCE(orden, 999999) ASC, id ASC`;

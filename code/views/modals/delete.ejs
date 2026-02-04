@@ -1,0 +1,51 @@
+<!-- Modal Confirmar Eliminación -->
+<div class="modal fade modal-modern" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header" style="border-bottom-color: var(--danger);">
+        <h5 class="modal-title" style="color: var(--danger);"><i class="fa fa-exclamation-triangle me-2"></i><%= __('modal.confirmDelete') %></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="delete-warning">
+          <div class="delete-icon">
+            <i class="fa fa-trash"></i>
+          </div>
+          <p class="delete-message"><%= __('modal.deleteMessage') %></p>
+          <p class="delete-submessage"><%= __('modal.deleteWarning') %></p>
+        </div>
+
+        <div class="delete-route-info">
+          <div class="delete-info-row">
+            <span class="delete-info-label">ID:</span>
+            <span class="delete-info-value" id="deleteRouteId">-</span>
+          </div>
+          <div class="delete-info-row">
+            <span class="delete-info-label"><%= __('table.method') %>:</span>
+            <span id="deleteRouteMethod"></span>
+          </div>
+          <div class="delete-info-row">
+            <span class="delete-info-label"><%= __('table.route') %>:</span>
+            <code class="delete-info-value delete-route-path" id="deleteRoutePath">-</code>
+          </div>
+          <div class="delete-info-row">
+            <span class="delete-info-label"><%= __('table.type') %>:</span>
+            <span class="delete-info-value" id="deleteRouteType">-</span>
+          </div>
+          <div class="delete-info-row">
+            <span class="delete-info-label"><%= __('table.code') %>:</span>
+            <span class="delete-info-value" id="deleteRouteCode">-</span>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-modern btn-modern-secondary" data-bs-dismiss="modal">
+          <i class="fa fa-times"></i> <%= __('buttons.cancel') %>
+        </button>
+        <button type="button" class="btn-modern btn-modern-danger" id="confirmDeleteBtn" onclick="confirmDelete()">
+          <i class="fa fa-trash"></i> <%= __('buttons.delete') %>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

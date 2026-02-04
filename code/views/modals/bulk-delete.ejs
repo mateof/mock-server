@@ -1,0 +1,29 @@
+<!-- Modal Bulk Delete -->
+<div class="modal fade modal-modern" id="bulkDeleteModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-trash me-2"></i><%= __('modal.confirmDelete') %></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="delete-warning">
+          <div class="delete-icon">
+            <i class="fa fa-trash"></i>
+          </div>
+          <p class="delete-message"><%= __('bulk.confirmMessage') %></p>
+          <p class="delete-submessage"><%= __('modal.deleteWarning') %></p>
+        </div>
+        <div id="bulkDeleteList" class="delete-route-info" style="max-height: 300px; overflow-y: auto;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-modern btn-modern-secondary" data-bs-dismiss="modal">
+          <i class="fa fa-times"></i> <%= __('buttons.cancel') %>
+        </button>
+        <button type="button" class="btn-modern btn-modern-danger" id="confirmBulkDeleteBtn" onclick="confirmBulkDelete()">
+          <i class="fa fa-trash"></i> <span id="bulkDeleteConfirmCount"><%= __('buttons.delete') %></span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

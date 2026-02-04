@@ -4,6 +4,9 @@
     <div class="card-header-modern">
       <h2><i class="fa fa-sitemap"></i> <%= __('routes.title') %></h2>
       <div class="d-flex gap-2">
+        <button type="button" class="btn-modern btn-modern-danger" id="bulkDeleteBtn" onclick="openBulkDeleteModal()" style="display: none;">
+          <i class="fa fa-trash"></i> <span id="bulkDeleteCount"></span>
+        </button>
         <button type="button" class="btn-modern btn-modern-secondary" onclick="normalizeOrder()" title="<%= __('routes.normalizeTitle') %>">
           <i class="fa fa-sort-numeric-asc"></i> <%= __('routes.normalize') %>
         </button>
@@ -114,6 +117,7 @@
           <thead>
             <tr>
               <th><%= __('table.id') %></th>
+              <th><input type="checkbox" id="selectAllRoutes" onchange="toggleSelectAllRoutes(this.checked)" title="<%= __('bulk.selectAll') %>"></th>
               <th><%= __('table.order') %></th>
               <th><%= __('table.method') %></th>
               <th><%= __('table.route') %></th>
@@ -162,625 +166,16 @@
   </div>
 </div>
 
-<!-- Modal Importar OpenAPI -->
-<div class="modal fade modal-modern" id="importOpenApiModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-xl">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">
-          <i class="fa fa-upload me-2"></i><%= __('import.title') %>
-        </h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <!-- Step 1: Input -->
-        <div id="importStep1">
-          <ul class="nav nav-tabs mb-3" role="tablist">
-            <li class="nav-item">
-              <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#importTabFile" type="button">
-                <i class="fa fa-file"></i> <%= __('import.uploadFile') %>
-              </button>
-            </li>
-            <li class="nav-item">
-              <button class="nav-link" data-bs-toggle="tab" data-bs-target="#importTabUrl" type="button">
-                <i class="fa fa-link"></i> URL
-              </button>
-            </li>
-            <li class="nav-item">
-              <button class="nav-link" data-bs-toggle="tab" data-bs-target="#importTabPaste" type="button">
-                <i class="fa fa-paste"></i> <%= __('import.pasteContent') %>
-              </button>
-            </li>
-          </ul>
+<%- include('modals/import-openapi') %>
 
-          <div class="tab-content">
-            <div class="tab-pane fade show active" id="importTabFile">
-              <div class="form-group-modern">
-                <label class="form-label-modern"><%= __('import.specFile') %></label>
-                <input type="file" class="form-control-modern" id="importSpecFile" accept=".json,.yaml,.yml">
-                <small style="color: var(--text-muted);"><%= __('import.fileFormats') %></small>
-              </div>
-            </div>
-            <div class="tab-pane fade" id="importTabUrl">
-              <div class="form-group-modern">
-                <label class="form-label-modern"><%= __('import.specUrl') %></label>
-                <input type="url" class="form-control-modern" id="importSpecUrl" placeholder="<%= __('import.specUrlPlaceholder') %>">
-                <small style="color: var(--text-muted);"><%= __('import.specUrlHelp') %></small>
-              </div>
-            </div>
-            <div class="tab-pane fade" id="importTabPaste">
-              <div class="form-group-modern">
-                <label class="form-label-modern"><%= __('import.pasteSpec') %></label>
-                <textarea class="form-control-modern" id="importSpecContent" rows="8" placeholder="<%= __('import.pastePlaceholder') %>"></textarea>
-              </div>
-              <div class="form-group-modern">
-                <label class="form-label-modern"><%= __('import.specFormat') %></label>
-                <select class="form-control-modern form-select-modern" id="importSpecFormat">
-                  <option value="auto"><%= __('import.autoDetect') %></option>
-                  <option value="json">JSON</option>
-                  <option value="yaml">YAML</option>
-                </select>
-              </div>
-            </div>
-          </div>
+<%- include('modals/route-form') %>
 
-          <div class="form-group-modern" style="margin-top: 1rem;">
-            <label class="form-label-modern"><%= __('import.basePath') %></label>
-            <div style="display: flex; align-items: center; gap: 0;">
-              <span style="padding: 0.5rem 0.75rem; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-right: none; border-radius: 8px 0 0 8px; color: var(--text-secondary);">/</span>
-              <input type="text" class="form-control-modern" id="importBasePath" placeholder="<%= __('import.basePathPlaceholder') %>" style="border-radius: 0 8px 8px 0;">
-            </div>
-            <small style="color: var(--text-muted);"><%= __('import.basePathHelp') %></small>
-          </div>
+<%- include('modals/pending-list') %>
 
-          <div class="form-group-modern">
-            <label class="form-label-modern"><%= __('import.conflictStrategy') %></label>
-            <select class="form-control-modern form-select-modern" id="importConflictStrategy">
-              <option value="skip"><%= __('import.skipExisting') %></option>
-              <option value="overwrite"><%= __('import.overwriteExisting') %></option>
-            </select>
-          </div>
-        </div>
-
-        <!-- Step 2: Preview -->
-        <div id="importStep2" style="display: none;">
-          <div class="alert-modern alert-modern-info" id="importSpecInfo" style="margin-bottom: 1rem;">
-            <i class="fa fa-info-circle alert-icon"></i>
-            <div class="alert-content">
-              <div class="alert-title" id="importSpecTitle"></div>
-              <div class="alert-text" id="importSpecDetails"></div>
-            </div>
-          </div>
-
-          <div class="d-flex justify-content-between align-items-center mb-3">
-            <div>
-              <input type="checkbox" id="importSelectAll" checked onchange="toggleAllImportRoutes(this.checked)">
-              <label for="importSelectAll" style="cursor: pointer;"><%= __('import.selectAll') %></label>
-              <span id="importSelectedCount" class="ms-2" style="color: var(--text-secondary);"></span>
-            </div>
-          </div>
-
-          <div style="max-height: 400px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px;">
-            <table class="table-modern" style="width: 100%; margin: 0;">
-              <thead>
-                <tr>
-                  <th style="width: 40px;"></th>
-                  <th><%= __('table.method') %></th>
-                  <th><%= __('table.route') %></th>
-                  <th><%= __('table.code') %></th>
-                  <th><%= __('import.description') %></th>
-                  <th><%= __('import.status') %></th>
-                </tr>
-              </thead>
-              <tbody id="importRoutesPreview"></tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- Loading -->
-        <div id="importLoading" style="display: none; text-align: center; padding: 2rem;">
-          <i class="fa fa-spinner fa-spin fa-2x"></i>
-          <p style="margin-top: 1rem;"><%= __('import.parsing') %></p>
-        </div>
-
-        <!-- Error -->
-        <div id="importError" class="alert-modern alert-modern-danger" style="display: none;">
-          <i class="fa fa-exclamation-triangle alert-icon"></i>
-          <div class="alert-content">
-            <div class="alert-title"><%= __('import.errorTitle') %></div>
-            <div class="alert-text" id="importErrorMsg"></div>
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn-modern btn-modern-secondary" data-bs-dismiss="modal"><%= __('buttons.cancel') %></button>
-        <button type="button" class="btn-modern btn-modern-primary" id="importPreviewBtn" onclick="previewImport()">
-          <i class="fa fa-eye"></i> <%= __('import.preview') %>
-        </button>
-        <button type="button" class="btn-modern btn-modern-secondary" id="importBackBtn" onclick="importGoBack()" style="display: none;">
-          <i class="fa fa-arrow-left"></i> <%= __('import.back') %>
-        </button>
-        <button type="button" class="btn-modern btn-modern-primary" id="importConfirmBtn" onclick="confirmImport()" style="display: none;">
-          <i class="fa fa-download"></i> <%= __('import.importRoutes') %>
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Modal Nueva/Editar Ruta -->
-<div class="modal fade modal-modern" id="routesModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="titleModal"><i class="fa fa-route me-2"></i><%= __('routes.newRoute') %></h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <p id="idmodal" hidden></p>
-
-        <!-- Tipo de Respuesta -->
-        <div class="form-group-modern" id="divtresp">
-          <label class="form-label-modern" for="tiporespuesta"><%= __('form.responseType') %></label>
-          <select class="form-control-modern form-select-modern" onchange="checkRespuesta()" id="tiporespuesta" name="tiporespuesta">
-            <option value="json" selected><%= __('responseTypes.json') %></option>
-            <option value="xml"><%= __('responseTypes.xml') %></option>
-            <option value="soap"><%= __('responseTypes.soap') %></option>
-            <option value="text"><%= __('responseTypes.text') %></option>
-            <option value="html"><%= __('responseTypes.html') %></option>
-            <option value="page"><%= __('responseTypes.page') %></option>
-            <option value="file"><%= __('responseTypes.file') %></option>
-            <option value="proxy"><%= __('responseTypes.proxy') %></option>
-            <option value="empty"><%= __('responseTypes.empty') %></option>
-          </select>
-        </div>
-
-        <!-- Metodo HTTP -->
-        <div class="form-group-modern" id="divtipo">
-          <label class="form-label-modern" for="tipoSelect"><%= __('form.httpMethod') %></label>
-          <select class="form-control-modern form-select-modern" id="tipoSelect" name="tipoSelect">
-            <option value="0" selected>GET</option>
-            <option value="1">POST</option>
-            <option value="2">PUT</option>
-            <option value="3">DELETE</option>
-            <option value="4">PATCH</option>
-            <option value="5">OPTIONS</option>
-            <option value="6">HEAD</option>
-            <option value="7">ANY</option>
-          </select>
-        </div>
-
-        <!-- Ruta -->
-        <div class="form-group-modern" id="divruta">
-          <label class="form-label-modern" for="ruta"><%= __('form.route') %></label>
-          <div class="input-group-modern">
-            <input type="text" class="form-control-modern" id="ruta" name="ruta" placeholder="<%= __('form.placeholder.route') %>"
-              oninput="validateRegexIfEnabled()">
-            <div class="input-addon">
-              <input class="form-check-input me-2" type="checkbox" id="isRegex" name="isRegex" onchange="toggleRegexMode()">
-              <label class="form-check-label" for="isRegex"><%= __('filters.regex') %></label>
-            </div>
-          </div>
-        </div>
-
-        <!-- Validador Regex -->
-        <div class="form-group-modern" id="divRegexValidator" style="display: none;">
-          <label class="form-label-modern" for="regexTestUrl"><%= __('form.testRegex') %></label>
-          <div class="input-group-modern">
-            <input type="text" class="form-control-modern" id="regexTestUrl" name="regexTestUrl" placeholder="<%= __('form.placeholder.testUrl') %>" oninput="testRegex()">
-            <button class="btn-modern btn-modern-secondary" type="button" onclick="testRegex()" style="border-radius: 0 var(--border-radius-sm) var(--border-radius-sm) 0;">
-              <%= __('buttons.validate') %>
-            </button>
-          </div>
-          <div id="regexResult" class="mt-2"></div>
-        </div>
-
-        <!-- Codigo de Respuesta -->
-        <div class="form-group-modern" id="divcodresp">
-          <label class="form-label-modern" for="crespuestaInput"><%= __('form.responseCode') %></label>
-          <div class="d-flex gap-3 align-items-center">
-            <input type="text" class="form-control-modern" id="crespuestaInput" name="crespuestaInput" list="httpCodes" value="200"
-              oninput="updateCodeDescription()" autocomplete="off" style="max-width: 100px;">
-            <span id="codeDescription" style="color: var(--text-secondary);">OK</span>
-          </div>
-          <datalist id="httpCodes">
-            <option value="200">OK</option>
-            <option value="201">Created</option>
-            <option value="204">No Content</option>
-            <option value="301">Moved Permanently</option>
-            <option value="302">Found (Redirect)</option>
-            <option value="304">Not Modified</option>
-            <option value="400">Bad Request</option>
-            <option value="401">Unauthorized</option>
-            <option value="403">Forbidden</option>
-            <option value="404">Not Found</option>
-            <option value="405">Method Not Allowed</option>
-            <option value="409">Conflict</option>
-            <option value="422">Unprocessable Entity</option>
-            <option value="429">Too Many Requests</option>
-            <option value="500">Internal Server Error</option>
-            <option value="502">Bad Gateway</option>
-            <option value="503">Service Unavailable</option>
-            <option value="504">Gateway Timeout</option>
-          </datalist>
-        </div>
-
-        <!-- Respuesta -->
-        <div class="form-group-modern" id="divresp">
-          <div class="form-label-row">
-            <label class="form-label-modern" for="respuesta"><%= __('form.response') %></label>
-            <button type="button" class="btn-modern btn-modern-secondary btn-sm" id="btnFormatJson" onclick="formatResponseJson()" title="<%= __('buttons.format') %>">
-              <i class="fa fa-align-left"></i> <%= __('buttons.format') %>
-            </button>
-          </div>
-          <textarea class="form-control-modern" id="respuesta" name="respuesta" rows="5" placeholder="<%= __('form.placeholder.response') %>"></textarea>
-        </div>
-
-        <!-- Destino Proxy -->
-        <div class="form-group-modern" id="divDestino" style="display: none;">
-          <label class="form-label-modern" for="destinoProxy"><%= __('form.proxyDestination') %></label>
-          <input type="text" class="form-control-modern" id="destinoProxy" name="destinoProxy" placeholder="<%= __('form.placeholder.proxyUrl') %>">
-          <small style="color: var(--text-muted); margin-top: 0.5rem; display: block;">
-            <%- __('form.help.proxyExample')
-              .replace('[route]', '<code style="color: var(--primary);">/fake-api/</code>')
-              .replace('[target]', '<code style="color: var(--primary);">https://api.example.com</code>')
-              .replace('[request]', '<code style="color: var(--primary);">/fake-api/users</code>')
-              .replace('[result]', '<code style="color: var(--primary);">https://api.example.com/users</code>')
-            %>
-          </small>
-        </div>
-
-        <!-- Archivo -->
-        <div class="form-group-modern" id="divFile" style="display: none;">
-          <label class="form-label-modern" for="fileUpload"><%= __('form.fileToReturn') %></label>
-          <div class="file-upload-wrapper">
-            <input type="file" class="form-control-modern" id="fileUpload" name="fileUpload" onchange="handleFileSelect(event)">
-            <div id="fileInfo" class="file-info" style="display: none;">
-              <i class="fa fa-file"></i>
-              <span id="fileName"></span>
-              <span id="fileSize" class="file-size"></span>
-              <button type="button" class="btn-file-remove" onclick="clearFileSelection()" title="Quitar archivo">
-                <i class="fa fa-times"></i>
-              </button>
-            </div>
-            <div id="currentFileInfo" class="current-file-info" style="display: none;">
-              <i class="fa fa-check-circle" style="color: var(--success);"></i>
-              <span>Archivo actual: </span>
-              <strong id="currentFileName"></strong>
-              <span id="currentFileSize" class="file-size"></span>
-            </div>
-          </div>
-          <small style="color: var(--text-muted); margin-top: 0.5rem; display: block;">
-            <%= __('form.help.fileHelp') %>
-          </small>
-        </div>
-
-        <!-- Espera Activa -->
-        <div class="alert-modern alert-modern-warning" id="divEsperaActiva">
-          <i class="fa fa-pause-circle alert-icon" aria-hidden="true"></i>
-          <div class="alert-content">
-            <div class="alert-title"><%= __('form.waitMode') %></div>
-            <div class="alert-text"><%= __('form.help.waitModeDesc') %></div>
-          </div>
-          <label class="switch-modern" for="esperaActiva">
-            <input type="checkbox" id="esperaActiva" name="esperaActiva">
-            <span class="slider"></span>
-          </label>
-        </div>
-
-        <!-- Ruta Activa -->
-        <div class="alert-modern alert-modern-info" id="divActivo">
-          <i class="fa fa-power-off alert-icon" aria-hidden="true"></i>
-          <div class="alert-content">
-            <div class="alert-title"><%= __('form.routeActive') %></div>
-            <div class="alert-text"><%= __('form.help.routeActiveDesc') %></div>
-          </div>
-          <label class="switch-modern" for="rutaActiva">
-            <input type="checkbox" id="rutaActiva" name="rutaActiva" checked>
-            <span class="slider"></span>
-          </label>
-        </div>
-
-        <!-- Headers Personalizados -->
-        <div class="collapsible-section" id="divHeaders" style="margin-top: 1.25rem;">
-          <div class="collapsible-header" onclick="toggleHeadersSection()">
-            <h4><i class="fa fa-list-ul"></i> <%= __('form.customHeaders') %></h4>
-            <button type="button" class="btn-modern btn-modern-success" onclick="event.stopPropagation(); addHeaderRow()">
-              <i class="fa fa-plus"></i> <%= __('buttons.add') %>
-            </button>
-          </div>
-          <div class="collapsible-body">
-            <small style="color: var(--text-muted); margin-bottom: 1rem; display: block;">
-              <%= __('form.help.headersHelp') %>
-            </small>
-            <div id="headersContainer">
-              <!-- Headers dinamicos aqui -->
-            </div>
-            <div id="noHeadersMsg" class="empty-state" style="padding: 1rem;">
-              <i class="fa fa-inbox"></i>
-              <p><%= __('empty.noHeaders') %></p>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn-modern btn-modern-secondary" data-bs-dismiss="modal"><%= __('buttons.cancel') %></button>
-        <button type="button" class="btn-modern btn-modern-primary" id="botonguardar" onclick="guardar()">
-          <i class="fa fa-save"></i> <%= __('buttons.save') %>
-        </button>
-        <button type="button" class="btn-modern btn-modern-warning" id="botoneditar" onclick="editar()">
-          <i class="fa fa-edit"></i> <%= __('buttons.update') %>
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Modal Lista Pendientes -->
-<div class="modal fade modal-modern" id="modalLista" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-xl">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="titleModalList"><i class="fa fa-clock-o me-2"></i><%= __('modal.pendingRequests') %></h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <div id="pendingListContainer">
-          <% listaEspera.forEach(function(element) { %>
-          <div class="pending-item" id="pl-<%= element.id %>"
-               data-id="<%= element.id %>"
-               data-response="<%= element.defaultResponse || '' %>"
-               data-type="<%= element.tiporespuesta || 'json' %>"
-               data-code="<%= element.codigo || 200 %>"
-               data-headers="<%= element.customHeaders || '{}' %>">
-            <div class="pending-item-header">
-              <div class="pending-item-info">
-                <span class="pending-item-url"><%= element.url %></span>
-                <span class="pending-item-date"><%= element.date %></span>
-              </div>
-              <div class="pending-item-actions">
-                <button class="btn-icon btn-icon-primary" onclick="togglePendingResponse('<%= element.id %>')" title="<%= __('modal.editResponse') %>">
-                  <i class="fa fa-pencil" aria-hidden="true"></i>
-                </button>
-                <button class="btn-icon btn-icon-success" onclick="iniciaTarea('<%= element.id %>')" title="<%= __('modal.releaseRequest') %>">
-                  <i class="fa fa-play" aria-hidden="true"></i>
-                </button>
-              </div>
-            </div>
-            <div class="pending-item-response" id="pr-<%= element.id %>" style="display: none;">
-              <div class="pending-response-row">
-                <div class="form-group-modern pending-code-group">
-                  <label class="form-label-modern" for="prc-<%= element.id %>"><%= __('pending.code') %></label>
-                  <input type="number" class="form-control-modern" id="prc-<%= element.id %>" name="prc-<%= element.id %>" value="<%= element.codigo || 200 %>" min="100" max="599">
-                </div>
-                <div class="form-group-modern pending-type-group">
-                  <label class="form-label-modern" for="prtype-<%= element.id %>"><%= __('pending.type') %></label>
-                  <select class="form-control-modern" id="prtype-<%= element.id %>" name="prtype-<%= element.id %>" onchange="togglePendingFormatBtn('<%= element.id %>')">
-                    <option value="json" <%= element.tiporespuesta === 'json' ? 'selected' : '' %>>JSON</option>
-                    <option value="xml" <%= element.tiporespuesta === 'xml' ? 'selected' : '' %>>XML</option>
-                    <option value="soap" <%= element.tiporespuesta === 'soap' ? 'selected' : '' %>>SOAP</option>
-                    <option value="text" <%= element.tiporespuesta === 'text' ? 'selected' : '' %>>Texto</option>
-                    <option value="html" <%= element.tiporespuesta === 'html' ? 'selected' : '' %>>HTML</option>
-                  </select>
-                </div>
-              </div>
-              <div class="form-group-modern">
-                <label class="form-label-modern" for="prt-<%= element.id %>"><%= __('pending.responseBody') %></label>
-                <textarea class="form-control-modern" id="prt-<%= element.id %>" name="prt-<%= element.id %>" rows="6" placeholder="<%= __('form.placeholder.leaveEmpty') %>"><%= element.defaultResponse || '' %></textarea>
-              </div>
-              <div class="form-group-modern">
-                <label class="form-label-modern" for="prh-<%= element.id %>"><%= __('pending.customHeadersJson') %></label>
-                <textarea class="form-control-modern" id="prh-<%= element.id %>" name="prh-<%= element.id %>" rows="3" placeholder="<%= __('form.placeholder.headersJson') %>"><%= element.customHeaders || '' %></textarea>
-              </div>
-              <div class="pending-response-actions">
-                <button class="btn-modern btn-modern-secondary btn-sm" onclick="resetPendingResponse('<%= element.id %>')">
-                  <i class="fa fa-undo"></i> <%= __('buttons.restore') %>
-                </button>
-                <button class="btn-modern btn-modern-primary btn-sm" id="prfmt-<%= element.id %>" onclick="formatPendingContent('<%= element.id %>')" style="<%= !['json', 'xml', 'soap', 'html'].includes(element.tiporespuesta) ? 'display:none' : '' %>">
-                  <i class="fa fa-align-left"></i> <%= __('buttons.format') %>
-                </button>
-              </div>
-            </div>
-          </div>
-          <% }) %>
-        </div>
-        <% if (listaEspera.length === 0) { %>
-        <div class="empty-state" id="pendingEmptyState">
-          <i class="fa fa-check-circle"></i>
-          <p><%= __('pending.noPending') %></p>
-        </div>
-        <% } %>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn-modern btn-modern-secondary" data-bs-dismiss="modal"><%= __('buttons.close') %></button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Modal Curl Example -->
-<div class="modal fade modal-modern" id="curlModal" tabindex="-1" aria-labelledby="curlModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="curlModalTitle"><i class="fa fa-terminal me-2"></i><%= __('modal.curlExample') %></h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <div class="curl-info">
-          <div class="curl-row">
-            <span class="curl-label"><%= __('curl.method') %></span>
-            <span id="curlMethod" class="badge-modern"></span>
-          </div>
-          <div class="curl-row">
-            <span class="curl-label"><%= __('curl.route') %></span>
-            <code id="curlRoute" class="curl-code"></code>
-          </div>
-          <div class="curl-row">
-            <span class="curl-label"><%= __('curl.fullUrl') %></span>
-            <code id="curlFullUrl" class="curl-code"></code>
-          </div>
-        </div>
-
-        <div class="curl-section">
-          <div class="curl-section-header">
-            <h6><i class="fa fa-code"></i> <%= __('curl.command') %></h6>
-            <button class="btn-modern btn-modern-secondary btn-sm" onclick="copyCurl()" title="<%= __('buttons.copy') %>">
-              <i class="fa fa-copy"></i> <%= __('buttons.copy') %>
-            </button>
-          </div>
-          <pre id="curlCommand" class="curl-pre"></pre>
-        </div>
-
-        <div id="curlOpenSection" class="curl-open-section" style="display: none;">
-          <button class="btn-modern btn-modern-primary" onclick="openRouteInBrowser()">
-            <i class="fa fa-external-link"></i> <%= __('buttons.openNewTab') %>
-          </button>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn-modern btn-modern-secondary" data-bs-dismiss="modal"><%= __('buttons.close') %></button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Modal Confirmar Eliminación -->
-<div class="modal fade modal-modern" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header" style="border-bottom-color: var(--danger);">
-        <h5 class="modal-title" style="color: var(--danger);"><i class="fa fa-exclamation-triangle me-2"></i><%= __('modal.confirmDelete') %></h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <div class="delete-warning">
-          <div class="delete-icon">
-            <i class="fa fa-trash"></i>
-          </div>
-          <p class="delete-message"><%= __('modal.deleteMessage') %></p>
-          <p class="delete-submessage"><%= __('modal.deleteWarning') %></p>
-        </div>
-
-        <div class="delete-route-info">
-          <div class="delete-info-row">
-            <span class="delete-info-label">ID:</span>
-            <span class="delete-info-value" id="deleteRouteId">-</span>
-          </div>
-          <div class="delete-info-row">
-            <span class="delete-info-label"><%= __('table.method') %>:</span>
-            <span id="deleteRouteMethod"></span>
-          </div>
-          <div class="delete-info-row">
-            <span class="delete-info-label"><%= __('table.route') %>:</span>
-            <code class="delete-info-value delete-route-path" id="deleteRoutePath">-</code>
-          </div>
-          <div class="delete-info-row">
-            <span class="delete-info-label"><%= __('table.type') %>:</span>
-            <span class="delete-info-value" id="deleteRouteType">-</span>
-          </div>
-          <div class="delete-info-row">
-            <span class="delete-info-label"><%= __('table.code') %>:</span>
-            <span class="delete-info-value" id="deleteRouteCode">-</span>
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn-modern btn-modern-secondary" data-bs-dismiss="modal">
-          <i class="fa fa-times"></i> <%= __('buttons.cancel') %>
-        </button>
-        <button type="button" class="btn-modern btn-modern-danger" id="confirmDeleteBtn" onclick="confirmDelete()">
-          <i class="fa fa-trash"></i> <%= __('buttons.delete') %>
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Modal Estado de Conexión -->
-<div class="modal fade modal-modern" id="connectionModal" tabindex="-1" aria-labelledby="connectionModalLabel" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title"><i class="fa fa-wifi me-2"></i><%= __('modal.connectionStatus') %></h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <div class="connection-status-card" id="connectionStatusCard">
-          <div class="connection-status-indicator">
-            <span class="connection-dot" id="connDot"></span>
-            <span class="connection-label" id="connLabel"><%= __('nav.connecting') %></span>
-          </div>
-        </div>
-
-        <div class="connection-stats">
-          <div class="stat-group">
-            <h6><i class="fa fa-info-circle"></i> <%= __('connection.generalInfo') %></h6>
-            <div class="stat-row">
-              <span class="stat-label"><%= __('connection.type') %></span>
-              <span class="stat-value" id="connType">-</span>
-            </div>
-            <div class="stat-row">
-              <span class="stat-label"><%= __('connection.serverUrl') %></span>
-              <span class="stat-value" id="connUrl">-</span>
-            </div>
-            <div class="stat-row">
-              <span class="stat-label"><%= __('connection.sessionId') %></span>
-              <span class="stat-value stat-value-mono" id="connSessionId">-</span>
-            </div>
-          </div>
-
-          <div class="stat-group">
-            <h6><i class="fa fa-clock-o"></i> <%= __('connection.time') %></h6>
-            <div class="stat-row">
-              <span class="stat-label"><%= __('connection.connectedSince') %></span>
-              <span class="stat-value" id="connSince">-</span>
-            </div>
-            <div class="stat-row">
-              <span class="stat-label"><%= __('connection.connectedTime') %></span>
-              <span class="stat-value" id="connDuration">-</span>
-            </div>
-            <div class="stat-row">
-              <span class="stat-label"><%= __('connection.latency') %></span>
-              <span class="stat-value" id="connLatency">-</span>
-            </div>
-          </div>
-
-          <div class="stat-group">
-            <h6><i class="fa fa-exchange"></i> <%= __('connection.dataTransfer') %></h6>
-            <div class="stat-row">
-              <span class="stat-label"><%= __('connection.messagesReceived') %></span>
-              <span class="stat-value" id="connMsgReceived">0</span>
-            </div>
-            <div class="stat-row">
-              <span class="stat-label"><%= __('connection.messagesSent') %></span>
-              <span class="stat-value" id="connMsgSent">0</span>
-            </div>
-            <div class="stat-row">
-              <span class="stat-label"><%= __('connection.consoleEvents') %></span>
-              <span class="stat-value" id="connConsoleEvents">0</span>
-            </div>
-          </div>
-
-          <div class="stat-group">
-            <h6><i class="fa fa-refresh"></i> <%= __('connection.reconnections') %></h6>
-            <div class="stat-row">
-              <span class="stat-label"><%= __('connection.reconnectCount') %></span>
-              <span class="stat-value" id="connReconnects">0</span>
-            </div>
-            <div class="stat-row">
-              <span class="stat-label"><%= __('connection.lastReconnect') %></span>
-              <span class="stat-value" id="connLastReconnect">-</span>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn-modern btn-modern-secondary" data-bs-dismiss="modal"><%= __('buttons.close') %></button>
-      </div>
-    </div>
-  </div>
-</div>
+<%- include('modals/curl-example') %>
+<%- include('modals/delete') %>
+<%- include('modals/bulk-delete') %>
+<%- include('modals/connection') %>
 
 <script src="/js/socket.io.js"></script>
 
@@ -1231,22 +626,26 @@
       paginate: { first: "<<", previous: "<", next: ">", last: ">>" }
     },
     dom: '<"top"l>rt<"bottom"ip>', // Ocultar busqueda global, usamos filtros custom
-    order: [[1, 'asc']], // Ordenar por columna orden (índice 1) por defecto
+    order: [[2, 'asc']], // Ordenar por columna orden (índice 2) por defecto
     columnDefs: [
       { target: 0, visible: false, searchable: false },
-      { "width": "7%", "targets": 1, "type": "num" }, // Orden - tipo numérico para ordenar correctamente
-      { "width": "7%", "targets": 2 },
-      { "width": "30%", "targets": 3 },
-      { "width": "8%", "targets": 4 },
-      { "width": "7%", "targets": 5 },
-      { "width": "5%", "targets": 6 },
+      { "width": "3%", "targets": 1, "orderable": false, "searchable": false }, // Checkbox
+      { "width": "7%", "targets": 2, "type": "num" }, // Orden - tipo numérico para ordenar correctamente
+      { "width": "7%", "targets": 3 },
+      { "width": "28%", "targets": 4 },
+      { "width": "8%", "targets": 5 },
+      { "width": "7%", "targets": 6 },
       { "width": "5%", "targets": 7 },
-      { "width": "6%", "targets": 8 },
-      { "width": "19%", "targets": 9 },
-      { "className": "dt-center", "targets": [1,2,4,5,6,7,8,9] }
+      { "width": "5%", "targets": 8 },
+      { "width": "5%", "targets": 9 },
+      { "width": "19%", "targets": 10 },
+      { "className": "dt-center", "targets": [1,2,3,5,6,7,8,9,10] }
     ],
     columns: [
       { data: 'id' },
+      { data: null, render: function(data) {
+        return `<input type="checkbox" class="route-select-check" data-id="${data.id}" onchange="updateBulkSelection()">`;
+      }},
       {
         data: 'orden', // Usar el campo orden para ordenar numéricamente
         render: function (data, type, row) {
@@ -1490,7 +889,7 @@
         textarea.value = formatHtml(textarea.value);
       }
     } catch (e) {
-      alert(`${t('responseTypes.' + tipoResp) || tipoResp.toUpperCase()} ${t('validation.' + tipoResp + 'Invalid')}: ${e.message}`);
+      showToast(`${t('responseTypes.' + tipoResp) || tipoResp.toUpperCase()} ${t('validation.' + tipoResp + 'Invalid')}: ${e.message}`, 'error');
     }
   }
 
@@ -1515,7 +914,7 @@
         tabla.ajax.reload(null, false);
         console.log(`Normalizado: ${data.rutas} rutas, ${data.proxies} proxies`);
       } else {
-        alert(data.error || t('errors.normalizing'));
+        showToast(data.error || t('errors.normalizing'), 'error');
       }
     } catch (e) {
       console.error(t('errors.normalizing') + ':', e);
@@ -1549,7 +948,7 @@
   async function updateOrden(id, orden) {
     const ordenNum = parseInt(orden);
     if (isNaN(ordenNum) || ordenNum < 1) {
-      alert(t('validation.orderPositive'));
+      showToast(t('validation.orderPositive'), 'warning');
       tabla.ajax.reload(null, false);
       return;
     }
@@ -1564,7 +963,7 @@
       if (data.success) {
         tabla.ajax.reload(null, false);
       } else {
-        alert(data.error || t('errors.updatingOrder'));
+        showToast(data.error || t('errors.updatingOrder'), 'error');
       }
     } catch (e) {
       console.error(t('errors.updatingOrder') + ':', e);
@@ -1890,6 +1289,85 @@
     deleteRouteId = null;
   }
 
+  // Bulk delete functions
+  function toggleSelectAllRoutes(checked) {
+    document.querySelectorAll('.route-select-check').forEach(cb => {
+      cb.checked = checked;
+    });
+    updateBulkSelection();
+  }
+
+  function updateBulkSelection() {
+    const checked = document.querySelectorAll('.route-select-check:checked');
+    const btn = document.getElementById('bulkDeleteBtn');
+    const count = document.getElementById('bulkDeleteCount');
+    if (checked.length > 0) {
+      btn.style.display = '';
+      count.textContent = `${t('bulk.deleteSelected')} (${checked.length})`;
+    } else {
+      btn.style.display = 'none';
+    }
+    // Update select all checkbox state
+    const all = document.querySelectorAll('.route-select-check');
+    const selectAll = document.getElementById('selectAllRoutes');
+    if (selectAll) {
+      selectAll.checked = all.length > 0 && checked.length === all.length;
+      selectAll.indeterminate = checked.length > 0 && checked.length < all.length;
+    }
+  }
+
+  function openBulkDeleteModal() {
+    const checked = document.querySelectorAll('.route-select-check:checked');
+    if (checked.length === 0) return;
+
+    const ids = Array.from(checked).map(cb => parseInt(cb.dataset.id));
+    const routes = Array.from(tabla.rows().data()).filter(r => ids.includes(r.id));
+
+    const listHtml = routes.map(r =>
+      `<div class="delete-info-row">
+        <span class="badge-modern badge-${r.tipo}" style="min-width:55px;text-align:center">${r.tipo.toUpperCase()}</span>
+        <code class="delete-info-value delete-route-path ms-2">${r.ruta}</code>
+      </div>`
+    ).join('');
+
+    document.getElementById('bulkDeleteList').innerHTML = listHtml;
+    document.getElementById('bulkDeleteConfirmCount').textContent = `${t('buttons.delete')} (${ids.length})`;
+
+    $('#bulkDeleteModal').modal('show');
+  }
+
+  async function confirmBulkDelete() {
+    const checked = document.querySelectorAll('.route-select-check:checked');
+    if (checked.length === 0) return;
+
+    const ids = Array.from(checked).map(cb => parseInt(cb.dataset.id));
+
+    const btn = document.getElementById('confirmBulkDeleteBtn');
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = `<i class="fa fa-spinner fa-spin"></i> ${t('buttons.deleting')}`;
+    btn.disabled = true;
+
+    try {
+      const response = await fetch('/api/delete-bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids })
+      });
+      if (response.ok) {
+        tabla.ajax.reload(function() {
+          document.getElementById('selectAllRoutes').checked = false;
+          updateBulkSelection();
+        });
+        $('#bulkDeleteModal').modal('hide');
+      }
+    } catch (err) {
+      console.error('Bulk delete error:', err);
+    }
+
+    btn.innerHTML = originalHtml;
+    btn.disabled = false;
+  }
+
   $("#routesModal").on("hidden.bs.modal", clearModal);
 
   function clearModal() {
@@ -1945,7 +1423,7 @@
 
     // Validar que la ruta no comience con /api/
     if (ruta.startsWith('/api/') || ruta === '/api') {
-      alert(t('confirm.reservedRoute'));
+      showToast(t('confirm.reservedRoute'), 'warning');
       return;
     }
 
@@ -2003,7 +1481,7 @@
 
     // Validar que la ruta no comience con /api/
     if (ruta.startsWith('/api/') || ruta === '/api') {
-      alert(t('confirm.reservedRoute'));
+      showToast(t('confirm.reservedRoute'), 'warning');
       return;
     }
 
@@ -2257,7 +1735,7 @@
         textarea.value = formatHtml(textarea.value);
       }
     } catch (e) {
-      alert(`${t('responseTypes.' + tipo) || tipo.toUpperCase()} ${t('validation.' + tipo + 'Invalid')}: ${e.message}`);
+      showToast(`${t('responseTypes.' + tipo) || tipo.toUpperCase()} ${t('validation.' + tipo + 'Invalid')}: ${e.message}`, 'error');
     }
   }
 
@@ -2543,8 +2021,8 @@
       if (data.success) {
         tabla.ajax.reload();
         $('#importOpenApiModal').modal('hide');
-        alert(`${t('import.successMessage')}: ${data.imported} ${t('import.importedCount')}` +
-          (data.skipped > 0 ? `, ${data.skipped} ${t('import.skippedCount')}` : ''));
+        showToast(`${t('import.successMessage')}: ${data.imported} ${t('import.importedCount')}` +
+          (data.skipped > 0 ? `, ${data.skipped} ${t('import.skippedCount')}` : ''), 'success');
       } else {
         showImportError(data.error);
       }

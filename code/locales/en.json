@@ -274,6 +274,11 @@
     "importedCount": "imported",
     "skippedCount": "skipped"
   },
+  "bulk": {
+    "selectAll": "Select all",
+    "deleteSelected": "Delete selected",
+    "confirmMessage": "Are you sure you want to delete the selected routes?"
+  },
   "languages": {
     "es": "Español",
     "en": "English",

@@ -1,0 +1,84 @@
+<!-- Modal Estado de Conexión -->
+<div class="modal fade modal-modern" id="connectionModal" tabindex="-1" aria-labelledby="connectionModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-wifi me-2"></i><%= __('modal.connectionStatus') %></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="connection-status-card" id="connectionStatusCard">
+          <div class="connection-status-indicator">
+            <span class="connection-dot" id="connDot"></span>
+            <span class="connection-label" id="connLabel"><%= __('nav.connecting') %></span>
+          </div>
+        </div>
+
+        <div class="connection-stats">
+          <div class="stat-group">
+            <h6><i class="fa fa-info-circle"></i> <%= __('connection.generalInfo') %></h6>
+            <div class="stat-row">
+              <span class="stat-label"><%= __('connection.type') %></span>
+              <span class="stat-value" id="connType">-</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label"><%= __('connection.serverUrl') %></span>
+              <span class="stat-value" id="connUrl">-</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label"><%= __('connection.sessionId') %></span>
+              <span class="stat-value stat-value-mono" id="connSessionId">-</span>
+            </div>
+          </div>
+
+          <div class="stat-group">
+            <h6><i class="fa fa-clock-o"></i> <%= __('connection.time') %></h6>
+            <div class="stat-row">
+              <span class="stat-label"><%= __('connection.connectedSince') %></span>
+              <span class="stat-value" id="connSince">-</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label"><%= __('connection.connectedTime') %></span>
+              <span class="stat-value" id="connDuration">-</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label"><%= __('connection.latency') %></span>
+              <span class="stat-value" id="connLatency">-</span>
+            </div>
+          </div>
+
+          <div class="stat-group">
+            <h6><i class="fa fa-exchange"></i> <%= __('connection.dataTransfer') %></h6>
+            <div class="stat-row">
+              <span class="stat-label"><%= __('connection.messagesReceived') %></span>
+              <span class="stat-value" id="connMsgReceived">0</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label"><%= __('connection.messagesSent') %></span>
+              <span class="stat-value" id="connMsgSent">0</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label"><%= __('connection.consoleEvents') %></span>
+              <span class="stat-value" id="connConsoleEvents">0</span>
+            </div>
+          </div>
+
+          <div class="stat-group">
+            <h6><i class="fa fa-refresh"></i> <%= __('connection.reconnections') %></h6>
+            <div class="stat-row">
+              <span class="stat-label"><%= __('connection.reconnectCount') %></span>
+              <span class="stat-value" id="connReconnects">0</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label"><%= __('connection.lastReconnect') %></span>
+              <span class="stat-value" id="connLastReconnect">-</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-modern btn-modern-secondary" data-bs-dismiss="modal"><%= __('buttons.close') %></button>
+      </div>
+    </div>
+  </div>
+</div>

@@ -200,6 +200,18 @@ async function createTables(newdb) {
     await addColumn(newdb, 'filePath', 'TEXT');
     await addColumn(newdb, 'fileMimeType', 'TEXT');
 
+    // Crear índices para optimizar búsquedas de rutas
+    await new Promise((resolve) => {
+        newdb.exec(`
+            CREATE INDEX IF NOT EXISTS idx_rutas_ruta_tipo ON rutas(ruta, tipo);
+            CREATE INDEX IF NOT EXISTS idx_rutas_tiporespuesta_activo ON rutas(tiporespuesta, activo);
+            CREATE INDEX IF NOT EXISTS idx_rutas_orden ON rutas(orden);
+        `, (err) => {
+            if (!err) console.log('[DB] Indices verificados');
+            resolve();
+        });
+    });
+
     // Inicializar orden para rutas existentes que no lo tengan
     // Proxies empiezan en 99999999 y decrementan
     // Rutas normales empiezan en 1 y incrementan

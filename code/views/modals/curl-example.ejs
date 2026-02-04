@@ -1,0 +1,46 @@
+<!-- Modal Curl Example -->
+<div class="modal fade modal-modern" id="curlModal" tabindex="-1" aria-labelledby="curlModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="curlModalTitle"><i class="fa fa-terminal me-2"></i><%= __('modal.curlExample') %></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="curl-info">
+          <div class="curl-row">
+            <span class="curl-label"><%= __('curl.method') %></span>
+            <span id="curlMethod" class="badge-modern"></span>
+          </div>
+          <div class="curl-row">
+            <span class="curl-label"><%= __('curl.route') %></span>
+            <code id="curlRoute" class="curl-code"></code>
+          </div>
+          <div class="curl-row">
+            <span class="curl-label"><%= __('curl.fullUrl') %></span>
+            <code id="curlFullUrl" class="curl-code"></code>
+          </div>
+        </div>
+
+        <div class="curl-section">
+          <div class="curl-section-header">
+            <h6><i class="fa fa-code"></i> <%= __('curl.command') %></h6>
+            <button class="btn-modern btn-modern-secondary btn-sm" onclick="copyCurl()" title="<%= __('buttons.copy') %>">
+              <i class="fa fa-copy"></i> <%= __('buttons.copy') %>
+            </button>
+          </div>
+          <pre id="curlCommand" class="curl-pre"></pre>
+        </div>
+
+        <div id="curlOpenSection" class="curl-open-section" style="display: none;">
+          <button class="btn-modern btn-modern-primary" onclick="openRouteInBrowser()">
+            <i class="fa fa-external-link"></i> <%= __('buttons.openNewTab') %>
+          </button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-modern btn-modern-secondary" data-bs-dismiss="modal"><%= __('buttons.close') %></button>
+      </div>
+    </div>
+  </div>
+</div>
