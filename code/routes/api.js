@@ -131,6 +131,82 @@ router.post('/create', upload.single('file'), async function(req, res, next) {
     }
 });
 
+/* Duplicar ruta existente */
+router.post('/duplicate/:id', async function(req, res) {
+    const db = sqliteService.getDatabase();
+    const id = req.params.id;
+    const newRoute = req.body.newRoute;
+
+    if (!newRoute) {
+        return res.status(400).json({ error: 'New route is required' });
+    }
+
+    if (newRoute.startsWith('/api/') || newRoute === '/api') {
+        return res.status(400).json({ error: 'Routes starting with /api/ are reserved for internal use' });
+    }
+
+    try {
+        // Obtener la ruta original
+        const original = await new Promise((resolve, reject) => {
+            db.get('SELECT * FROM rutas WHERE id = ?', [id], (err, row) => {
+                if (err) reject(err);
+                else resolve(row);
+            });
+        });
+
+        if (!original) {
+            return res.status(404).json({ error: 'Route not found' });
+        }
+
+        const isProxy = original.tiporespuesta === 'proxy';
+        const orden = await getNextOrder(db, isProxy);
+
+        // Determinar si la nueva ruta necesita ser regex
+        const isRegex = original.isRegex;
+
+        // Copiar archivo si existe
+        let fileName = original.fileName;
+        let filePath = original.filePath;
+        let fileMimeType = original.fileMimeType;
+
+        if (original.filePath) {
+            const ext = path.extname(original.filePath);
+            const newFileName = `${Date.now()}${ext}`;
+            const srcPath = path.join(UPLOADS_DIR, original.filePath);
+            const destPath = path.join(UPLOADS_DIR, newFileName);
+            try {
+                fs.copyFileSync(srcPath, destPath);
+                filePath = newFileName;
+            } catch (e) {
+                console.log(`[API] No se pudo copiar archivo: ${e.message}`);
+                fileName = null;
+                filePath = null;
+                fileMimeType = null;
+            }
+        }
+
+        const result = await new Promise((resolve, reject) => {
+            db.run(`INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders, activo, orden, fileName, filePath, fileMimeType) values (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                [original.tipo, newRoute, original.codigo, original.respuesta, original.tiporespuesta, original.esperaActiva, isRegex, original.customHeaders, original.activo, orden, fileName, filePath, fileMimeType],
+                function(err) {
+                    if (err) reject(err);
+                    else resolve({ lastID: this.lastID });
+                });
+        });
+
+        console.log(`Ruta duplicada: ${original.ruta} -> ${newRoute} (nuevo id: ${result.lastID})`);
+
+        if (isProxy) {
+            await pm.reloadProxyConfigs();
+        }
+
+        res.json({ id: result.lastID });
+    } catch (err) {
+        console.error(`[API] Error duplicando ruta: ${err.message}`);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 router.put('/update/:id', upload.single('file'), async function(req, res) {
     // Validar que la ruta no comience con /api/
     const ruta = req.body.ruta || '';

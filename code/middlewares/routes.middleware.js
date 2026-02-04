@@ -81,7 +81,7 @@ async function checkRoute(req, res, next) {
         console.log(`[ROUTE] Configuración de ruta:`);
         console.log(`[ROUTE]   - ID: ${rute.id}`);
         console.log(`[ROUTE]   - Ruta: ${rute.ruta}`);
-        console.log(`[ROUTE]   - Método: ${rute.method}`);
+        console.log(`[ROUTE]   - Método: ${rute.tipo}`);
         console.log(`[ROUTE]   - Código: ${rute.codigo}`);
         console.log(`[ROUTE]   - Tipo respuesta: ${rute.tiporespuesta}`);
         console.log(`[ROUTE]   - Espera activa: ${rute.esperaActiva}`);

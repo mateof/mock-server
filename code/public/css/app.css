@@ -267,6 +267,12 @@ body {
   color: var(--danger);
 }
 
+.btn-icon.btn-icon-info:hover {
+  background: var(--info-light);
+  border-color: var(--info);
+  color: var(--info);
+}
+
 .btn-icon.btn-icon-warning:hover {
   background: var(--warning-light);
   border-color: var(--warning);
