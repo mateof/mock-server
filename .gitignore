@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# SQLite database files
+code/data/*.db
+code/data/*.db-shm
+code/data/*.db-wal
+
+# Uploads
+code/data/uploads/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+npm-debug.log*

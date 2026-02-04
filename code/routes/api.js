@@ -109,7 +109,7 @@ router.post('/create', upload.single('file'), async function(req, res, next) {
         });
 
         console.log(`Ruta insertada con id ${result.lastID} y orden ${orden}`);
-        db.close();
+
 
         if (isProxy) {
             console.log('Recargando configuración de proxy...');
@@ -121,7 +121,7 @@ router.post('/create', upload.single('file'), async function(req, res, next) {
         res.json({ id: result.lastID });
     } catch (err) {
         console.log(err.message);
-        db.close();
+
         // Si hubo error y se subió archivo, eliminarlo
         if (req.file) {
             fs.unlink(path.join(UPLOADS_DIR, req.file.filename), () => {});
@@ -218,7 +218,7 @@ router.put('/update/:id', upload.single('file'), async function(req, res) {
         });
 
         console.log(`Ruta ${id} actualizada con orden ${newOrden}`);
-        db.close();
+
 
         console.log('Recargando configuración de proxy...');
         await pm.reloadProxyConfigs();
@@ -228,7 +228,7 @@ router.put('/update/:id', upload.single('file'), async function(req, res) {
         res.json({ success: true });
     } catch (err) {
         console.log(err.message);
-        db.close();
+
         // Si hubo error y se subió archivo nuevo, eliminarlo
         if (req.file) {
             fs.unlink(path.join(UPLOADS_DIR, req.file.filename), () => {});
@@ -268,7 +268,7 @@ router.delete('/delete/:id', async function(req, res) {
         });
 
         console.log(`Ruta eliminada con id ${id}`);
-        db.close();
+
 
         console.log('Recargando configuración de proxy...');
         await pm.reloadProxyConfigs();
@@ -278,7 +278,7 @@ router.delete('/delete/:id', async function(req, res) {
         res.end();
     } catch (err) {
         console.log(err.message);
-        db.close();
+
         res.statusCode = 500;
         res.end();
     }
@@ -322,14 +322,14 @@ router.post('/delete-bulk', async function(req, res) {
         });
 
         console.log(`[API] ${ids.length} rutas eliminadas en bulk`);
-        db.close();
+
 
         await pm.reloadProxyConfigs();
 
         res.json({ success: true, deleted: ids.length });
     } catch (err) {
         console.error('[API] Error en bulk delete:', err.message);
-        db.close();
+
         res.status(500).json({ success: false, error: err.message });
     }
 });
@@ -355,7 +355,7 @@ router.get('/routes', function(req, res, next) {
             //     data: row.data
             // });
         });
-        db.close();
+
 
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify(result));
@@ -395,7 +395,7 @@ router.put('/toggle-active/:id', async function(req, res, next) {
         });
 
         console.log(`Ruta ${id} activo cambiado a ${activo}`);
-        db.close();
+
 
         console.log('Recargando configuración de proxy...');
         await pm.reloadProxyConfigs();
@@ -405,7 +405,7 @@ router.put('/toggle-active/:id', async function(req, res, next) {
         res.end();
     } catch (err) {
         console.log(err.message);
-        db.close();
+
         res.statusCode = 500;
         res.end();
     }
@@ -417,14 +417,14 @@ router.put('/toggle-wait/:id', function(req, res, next) {
     const esperaActiva = req.body.esperaActiva ? 1 : 0;
     db.run(`UPDATE rutas SET esperaActiva = ? WHERE id = ?`, [esperaActiva, id], function(err) {
         if (err) {
-          db.close();
+  
           console.log(err.message);
           res.statusCode = 500;
           res.end();
           return;
         }
         console.log(`Ruta ${id} esperaActiva cambiado a ${esperaActiva}`);
-        db.close();
+
       });
 
       res.statusCode = 200;
@@ -453,7 +453,7 @@ router.put('/update-order/:id', async function(req, res, next) {
         });
 
         if (!currentRow) {
-            db.close();
+    
             res.statusCode = 404;
             res.json({ error: 'Ruta no encontrada' });
             return;
@@ -464,7 +464,7 @@ router.put('/update-order/:id', async function(req, res, next) {
 
         // Si el orden no cambió, no hacer nada
         if (currentOrden === newOrden) {
-            db.close();
+    
             res.json({ success: true, id, orden: newOrden });
             return;
         }
@@ -504,11 +504,11 @@ router.put('/update-order/:id', async function(req, res, next) {
         });
 
         console.log(`Ruta ${id} orden cambiado de ${currentOrden} a ${newOrden} (con desplazamiento)`);
-        db.close();
+
         res.json({ success: true, id, orden: newOrden });
     } catch (err) {
         console.error('Error actualizando orden:', err);
-        db.close();
+
         res.statusCode = 500;
         res.json({ error: err.message });
     }
@@ -522,7 +522,7 @@ router.put('/move-up/:id', function(req, res, next) {
     // Obtener orden actual
     db.get(`SELECT orden FROM rutas WHERE id = ?`, [id], (err, row) => {
         if (err || !row) {
-            db.close();
+    
             res.statusCode = 404;
             res.json({ error: 'Ruta no encontrada' });
             return;
@@ -534,7 +534,7 @@ router.put('/move-up/:id', function(req, res, next) {
         db.get(`SELECT id, orden FROM rutas WHERE orden < ? ORDER BY orden DESC LIMIT 1`, [currentOrder], (err, prevRow) => {
             if (!prevRow) {
                 // Ya está en el primer lugar
-                db.close();
+        
                 res.json({ success: true, message: 'Ya está en primer lugar' });
                 return;
             }
@@ -545,7 +545,7 @@ router.put('/move-up/:id', function(req, res, next) {
 
             db.run(`UPDATE rutas SET orden = ? WHERE id = ?`, [prevOrder, id], () => {
                 db.run(`UPDATE rutas SET orden = ? WHERE id = ?`, [currentOrder, prevId], () => {
-                    db.close();
+            
                     console.log(`Rutas ${id} y ${prevId} intercambiadas`);
                     res.json({ success: true });
                 });
@@ -562,7 +562,7 @@ router.put('/move-down/:id', function(req, res, next) {
     // Obtener orden actual
     db.get(`SELECT orden FROM rutas WHERE id = ?`, [id], (err, row) => {
         if (err || !row) {
-            db.close();
+    
             res.statusCode = 404;
             res.json({ error: 'Ruta no encontrada' });
             return;
@@ -574,7 +574,7 @@ router.put('/move-down/:id', function(req, res, next) {
         db.get(`SELECT id, orden FROM rutas WHERE orden > ? ORDER BY orden ASC LIMIT 1`, [currentOrder], (err, nextRow) => {
             if (!nextRow) {
                 // Ya está en el último lugar
-                db.close();
+        
                 res.json({ success: true, message: 'Ya está en último lugar' });
                 return;
             }
@@ -585,7 +585,7 @@ router.put('/move-down/:id', function(req, res, next) {
 
             db.run(`UPDATE rutas SET orden = ? WHERE id = ?`, [nextOrder, id], () => {
                 db.run(`UPDATE rutas SET orden = ? WHERE id = ?`, [currentOrder, nextId], () => {
-                    db.close();
+            
                     console.log(`Rutas ${id} y ${nextId} intercambiadas`);
                     res.json({ success: true });
                 });
@@ -617,7 +617,7 @@ router.put('/reorder', function(req, res, next) {
             completed++;
 
             if (completed === orders.length) {
-                db.close();
+        
                 if (hasError) {
                     res.statusCode = 500;
                     res.json({ error: 'Error actualizando órdenes' });
@@ -669,11 +669,11 @@ router.post('/normalize-order', async function(req, res, next) {
             proxyOrder--;
         }
 
-        db.close();
+
         console.log(`Órdenes normalizados: ${normalRoutes.length} rutas, ${proxyRoutes.length} proxies`);
         res.json({ success: true, rutas: normalRoutes.length, proxies: proxyRoutes.length });
     } catch (err) {
-        db.close();
+
         console.error('Error normalizando órdenes:', err);
         res.statusCode = 500;
         res.json({ error: err.message });
@@ -755,7 +755,7 @@ router.post('/import-openapi/preview', upload.single('specFile'), async function
             route._conflict = !!existing;
             route._existingId = existing ? existing.id : null;
         }
-        db.close();
+
 
         res.json({ success: true, specInfo, routes });
     } catch (err) {
@@ -834,11 +834,11 @@ router.post('/import-openapi/confirm', async function(req, res) {
             imported++;
         }
 
-        db.close();
+
         console.log(`[OPENAPI] Import completado: ${imported} importadas, ${skipped} omitidas`);
         res.json({ success: true, imported, skipped });
     } catch (err) {
-        db.close();
+
         console.error('[OPENAPI] Import error:', err.message);
         res.status(500).json({ success: false, error: err.message, imported, skipped });
     }
