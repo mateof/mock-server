@@ -225,7 +225,8 @@
     "viewExample": "Ver exemplo",
     "edit": "Editar",
     "deleteRoute": "Eliminar",
-    "duplicate": "Duplicar"
+    "duplicate": "Duplicar",
+    "testRequest": "Probar petición"
   },
   "footer": {
     "github": "GitHub",
@@ -323,5 +324,29 @@
     "includesCheck": "Verificar se contén un valor",
     "arrayLength": "Verificar lonxitude de array",
     "numericComparison": "Comparación numérica"
+  },
+  "requestTester": {
+    "title": "Probar Petición",
+    "send": "Enviar",
+    "sending": "Enviando...",
+    "queryParams": "Params",
+    "headers": "Headers",
+    "body": "Body",
+    "response": "Resposta",
+    "key": "Clave",
+    "value": "Valor",
+    "noParams": "Non hai parámetros. Fai clic en Engadir para crear un.",
+    "noHeaders": "Non hai headers. Fai clic en Engadir para crear un.",
+    "noFormFields": "Non hai campos. Fai clic en Engadir para crear un.",
+    "noBody": "Esta petición non ten body.",
+    "urlRequired": "A URL é obrigatoria",
+    "clearResponse": "Limpar",
+    "bodyTypes": {
+      "none": "Ningún",
+      "json": "JSON",
+      "form": "Form Data",
+      "urlencoded": "URL Encoded",
+      "raw": "Raw"
+    }
   }
 }

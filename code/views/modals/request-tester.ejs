@@ -1,0 +1,206 @@
+<!-- Modal Request Tester (Postman-like) -->
+<div class="modal fade modal-modern" id="requestTesterModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-paper-plane me-2"></i><%= __('requestTester.title') %></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <!-- Request URL Bar -->
+        <div class="request-url-bar">
+          <select class="form-control-modern request-method" id="testerMethod">
+            <option value="GET">GET</option>
+            <option value="POST">POST</option>
+            <option value="PUT">PUT</option>
+            <option value="DELETE">DELETE</option>
+            <option value="PATCH">PATCH</option>
+            <option value="OPTIONS">OPTIONS</option>
+            <option value="HEAD">HEAD</option>
+          </select>
+          <input type="text" class="form-control-modern request-url" id="testerUrl" placeholder="http://localhost:3880/api/example">
+          <button class="btn-modern btn-modern-primary request-send-btn" id="testerSendBtn" onclick="sendTestRequest()">
+            <i class="fa fa-paper-plane"></i> <%= __('requestTester.send') %>
+          </button>
+        </div>
+
+        <!-- Request Configuration Tabs -->
+        <div class="request-tabs">
+          <ul class="nav nav-tabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="params-tab" data-bs-toggle="tab" data-bs-target="#paramsPanel" type="button" role="tab">
+                <%= __('requestTester.queryParams') %> <span class="tab-count" id="paramsCount">0</span>
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="headers-tab" data-bs-toggle="tab" data-bs-target="#headersPanel" type="button" role="tab">
+                <%= __('requestTester.headers') %> <span class="tab-count" id="headersCount">0</span>
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="body-tab" data-bs-toggle="tab" data-bs-target="#bodyPanel" type="button" role="tab">
+                <%= __('requestTester.body') %>
+              </button>
+            </li>
+          </ul>
+
+          <div class="tab-content">
+            <!-- Query Params Tab -->
+            <div class="tab-pane fade show active" id="paramsPanel" role="tabpanel">
+              <div class="key-value-section">
+                <div class="key-value-header">
+                  <button class="btn-modern btn-modern-success btn-sm" onclick="addTesterParam()">
+                    <i class="fa fa-plus"></i> <%= __('buttons.add') %>
+                  </button>
+                </div>
+                <div id="testerParamsContainer" class="key-value-container">
+                  <!-- Dynamic params here -->
+                </div>
+                <div id="noParamsMsg" class="empty-state-mini"><%= __('requestTester.noParams') %></div>
+              </div>
+            </div>
+
+            <!-- Headers Tab -->
+            <div class="tab-pane fade" id="headersPanel" role="tabpanel">
+              <div class="key-value-section">
+                <div class="key-value-header">
+                  <button class="btn-modern btn-modern-success btn-sm" onclick="addTesterHeader()">
+                    <i class="fa fa-plus"></i> <%= __('buttons.add') %>
+                  </button>
+                </div>
+                <div id="testerHeadersContainer" class="key-value-container">
+                  <!-- Dynamic headers here -->
+                </div>
+                <div id="noHeadersTestMsg" class="empty-state-mini"><%= __('requestTester.noHeaders') %></div>
+              </div>
+            </div>
+
+            <!-- Body Tab -->
+            <div class="tab-pane fade" id="bodyPanel" role="tabpanel">
+              <div class="body-type-selector">
+                <label class="body-type-option">
+                  <input type="radio" name="bodyType" value="none" checked onchange="changeBodyType('none')">
+                  <span><%= __('requestTester.bodyTypes.none') %></span>
+                </label>
+                <label class="body-type-option">
+                  <input type="radio" name="bodyType" value="json" onchange="changeBodyType('json')">
+                  <span>JSON</span>
+                </label>
+                <label class="body-type-option">
+                  <input type="radio" name="bodyType" value="form" onchange="changeBodyType('form')">
+                  <span>Form Data</span>
+                </label>
+                <label class="body-type-option">
+                  <input type="radio" name="bodyType" value="urlencoded" onchange="changeBodyType('urlencoded')">
+                  <span>x-www-form-urlencoded</span>
+                </label>
+                <label class="body-type-option">
+                  <input type="radio" name="bodyType" value="raw" onchange="changeBodyType('raw')">
+                  <span>Raw</span>
+                </label>
+              </div>
+
+              <!-- None Body -->
+              <div id="bodyNone" class="body-content">
+                <div class="empty-state-mini"><%= __('requestTester.noBody') %></div>
+              </div>
+
+              <!-- JSON Body -->
+              <div id="bodyJson" class="body-content" style="display: none;">
+                <textarea class="form-control-modern body-textarea" id="testerBodyJson" rows="8" placeholder='{"key": "value"}'></textarea>
+                <div class="body-actions">
+                  <button class="btn-modern btn-modern-secondary btn-sm" onclick="formatTesterJson()">
+                    <i class="fa fa-align-left"></i> <%= __('buttons.format') %>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Form Data Body -->
+              <div id="bodyForm" class="body-content" style="display: none;">
+                <div class="key-value-section">
+                  <div class="key-value-header">
+                    <button class="btn-modern btn-modern-success btn-sm" onclick="addTesterFormField()">
+                      <i class="fa fa-plus"></i> <%= __('buttons.add') %>
+                    </button>
+                  </div>
+                  <div id="testerFormContainer" class="key-value-container">
+                    <!-- Dynamic form fields here -->
+                  </div>
+                  <div id="noFormMsg" class="empty-state-mini"><%= __('requestTester.noFormFields') %></div>
+                </div>
+              </div>
+
+              <!-- URL Encoded Body -->
+              <div id="bodyUrlencoded" class="body-content" style="display: none;">
+                <div class="key-value-section">
+                  <div class="key-value-header">
+                    <button class="btn-modern btn-modern-success btn-sm" onclick="addTesterUrlencodedField()">
+                      <i class="fa fa-plus"></i> <%= __('buttons.add') %>
+                    </button>
+                  </div>
+                  <div id="testerUrlencodedContainer" class="key-value-container">
+                    <!-- Dynamic urlencoded fields here -->
+                  </div>
+                  <div id="noUrlencodedMsg" class="empty-state-mini"><%= __('requestTester.noFormFields') %></div>
+                </div>
+              </div>
+
+              <!-- Raw Body -->
+              <div id="bodyRaw" class="body-content" style="display: none;">
+                <textarea class="form-control-modern body-textarea" id="testerBodyRaw" rows="8" placeholder="Raw body content..."></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Response Section -->
+        <div class="response-section" id="responseSection" style="display: none;">
+          <div class="response-header">
+            <h6><i class="fa fa-reply"></i> <%= __('requestTester.response') %></h6>
+            <div class="response-meta">
+              <span class="response-status" id="responseStatus"></span>
+              <span class="response-time" id="responseTime"></span>
+              <span class="response-size" id="responseSize"></span>
+            </div>
+          </div>
+
+          <!-- Response Tabs -->
+          <ul class="nav nav-tabs nav-tabs-sm" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="resp-body-tab" data-bs-toggle="tab" data-bs-target="#respBodyPanel" type="button" role="tab">
+                <%= __('requestTester.body') %>
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="resp-headers-tab" data-bs-toggle="tab" data-bs-target="#respHeadersPanel" type="button" role="tab">
+                <%= __('requestTester.headers') %>
+              </button>
+            </li>
+          </ul>
+
+          <div class="tab-content">
+            <div class="tab-pane fade show active" id="respBodyPanel" role="tabpanel">
+              <pre class="response-body" id="responseBody"></pre>
+            </div>
+            <div class="tab-pane fade" id="respHeadersPanel" role="tabpanel">
+              <div class="response-headers" id="responseHeaders"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Loading State -->
+        <div class="request-loading" id="requestLoading" style="display: none;">
+          <i class="fa fa-spinner fa-spin"></i> <%= __('requestTester.sending') %>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-modern btn-modern-secondary" onclick="clearTesterResponse()">
+          <i class="fa fa-eraser"></i> <%= __('requestTester.clearResponse') %>
+        </button>
+        <button type="button" class="btn-modern btn-modern-secondary" data-bs-dismiss="modal">
+          <i class="fa fa-times"></i> <%= __('buttons.close') %>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

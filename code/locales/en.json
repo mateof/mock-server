@@ -225,7 +225,8 @@
     "viewExample": "View example",
     "edit": "Edit",
     "deleteRoute": "Delete",
-    "duplicate": "Duplicate"
+    "duplicate": "Duplicate",
+    "testRequest": "Test request"
   },
   "footer": {
     "github": "GitHub",
@@ -323,5 +324,29 @@
     "includesCheck": "Check if contains a value",
     "arrayLength": "Check array length",
     "numericComparison": "Numeric comparison"
+  },
+  "requestTester": {
+    "title": "Test Request",
+    "send": "Send",
+    "sending": "Sending...",
+    "queryParams": "Params",
+    "headers": "Headers",
+    "body": "Body",
+    "response": "Response",
+    "key": "Key",
+    "value": "Value",
+    "noParams": "No parameters. Click Add to create one.",
+    "noHeaders": "No headers. Click Add to create one.",
+    "noFormFields": "No fields. Click Add to create one.",
+    "noBody": "This request has no body.",
+    "urlRequired": "URL is required",
+    "clearResponse": "Clear",
+    "bodyTypes": {
+      "none": "None",
+      "json": "JSON",
+      "form": "Form Data",
+      "urlencoded": "URL Encoded",
+      "raw": "Raw"
+    }
   }
 }
