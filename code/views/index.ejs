@@ -177,6 +177,8 @@
 <%- include('modals/bulk-delete') %>
 <%- include('modals/connection') %>
 <%- include('modals/duplicate') %>
+<%- include('modals/criteria-help') %>
+<%- include('modals/request-tester') %>
 
 <script src="/js/socket.io.js"></script>
 
@@ -710,6 +712,7 @@
       { data: null, render: function (data) {
         return `<div class="btn-group-modern">
           <button class="btn-icon btn-icon-primary" onclick="openCurlModal(${data.id})" title="${t('actions.viewExample')}"><i class="fa fa-terminal"></i></button>
+          <button class="btn-icon btn-icon-success" onclick="openRequestTester(${data.id})" title="${t('actions.testRequest')}"><i class="fa fa-paper-plane"></i></button>
           <button class="btn-icon btn-icon-info" onclick="openDuplicateModal(${data.id})" title="${t('actions.duplicate')}"><i class="fa fa-copy"></i></button>
           <button class="btn-icon btn-icon-warning" onclick="openModal('edit', ${data.id})" title="${t('actions.edit')}"><i class="fa fa-pencil"></i></button>
           <button class="btn-icon btn-icon-danger" onclick="openDeleteModal(${data.id})" title="${t('actions.deleteRoute')}"><i class="fa fa-trash"></i></button>
@@ -1176,6 +1179,211 @@
     headerCounter = 0;
   }
 
+  // ===== CONDITIONAL RESPONSES =====
+  let conditionCounter = 0;
+
+  function toggleConditionsSection() {
+    const body = document.querySelector('#divConditions .collapsible-body');
+    body.style.display = body.style.display === 'none' ? 'block' : 'none';
+  }
+
+  function showCriteriaHelp() {
+    // Quitar foco del elemento actual para evitar warning de aria-hidden
+    if (document.activeElement) {
+      document.activeElement.blur();
+    }
+    const modal = new bootstrap.Modal(document.getElementById('criteriaHelpModal'));
+    modal.show();
+  }
+
+  function addConditionRow(data = {}) {
+    conditionCounter++;
+    const container = document.getElementById('conditionsContainer');
+    document.getElementById('noConditionsMsg').style.display = 'none';
+
+    const card = document.createElement('div');
+    card.className = 'condition-card';
+    card.id = `condition-${conditionCounter}`;
+    card.dataset.order = conditionCounter;
+
+    card.innerHTML = `
+      <div class="condition-header">
+        <div class="condition-drag-handle" title="${t('actions.moveUp')}/${t('actions.moveDown')}">
+          <i class="fa fa-bars"></i>
+        </div>
+        <input type="text" class="form-control-modern condition-name"
+               placeholder="${t('form.conditionName')}"
+               id="condition-name-${conditionCounter}"
+               value="${escapeHtml(data.nombre || '')}">
+        <label class="switch-modern" style="margin-left: auto;">
+          <input type="checkbox" id="condition-active-${conditionCounter}" ${data.activo !== false ? 'checked' : ''}>
+          <span class="slider"></span>
+        </label>
+        <button class="btn-icon btn-icon-danger" type="button" onclick="removeConditionRow(${conditionCounter})" title="${t('buttons.delete')}">
+          <i class="fa fa-trash"></i>
+        </button>
+      </div>
+      <div class="condition-body">
+        <div class="form-group-modern">
+          <label class="form-label-modern">${t('form.criteria')} <span style="color: var(--danger);">*</span></label>
+          <div class="d-flex gap-2">
+            <textarea class="form-control-modern condition-criteria"
+                      id="condition-criteria-${conditionCounter}"
+                      placeholder="${t('form.placeholder.criteria')}"
+                      rows="2">${escapeHtml(data.criteria || '')}</textarea>
+            <button class="btn-modern btn-modern-secondary" type="button"
+                    onclick="validateConditionCriteria(${conditionCounter})"
+                    title="${t('buttons.validate')}" style="align-self: flex-start;">
+              <i class="fa fa-check"></i>
+            </button>
+          </div>
+          <div id="condition-validation-${conditionCounter}" class="condition-validation"></div>
+        </div>
+
+        <div class="condition-overrides">
+          <div class="override-row">
+            <div class="form-group-modern" style="flex: 0 0 100px;">
+              <label class="form-label-modern">${t('table.code')}</label>
+              <input type="text" class="form-control-modern"
+                     id="condition-code-${conditionCounter}"
+                     placeholder="-"
+                     value="${escapeHtml(data.codigo || '')}">
+            </div>
+            <div class="form-group-modern" style="flex: 0 0 150px;">
+              <label class="form-label-modern">${t('table.type')}</label>
+              <select class="form-control-modern form-select-modern"
+                      id="condition-type-${conditionCounter}">
+                <option value="">${t('form.useDefault')}</option>
+                <option value="json" ${data.tiporespuesta === 'json' ? 'selected' : ''}>JSON</option>
+                <option value="xml" ${data.tiporespuesta === 'xml' ? 'selected' : ''}>XML</option>
+                <option value="text" ${data.tiporespuesta === 'text' ? 'selected' : ''}>Text</option>
+                <option value="html" ${data.tiporespuesta === 'html' ? 'selected' : ''}>HTML</option>
+                <option value="empty" ${data.tiporespuesta === 'empty' ? 'selected' : ''}>Empty</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group-modern">
+            <label class="form-label-modern">${t('form.response')}</label>
+            <textarea class="form-control-modern"
+                      id="condition-response-${conditionCounter}"
+                      placeholder="${t('form.placeholder.leaveEmpty')}"
+                      rows="3">${escapeHtml(data.respuesta || '')}</textarea>
+          </div>
+        </div>
+      </div>
+    `;
+
+    container.appendChild(card);
+
+    // Inicializar sortable si es la primera condición
+    if (container.children.length === 1 && typeof Sortable !== 'undefined') {
+      new Sortable(container, {
+        handle: '.condition-drag-handle',
+        animation: 150,
+        ghostClass: 'condition-ghost',
+        onEnd: function() {
+          Array.from(container.children).forEach((el, idx) => {
+            el.dataset.order = idx + 1;
+          });
+        }
+      });
+    }
+  }
+
+  function removeConditionRow(id) {
+    const card = document.getElementById(`condition-${id}`);
+    if (card) card.remove();
+
+    const container = document.getElementById('conditionsContainer');
+    if (container.children.length === 0) {
+      document.getElementById('noConditionsMsg').style.display = 'block';
+    }
+  }
+
+  async function validateConditionCriteria(id) {
+    const criteria = document.getElementById(`condition-criteria-${id}`).value;
+    const resultDiv = document.getElementById(`condition-validation-${id}`);
+
+    if (!criteria.trim()) {
+      resultDiv.innerHTML = `<span class="text-warning"><i class="fa fa-warning"></i> ${t('validation.enterCriteria')}</span>`;
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/validateCriteria', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ criteria })
+      });
+      const result = await response.json();
+
+      if (result.valid) {
+        resultDiv.innerHTML = `<span class="text-success"><i class="fa fa-check"></i> ${t('validation.criteriaValid')}</span>`;
+      } else {
+        resultDiv.innerHTML = `<span class="text-danger"><i class="fa fa-times"></i> ${result.error}</span>`;
+      }
+    } catch (e) {
+      resultDiv.innerHTML = `<span class="text-danger"><i class="fa fa-times"></i> ${t('validation.errorValidating')}</span>`;
+    }
+  }
+
+  function getConditions() {
+    const conditions = [];
+    const container = document.getElementById('conditionsContainer');
+    const cards = Array.from(container.querySelectorAll('.condition-card'))
+      .sort((a, b) => (parseInt(a.dataset.order) || 0) - (parseInt(b.dataset.order) || 0));
+
+    cards.forEach((card, idx) => {
+      const id = card.id.replace('condition-', '');
+      const criteria = document.getElementById(`condition-criteria-${id}`).value.trim();
+
+      if (!criteria) return; // Saltar condiciones vacías
+
+      conditions.push({
+        orden: idx,
+        nombre: document.getElementById(`condition-name-${id}`).value.trim() || null,
+        criteria: criteria,
+        codigo: document.getElementById(`condition-code-${id}`).value.trim() || null,
+        tiporespuesta: document.getElementById(`condition-type-${id}`).value || null,
+        respuesta: document.getElementById(`condition-response-${id}`).value || null,
+        customHeaders: null, // Se podría expandir para headers por condición
+        activo: document.getElementById(`condition-active-${id}`).checked
+      });
+    });
+
+    return conditions;
+  }
+
+  function setConditions(conditions) {
+    clearConditions();
+    if (conditions && Array.isArray(conditions)) {
+      conditions.forEach(c => addConditionRow(c));
+    }
+  }
+
+  function clearConditions() {
+    document.getElementById('conditionsContainer').innerHTML = '';
+    document.getElementById('noConditionsMsg').style.display = 'block';
+    conditionCounter = 0;
+  }
+
+  async function loadConditionsForRoute(routeId) {
+    try {
+      const response = await fetch(`/api/conditions/${routeId}`);
+      const data = await response.json();
+      if (data.success && data.conditions) {
+        setConditions(data.conditions);
+        // Mostrar la sección si hay condiciones
+        if (data.conditions.length > 0) {
+          document.querySelector('#divConditions .collapsible-body').style.display = 'block';
+        }
+      }
+    } catch (e) {
+      console.error('Error cargando condiciones:', e);
+    }
+  }
+
   function escapeHtml(text) {
     if (!text) return '';
     const div = document.createElement('div');
@@ -1232,6 +1440,11 @@
 
   // ===== MODAL FUNCTIONS =====
   function openModal(type = 'create', objId) {
+    // Limpiar condiciones siempre al abrir
+    clearConditions();
+    // Colapsar sección de condiciones
+    document.querySelector('#divConditions .collapsible-body').style.display = 'none';
+
     if (type === 'create') {
       checkRespuesta();
       $("#botoneditar").hide();
@@ -1246,6 +1459,8 @@
       const obj = Array.from(tabla.rows().data()).find(el => el.id === objId);
       valuesForModal(obj);
       checkRespuesta();
+      // Cargar condiciones existentes
+      loadConditionsForRoute(objId);
       $("#titleModal").html('<i class="fa fa-pencil me-2"></i>Editar Ruta');
       $("#routesModal").modal('show');
     }
@@ -1537,6 +1752,22 @@
     });
 
     if (response.status === 200) {
+      const result = await response.json();
+
+      // Guardar condiciones si hay alguna
+      const conditions = getConditions();
+      if (conditions.length > 0 && result.id) {
+        const condResponse = await fetch(`/api/conditions/${result.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ conditions })
+        });
+        if (!condResponse.ok) {
+          const err = await condResponse.json().catch(() => ({}));
+          showToast(err.error || t('errors.savingConditions'), 'error');
+        }
+      }
+
       tabla.ajax.reload();
       $("#routesModal").modal('hide');
     }
@@ -1599,6 +1830,27 @@
     });
 
     if (response.status === 200) {
+      // Guardar condiciones
+      const conditions = getConditions();
+      if (conditions.length > 0) {
+        const condResponse = await fetch(`/api/conditions/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ conditions })
+        });
+        if (!condResponse.ok) {
+          const err = await condResponse.json().catch(() => ({}));
+          showToast(err.error || t('errors.savingConditions'), 'error');
+        }
+      } else {
+        // Limpiar condiciones existentes si no hay ninguna
+        await fetch(`/api/conditions/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ conditions: [] })
+        });
+      }
+
       tabla.ajax.reload();
       $("#routesModal").modal('hide');
     }
@@ -2113,6 +2365,340 @@
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  // ===== REQUEST TESTER (Postman-like) =====
+  let testerRowCounter = 0;
+  const methodColors = {
+    GET: 'badge-get',
+    POST: 'badge-post',
+    PUT: 'badge-put',
+    DELETE: 'badge-delete',
+    PATCH: 'badge-patch',
+    OPTIONS: 'badge-options',
+    HEAD: 'badge-head'
+  };
+
+  function regexToSampleUrl(regexPattern) {
+    // Convert a regex pattern to a sample URL
+    let sample = regexPattern;
+
+    // Common regex pattern replacements
+    const replacements = [
+      [/\(\?:[^)]+\)/g, ''],           // Remove non-capturing groups
+      [/\([^)]+\)/g, 'value'],         // Replace capturing groups
+      [/\\d\+/g, '123'],               // \d+ -> 123
+      [/\\d\*/g, '12'],                // \d* -> 12
+      [/\\d\{(\d+)\}/g, (m, n) => '1'.repeat(parseInt(n))], // \d{n} -> n digits
+      [/\\d\{(\d+),(\d+)\}/g, (m, min) => '1'.repeat(parseInt(min))], // \d{n,m}
+      [/\\d/g, '1'],                   // \d -> 1
+      [/\\w\+/g, 'example'],           // \w+ -> example
+      [/\\w\*/g, 'test'],              // \w* -> test
+      [/\\w/g, 'x'],                   // \w -> x
+      [/\\s\+/g, ' '],                 // \s+ -> space
+      [/\\s\*/g, ''],                  // \s* -> empty
+      [/\\s/g, ' '],                   // \s -> space
+      [/\.\+/g, 'something'],          // .+ -> something
+      [/\.\*/g, ''],                   // .* -> empty
+      [/\./g, 'x'],                    // . -> x (single char)
+      [/\[([^\]]+)\]\+/g, '$1$1$1'],   // [abc]+ -> repeated first char
+      [/\[([^\]]+)\]\*/g, '$1'],       // [abc]* -> first char
+      [/\[([^\]]+)\]/g, (m, chars) => chars.replace(/[^a-zA-Z0-9]/g, '')[0] || 'x'], // [abc] -> a
+      [/\{(\d+)\}/g, ''],              // Remove quantifiers like {2}
+      [/\{(\d+),(\d+)?\}/g, ''],       // Remove quantifiers like {2,5}
+      [/\+/g, ''],                     // Remove +
+      [/\*/g, ''],                     // Remove *
+      [/\?/g, ''],                     // Remove ?
+      [/\^/g, ''],                     // Remove ^
+      [/\$/g, ''],                     // Remove $
+      [/\|[^/]*/g, ''],                // Remove alternations (keep first option)
+      [/\\\//g, '/'],                  // \/ -> /
+      [/\\\./g, '.'],                  // \. -> .
+      [/\\-/g, '-'],                   // \- -> -
+      [/\\_/g, '_'],                   // \_ -> _
+      [/\\\\/g, ''],                   // Remove escaped backslashes
+    ];
+
+    for (const [pattern, replacement] of replacements) {
+      sample = sample.replace(pattern, replacement);
+    }
+
+    // Clean up any remaining backslashes
+    sample = sample.replace(/\\/g, '');
+
+    // Ensure it starts with /
+    if (!sample.startsWith('/')) {
+      sample = '/' + sample;
+    }
+
+    return sample;
+  }
+
+  function openRequestTester(id) {
+    const obj = Array.from(tabla.rows().data()).find(el => el.id === id);
+    if (!obj) return;
+
+    // Reset form
+    clearTesterForm();
+
+    // Set method
+    const method = obj.tipo.toUpperCase();
+    document.getElementById('testerMethod').value = method === 'ANY' ? 'GET' : method;
+
+    // Set URL
+    const baseUrl = window.location.origin;
+    let route = obj.ruta;
+    if (obj.isRegex) {
+      // For regex routes, convert to a sample URL
+      route = regexToSampleUrl(route);
+    }
+    document.getElementById('testerUrl').value = baseUrl + route;
+
+    // Open modal
+    const modal = new bootstrap.Modal(document.getElementById('requestTesterModal'));
+    modal.show();
+  }
+
+  function clearTesterForm() {
+    document.getElementById('testerMethod').value = 'GET';
+    document.getElementById('testerUrl').value = '';
+    document.getElementById('testerParamsContainer').innerHTML = '';
+    document.getElementById('testerHeadersContainer').innerHTML = '';
+    document.getElementById('testerFormContainer').innerHTML = '';
+    document.getElementById('testerUrlencodedContainer').innerHTML = '';
+    document.getElementById('testerBodyJson').value = '';
+    document.getElementById('testerBodyRaw').value = '';
+    document.querySelector('input[name="bodyType"][value="none"]').checked = true;
+    changeBodyType('none');
+    clearTesterResponse();
+    updateTesterCounts();
+    document.getElementById('noParamsMsg').style.display = 'block';
+    document.getElementById('noHeadersTestMsg').style.display = 'block';
+    document.getElementById('noFormMsg').style.display = 'block';
+    document.getElementById('noUrlencodedMsg').style.display = 'block';
+  }
+
+  function clearTesterResponse() {
+    document.getElementById('responseSection').style.display = 'none';
+    document.getElementById('responseBody').textContent = '';
+    document.getElementById('responseHeaders').innerHTML = '';
+    document.getElementById('responseStatus').textContent = '';
+    document.getElementById('responseTime').textContent = '';
+    document.getElementById('responseSize').textContent = '';
+  }
+
+  function addTesterParam(key = '', value = '') {
+    addTesterKeyValueRow('testerParamsContainer', 'param', key, value);
+    document.getElementById('noParamsMsg').style.display = 'none';
+    updateTesterCounts();
+  }
+
+  function addTesterHeader(key = '', value = '') {
+    addTesterKeyValueRow('testerHeadersContainer', 'header', key, value);
+    document.getElementById('noHeadersTestMsg').style.display = 'none';
+    updateTesterCounts();
+  }
+
+  function addTesterFormField(key = '', value = '') {
+    addTesterKeyValueRow('testerFormContainer', 'form', key, value);
+    document.getElementById('noFormMsg').style.display = 'none';
+  }
+
+  function addTesterUrlencodedField(key = '', value = '') {
+    addTesterKeyValueRow('testerUrlencodedContainer', 'urlencoded', key, value);
+    document.getElementById('noUrlencodedMsg').style.display = 'none';
+  }
+
+  function addTesterKeyValueRow(containerId, type, key = '', value = '') {
+    testerRowCounter++;
+    const container = document.getElementById(containerId);
+    const row = document.createElement('div');
+    row.className = 'key-value-row';
+    row.id = `tester-row-${testerRowCounter}`;
+    row.innerHTML = `
+      <input type="checkbox" class="key-value-check" checked>
+      <input type="text" class="form-control-modern key-input" placeholder="${t('requestTester.key')}" value="${escapeHtml(key)}">
+      <input type="text" class="form-control-modern value-input" placeholder="${t('requestTester.value')}" value="${escapeHtml(value)}">
+      <button class="btn-icon btn-icon-danger" onclick="removeTesterRow(${testerRowCounter}, '${containerId}', '${type}')" title="${t('buttons.delete')}">
+        <i class="fa fa-trash"></i>
+      </button>
+    `;
+    container.appendChild(row);
+  }
+
+  function removeTesterRow(id, containerId, type) {
+    document.getElementById(`tester-row-${id}`)?.remove();
+    const container = document.getElementById(containerId);
+    if (container.children.length === 0) {
+      if (type === 'param') document.getElementById('noParamsMsg').style.display = 'block';
+      if (type === 'header') document.getElementById('noHeadersTestMsg').style.display = 'block';
+      if (type === 'form') document.getElementById('noFormMsg').style.display = 'block';
+      if (type === 'urlencoded') document.getElementById('noUrlencodedMsg').style.display = 'block';
+    }
+    updateTesterCounts();
+  }
+
+  function updateTesterCounts() {
+    const paramsCount = document.querySelectorAll('#testerParamsContainer .key-value-row').length;
+    const headersCount = document.querySelectorAll('#testerHeadersContainer .key-value-row').length;
+    document.getElementById('paramsCount').textContent = paramsCount;
+    document.getElementById('headersCount').textContent = headersCount;
+  }
+
+  function changeBodyType(type) {
+    ['bodyNone', 'bodyJson', 'bodyForm', 'bodyUrlencoded', 'bodyRaw'].forEach(id => {
+      document.getElementById(id).style.display = 'none';
+    });
+    document.getElementById('body' + type.charAt(0).toUpperCase() + type.slice(1)).style.display = 'block';
+  }
+
+  function formatTesterJson() {
+    const textarea = document.getElementById('testerBodyJson');
+    try {
+      const parsed = JSON.parse(textarea.value);
+      textarea.value = JSON.stringify(parsed, null, 2);
+    } catch (e) {
+      showToast(t('validation.jsonInvalid'), 'error');
+    }
+  }
+
+  function getKeyValuePairs(containerId) {
+    const pairs = {};
+    document.querySelectorAll(`#${containerId} .key-value-row`).forEach(row => {
+      const checked = row.querySelector('.key-value-check').checked;
+      if (!checked) return;
+      const key = row.querySelector('.key-input').value.trim();
+      const value = row.querySelector('.value-input').value;
+      if (key) pairs[key] = value;
+    });
+    return pairs;
+  }
+
+  async function sendTestRequest() {
+    const method = document.getElementById('testerMethod').value;
+    let url = document.getElementById('testerUrl').value.trim();
+
+    if (!url) {
+      showToast(t('requestTester.urlRequired'), 'error');
+      return;
+    }
+
+    // Add query params to URL
+    const params = getKeyValuePairs('testerParamsContainer');
+    if (Object.keys(params).length > 0) {
+      const urlObj = new URL(url);
+      Object.entries(params).forEach(([k, v]) => urlObj.searchParams.append(k, v));
+      url = urlObj.toString();
+    }
+
+    // Build headers
+    const headers = getKeyValuePairs('testerHeadersContainer');
+
+    // Build body
+    let body = null;
+    const bodyType = document.querySelector('input[name="bodyType"]:checked').value;
+
+    if (method !== 'GET' && method !== 'HEAD') {
+      if (bodyType === 'json') {
+        const jsonBody = document.getElementById('testerBodyJson').value.trim();
+        if (jsonBody) {
+          body = jsonBody;
+          if (!headers['Content-Type']) headers['Content-Type'] = 'application/json';
+        }
+      } else if (bodyType === 'form') {
+        const formData = new FormData();
+        document.querySelectorAll('#testerFormContainer .key-value-row').forEach(row => {
+          if (!row.querySelector('.key-value-check').checked) return;
+          const key = row.querySelector('.key-input').value.trim();
+          const value = row.querySelector('.value-input').value;
+          if (key) formData.append(key, value);
+        });
+        body = formData;
+        // Don't set Content-Type for FormData, browser will set it with boundary
+      } else if (bodyType === 'urlencoded') {
+        const urlParams = new URLSearchParams();
+        document.querySelectorAll('#testerUrlencodedContainer .key-value-row').forEach(row => {
+          if (!row.querySelector('.key-value-check').checked) return;
+          const key = row.querySelector('.key-input').value.trim();
+          const value = row.querySelector('.value-input').value;
+          if (key) urlParams.append(key, value);
+        });
+        body = urlParams.toString();
+        if (!headers['Content-Type']) headers['Content-Type'] = 'application/x-www-form-urlencoded';
+      } else if (bodyType === 'raw') {
+        body = document.getElementById('testerBodyRaw').value;
+      }
+    }
+
+    // Show loading
+    document.getElementById('requestLoading').style.display = 'flex';
+    document.getElementById('responseSection').style.display = 'none';
+    document.getElementById('testerSendBtn').disabled = true;
+
+    const startTime = performance.now();
+
+    try {
+      const fetchOptions = { method, headers };
+      if (body && method !== 'GET' && method !== 'HEAD') {
+        fetchOptions.body = body;
+      }
+
+      const response = await fetch(url, fetchOptions);
+      const endTime = performance.now();
+      const duration = Math.round(endTime - startTime);
+
+      // Get response body
+      const contentType = response.headers.get('content-type') || '';
+      let responseText = await response.text();
+      let responseSize = new Blob([responseText]).size;
+
+      // Try to format JSON
+      if (contentType.includes('json')) {
+        try {
+          responseText = JSON.stringify(JSON.parse(responseText), null, 2);
+        } catch (e) {}
+      }
+
+      // Update response UI
+      document.getElementById('responseSection').style.display = 'block';
+      document.getElementById('responseBody').textContent = responseText;
+
+      // Status badge
+      const statusEl = document.getElementById('responseStatus');
+      statusEl.textContent = `${response.status} ${response.statusText}`;
+      statusEl.className = 'response-status ' + (response.ok ? 'status-success' : response.status >= 400 ? 'status-error' : 'status-warning');
+
+      // Time and size
+      document.getElementById('responseTime').textContent = `${duration}ms`;
+      document.getElementById('responseSize').textContent = formatBytes(responseSize);
+
+      // Headers
+      const headersHtml = [];
+      response.headers.forEach((value, key) => {
+        headersHtml.push(`<div class="response-header-row"><span class="header-key">${escapeHtml(key)}:</span> <span class="header-value">${escapeHtml(value)}</span></div>`);
+      });
+      document.getElementById('responseHeaders').innerHTML = headersHtml.join('');
+
+    } catch (e) {
+      document.getElementById('responseSection').style.display = 'block';
+      document.getElementById('responseBody').textContent = `Error: ${e.message}`;
+      document.getElementById('responseStatus').textContent = 'Error';
+      document.getElementById('responseStatus').className = 'response-status status-error';
+      document.getElementById('responseTime').textContent = '';
+      document.getElementById('responseSize').textContent = '';
+      document.getElementById('responseHeaders').innerHTML = '';
+    }
+
+    document.getElementById('requestLoading').style.display = 'none';
+    document.getElementById('testerSendBtn').disabled = false;
+  }
+
+  function formatBytes(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   }
 
   // Initialize tooltips

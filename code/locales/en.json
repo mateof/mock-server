@@ -76,15 +76,24 @@
       "response": "{\"message\": \"Hello World\"}",
       "testUrl": "/api/users/123",
       "headersJson": "{\"Content-Type\": \"application/json\"}",
-      "leaveEmpty": "Leave empty to use default response"
+      "leaveEmpty": "Leave empty to use default response",
+      "criteria": "headers['x-api-key'] === 'test' || body.debug === true"
     },
     "help": {
       "proxyExample": "Example: If route is [route] and destination is [target], a request to [request] will be redirected to [result]",
       "fileHelp": "The file will be returned with the Content-Type corresponding to its MIME type",
       "waitModeDesc": "Requests will be paused until you manually release them from \"Pending List\".",
       "routeActiveDesc": "If disabled, requests will not be intercepted by this route.",
-      "headersHelp": "Set: Add or overwrite the header | Remove: Remove the header from the response"
-    }
+      "headersHelp": "Set: Add or overwrite the header | Remove: Remove the header from the response",
+      "conditionsHelp": "Conditions are evaluated in order. The first matching condition will override the default response."
+    },
+    "conditionalResponses": "Conditional Responses",
+    "conditionName": "Name (optional)",
+    "criteria": "Criteria",
+    "useDefault": "Use default",
+    "availableVariables": "Available variables",
+    "availableFunctions": "Available functions",
+    "criteriaExamples": "View criteria examples"
   },
   "responseTypes": {
     "json": "JSON",
@@ -181,6 +190,8 @@
     "urlMatches": "URL matches",
     "urlNoMatch": "URL does not match",
     "enterRegex": "Enter a regular expression",
+    "enterCriteria": "Enter a criteria expression",
+    "criteriaValid": "Valid expression",
     "errorValidating": "Error validating",
     "jsonInvalid": "Invalid JSON",
     "xmlInvalid": "Invalid XML",
@@ -194,11 +205,13 @@
   },
   "errors": {
     "normalizing": "Error normalizing orders",
+    "savingConditions": "Error saving conditions",
     "movingRoute": "Error moving route",
     "updatingOrder": "Error updating order"
   },
   "empty": {
-    "noHeaders": "No headers configured"
+    "noHeaders": "No headers configured",
+    "noConditions": "No conditions configured. Default response will always be used."
   },
   "actions": {
     "moveUp": "Move up",
@@ -212,7 +225,8 @@
     "viewExample": "View example",
     "edit": "Edit",
     "deleteRoute": "Delete",
-    "duplicate": "Duplicate"
+    "duplicate": "Duplicate",
+    "testRequest": "Test request"
   },
   "footer": {
     "github": "GitHub",
@@ -293,5 +307,46 @@
     "es": "Español",
     "en": "English",
     "gl": "Galego"
+  },
+  "criteriaHelp": {
+    "title": "Criteria Examples",
+    "simpleExamples": "Simple examples",
+    "combinedExamples": "Combined examples",
+    "checkHeader": "Check header value",
+    "checkHeaderExists": "Check if header exists",
+    "checkBody": "Check body property",
+    "checkQuery": "Check query param",
+    "checkMethod": "Check HTTP method",
+    "withAnd": "Combined conditions with AND",
+    "withOr": "Combined conditions with OR",
+    "withFunctions": "Using helper functions",
+    "regexMatch": "Regex match on path",
+    "includesCheck": "Check if contains a value",
+    "arrayLength": "Check array length",
+    "numericComparison": "Numeric comparison"
+  },
+  "requestTester": {
+    "title": "Test Request",
+    "send": "Send",
+    "sending": "Sending...",
+    "queryParams": "Params",
+    "headers": "Headers",
+    "body": "Body",
+    "response": "Response",
+    "key": "Key",
+    "value": "Value",
+    "noParams": "No parameters. Click Add to create one.",
+    "noHeaders": "No headers. Click Add to create one.",
+    "noFormFields": "No fields. Click Add to create one.",
+    "noBody": "This request has no body.",
+    "urlRequired": "URL is required",
+    "clearResponse": "Clear",
+    "bodyTypes": {
+      "none": "None",
+      "json": "JSON",
+      "form": "Form Data",
+      "urlencoded": "URL Encoded",
+      "raw": "Raw"
+    }
   }
 }

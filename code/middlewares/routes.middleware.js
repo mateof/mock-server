@@ -1,4 +1,5 @@
 const sqliteService = require('../services/sqlite.service');
+const criteriaService = require('../services/criteria-evaluator.service');
 const { log, sendData } = require('../services/socket.service');
 const semaphore = require('../services/semaphore.service');
 const moment = require("moment");
@@ -53,6 +54,32 @@ function applyCustomHeaders(res, customHeadersJson) {
         }
     });
     console.log('[HEADERS] Headers aplicados correctamente');
+}
+
+// Extrae parámetros de path para rutas regex (grupos de captura)
+function extractPathParams(route, url) {
+    if (!route.isRegex) return {};
+
+    try {
+        const regex = new RegExp(route.ruta);
+        const urlPath = url.split('?')[0]; // Sin query params
+        const match = urlPath.match(regex);
+
+        if (!match) return {};
+
+        // Si hay grupos nombrados
+        if (match.groups) return match.groups;
+
+        // Grupos numerados ($1, $2, etc.)
+        const params = {};
+        for (let i = 1; i < match.length; i++) {
+            params[`$${i}`] = match[i];
+        }
+        return params;
+    } catch (e) {
+        console.error(`[ROUTE] Error extrayendo params: ${e.message}`);
+        return {};
+    }
 }
 
 // ===== MIDDLEWARE PRINCIPAL =====
@@ -115,12 +142,61 @@ async function checkRoute(req, res, next) {
             console.log(`[ROUTE] Ruta recargada después de espera`);
         }
 
-        // Aplicar personalizaciones si existen
+        // Valores por defecto de la ruta
         let responseCode = Number(rute.codigo);
         let responseType = rute.tiporespuesta;
         let responseBody = rute.respuesta;
         let responseHeaders = rute.customHeaders;
 
+        // Evaluar condiciones (si existen)
+        try {
+            const conditions = await sqliteService.getConditionalResponses(rute.id);
+            if (conditions && conditions.length > 0) {
+                console.log(`[ROUTE] Evaluando ${conditions.length} condiciones...`);
+
+                // Construir contexto para evaluación
+                const evalContext = {
+                    headers: req.headers || {},
+                    body: req.body || {},
+                    path: req.path || url,
+                    query: req.query || {},
+                    params: extractPathParams(rute, url),
+                    method: method.toLowerCase()
+                };
+
+                // Evaluar condiciones en orden (primera que match gana)
+                for (const condition of conditions) {
+                    const evalResult = criteriaService.evaluateCriteria(condition.criteria, evalContext);
+                    if (evalResult.success && evalResult.result) {
+                        console.log(`[ROUTE] Condición matched: "${condition.nombre || condition.id}"`);
+
+                        // Aplicar overrides de la condición
+                        if (condition.codigo) {
+                            responseCode = Number(condition.codigo);
+                            console.log(`[ROUTE]   → Código: ${responseCode}`);
+                        }
+                        if (condition.tiporespuesta) {
+                            responseType = condition.tiporespuesta;
+                            console.log(`[ROUTE]   → Tipo: ${responseType}`);
+                        }
+                        if (condition.respuesta !== null && condition.respuesta !== undefined) {
+                            responseBody = condition.respuesta;
+                            console.log(`[ROUTE]   → Respuesta personalizada`);
+                        }
+                        if (condition.customHeaders) {
+                            responseHeaders = condition.customHeaders;
+                            console.log(`[ROUTE]   → Headers personalizados`);
+                        }
+                        break; // Primera condición que match gana
+                    }
+                }
+            }
+        } catch (condErr) {
+            console.error(`[ROUTE] Error evaluando condiciones: ${condErr.message}`);
+            // Continuar con respuesta por defecto
+        }
+
+        // Aplicar personalizaciones de espera activa (si existen)
         if (customResponse && typeof customResponse === 'object') {
             if (customResponse.code) {
                 responseCode = Number(customResponse.code);
