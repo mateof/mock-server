@@ -76,15 +76,24 @@
       "response": "{\"message\": \"Hello World\"}",
       "testUrl": "/api/users/123",
       "headersJson": "{\"Content-Type\": \"application/json\"}",
-      "leaveEmpty": "Dejar vacío para usar la respuesta por defecto"
+      "leaveEmpty": "Dejar vacío para usar la respuesta por defecto",
+      "criteria": "headers['x-api-key'] === 'test' || body.debug === true"
     },
     "help": {
       "proxyExample": "Ejemplo: Si ruta es [route] y destino es [target], una petición a [request] se enviará a [result]",
       "fileHelp": "El archivo se devolverá con el Content-Type correspondiente a su tipo MIME",
       "waitModeDesc": "Las peticiones se pausaran hasta que las liberes manualmente desde \"Lista Pendientes\".",
       "routeActiveDesc": "Si esta desactivada, las peticiones no seran interceptadas por esta ruta.",
-      "headersHelp": "Set: Añade o sobreescribe el header | Remove: Elimina el header de la respuesta"
-    }
+      "headersHelp": "Set: Añade o sobreescribe el header | Remove: Elimina el header de la respuesta",
+      "conditionsHelp": "Las condiciones se evaluan en orden. La primera que coincida sobreescribira la respuesta por defecto."
+    },
+    "conditionalResponses": "Respuestas Condicionales",
+    "conditionName": "Nombre (opcional)",
+    "criteria": "Criterio",
+    "useDefault": "Usar por defecto",
+    "availableVariables": "Variables disponibles",
+    "availableFunctions": "Funciones disponibles",
+    "criteriaExamples": "Ver ejemplos de criterios"
   },
   "responseTypes": {
     "json": "JSON",
@@ -181,6 +190,8 @@
     "urlMatches": "URL coincide",
     "urlNoMatch": "URL no coincide",
     "enterRegex": "Introduce una expresion regular",
+    "enterCriteria": "Introduce una expresion de criterio",
+    "criteriaValid": "Expresion valida",
     "errorValidating": "Error al validar",
     "jsonInvalid": "JSON inválido",
     "xmlInvalid": "XML inválido",
@@ -194,11 +205,13 @@
   },
   "errors": {
     "normalizing": "Error normalizando órdenes",
+    "savingConditions": "Error guardando condiciones",
     "movingRoute": "Error moviendo ruta",
     "updatingOrder": "Error actualizando orden"
   },
   "empty": {
-    "noHeaders": "No hay headers configurados"
+    "noHeaders": "No hay headers configurados",
+    "noConditions": "No hay condiciones. Se usara siempre la respuesta por defecto."
   },
   "actions": {
     "moveUp": "Subir prioridad",
@@ -293,5 +306,22 @@
     "es": "Español",
     "en": "English",
     "gl": "Galego"
+  },
+  "criteriaHelp": {
+    "title": "Ejemplos de Criterios",
+    "simpleExamples": "Ejemplos simples",
+    "combinedExamples": "Ejemplos combinados",
+    "checkHeader": "Verificar valor de header",
+    "checkHeaderExists": "Verificar si existe un header",
+    "checkBody": "Verificar propiedad del body",
+    "checkQuery": "Verificar query param",
+    "checkMethod": "Verificar método HTTP",
+    "withAnd": "Condiciones combinadas con AND",
+    "withOr": "Condiciones combinadas con OR",
+    "withFunctions": "Usando funciones helper",
+    "regexMatch": "Match con regex en el path",
+    "includesCheck": "Verificar si contiene un valor",
+    "arrayLength": "Verificar longitud de array",
+    "numericComparison": "Comparación numérica"
   }
 }

@@ -1,0 +1,57 @@
+<!-- Modal Ayuda de Criterios -->
+<div class="modal fade modal-modern" id="criteriaHelpModal" tabindex="-1" aria-hidden="true" data-bs-focus="false" data-bs-backdrop="static">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-question-circle me-2"></i><%= __('criteriaHelp.title') %></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="criteria-help">
+          <h6><i class="fa fa-code"></i> <%= __('criteriaHelp.simpleExamples') %></h6>
+          <pre><code>// <%= __('criteriaHelp.checkHeader') %>
+headers['x-api-key'] === 'premium'
+
+// <%= __('criteriaHelp.checkHeaderExists') %>
+hasKey(headers, 'authorization')
+
+// <%= __('criteriaHelp.checkBody') %>
+body.userId > 1000
+
+// <%= __('criteriaHelp.checkQuery') %>
+query.debug === 'true'
+
+// <%= __('criteriaHelp.checkMethod') %>
+method === 'post'</code></pre>
+
+          <h6><i class="fa fa-puzzle-piece"></i> <%= __('criteriaHelp.combinedExamples') %></h6>
+          <pre><code>// <%= __('criteriaHelp.withAnd') %>
+headers['x-api-key'] && body.type === 'admin'
+
+// <%= __('criteriaHelp.withOr') %>
+body.env === 'test' || query.mock === 'true'
+
+// <%= __('criteriaHelp.withFunctions') %>
+hasKey(body, 'email') && isNotEmpty(body.email)
+
+// <%= __('criteriaHelp.regexMatch') %>
+match(path, '/users/\\d+')
+
+// <%= __('criteriaHelp.includesCheck') %>
+includes(headers['content-type'], 'json')
+
+// <%= __('criteriaHelp.arrayLength') %>
+isArray(body.items) && length(body.items) > 0
+
+// <%= __('criteriaHelp.numericComparison') %>
+toNumber(body.amount) >= 100</code></pre>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-modern btn-modern-secondary" data-bs-dismiss="modal">
+          <i class="fa fa-times"></i> <%= __('buttons.close') %>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

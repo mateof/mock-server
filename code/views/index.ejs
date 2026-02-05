@@ -177,6 +177,7 @@
 <%- include('modals/bulk-delete') %>
 <%- include('modals/connection') %>
 <%- include('modals/duplicate') %>
+<%- include('modals/criteria-help') %>
 
 <script src="/js/socket.io.js"></script>
 
@@ -1176,6 +1177,211 @@
     headerCounter = 0;
   }
 
+  // ===== CONDITIONAL RESPONSES =====
+  let conditionCounter = 0;
+
+  function toggleConditionsSection() {
+    const body = document.querySelector('#divConditions .collapsible-body');
+    body.style.display = body.style.display === 'none' ? 'block' : 'none';
+  }
+
+  function showCriteriaHelp() {
+    // Quitar foco del elemento actual para evitar warning de aria-hidden
+    if (document.activeElement) {
+      document.activeElement.blur();
+    }
+    const modal = new bootstrap.Modal(document.getElementById('criteriaHelpModal'));
+    modal.show();
+  }
+
+  function addConditionRow(data = {}) {
+    conditionCounter++;
+    const container = document.getElementById('conditionsContainer');
+    document.getElementById('noConditionsMsg').style.display = 'none';
+
+    const card = document.createElement('div');
+    card.className = 'condition-card';
+    card.id = `condition-${conditionCounter}`;
+    card.dataset.order = conditionCounter;
+
+    card.innerHTML = `
+      <div class="condition-header">
+        <div class="condition-drag-handle" title="${t('actions.moveUp')}/${t('actions.moveDown')}">
+          <i class="fa fa-bars"></i>
+        </div>
+        <input type="text" class="form-control-modern condition-name"
+               placeholder="${t('form.conditionName')}"
+               id="condition-name-${conditionCounter}"
+               value="${escapeHtml(data.nombre || '')}">
+        <label class="switch-modern" style="margin-left: auto;">
+          <input type="checkbox" id="condition-active-${conditionCounter}" ${data.activo !== false ? 'checked' : ''}>
+          <span class="slider"></span>
+        </label>
+        <button class="btn-icon btn-icon-danger" type="button" onclick="removeConditionRow(${conditionCounter})" title="${t('buttons.delete')}">
+          <i class="fa fa-trash"></i>
+        </button>
+      </div>
+      <div class="condition-body">
+        <div class="form-group-modern">
+          <label class="form-label-modern">${t('form.criteria')} <span style="color: var(--danger);">*</span></label>
+          <div class="d-flex gap-2">
+            <textarea class="form-control-modern condition-criteria"
+                      id="condition-criteria-${conditionCounter}"
+                      placeholder="${t('form.placeholder.criteria')}"
+                      rows="2">${escapeHtml(data.criteria || '')}</textarea>
+            <button class="btn-modern btn-modern-secondary" type="button"
+                    onclick="validateConditionCriteria(${conditionCounter})"
+                    title="${t('buttons.validate')}" style="align-self: flex-start;">
+              <i class="fa fa-check"></i>
+            </button>
+          </div>
+          <div id="condition-validation-${conditionCounter}" class="condition-validation"></div>
+        </div>
+
+        <div class="condition-overrides">
+          <div class="override-row">
+            <div class="form-group-modern" style="flex: 0 0 100px;">
+              <label class="form-label-modern">${t('table.code')}</label>
+              <input type="text" class="form-control-modern"
+                     id="condition-code-${conditionCounter}"
+                     placeholder="-"
+                     value="${escapeHtml(data.codigo || '')}">
+            </div>
+            <div class="form-group-modern" style="flex: 0 0 150px;">
+              <label class="form-label-modern">${t('table.type')}</label>
+              <select class="form-control-modern form-select-modern"
+                      id="condition-type-${conditionCounter}">
+                <option value="">${t('form.useDefault')}</option>
+                <option value="json" ${data.tiporespuesta === 'json' ? 'selected' : ''}>JSON</option>
+                <option value="xml" ${data.tiporespuesta === 'xml' ? 'selected' : ''}>XML</option>
+                <option value="text" ${data.tiporespuesta === 'text' ? 'selected' : ''}>Text</option>
+                <option value="html" ${data.tiporespuesta === 'html' ? 'selected' : ''}>HTML</option>
+                <option value="empty" ${data.tiporespuesta === 'empty' ? 'selected' : ''}>Empty</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group-modern">
+            <label class="form-label-modern">${t('form.response')}</label>
+            <textarea class="form-control-modern"
+                      id="condition-response-${conditionCounter}"
+                      placeholder="${t('form.placeholder.leaveEmpty')}"
+                      rows="3">${escapeHtml(data.respuesta || '')}</textarea>
+          </div>
+        </div>
+      </div>
+    `;
+
+    container.appendChild(card);
+
+    // Inicializar sortable si es la primera condición
+    if (container.children.length === 1 && typeof Sortable !== 'undefined') {
+      new Sortable(container, {
+        handle: '.condition-drag-handle',
+        animation: 150,
+        ghostClass: 'condition-ghost',
+        onEnd: function() {
+          Array.from(container.children).forEach((el, idx) => {
+            el.dataset.order = idx + 1;
+          });
+        }
+      });
+    }
+  }
+
+  function removeConditionRow(id) {
+    const card = document.getElementById(`condition-${id}`);
+    if (card) card.remove();
+
+    const container = document.getElementById('conditionsContainer');
+    if (container.children.length === 0) {
+      document.getElementById('noConditionsMsg').style.display = 'block';
+    }
+  }
+
+  async function validateConditionCriteria(id) {
+    const criteria = document.getElementById(`condition-criteria-${id}`).value;
+    const resultDiv = document.getElementById(`condition-validation-${id}`);
+
+    if (!criteria.trim()) {
+      resultDiv.innerHTML = `<span class="text-warning"><i class="fa fa-warning"></i> ${t('validation.enterCriteria')}</span>`;
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/validateCriteria', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ criteria })
+      });
+      const result = await response.json();
+
+      if (result.valid) {
+        resultDiv.innerHTML = `<span class="text-success"><i class="fa fa-check"></i> ${t('validation.criteriaValid')}</span>`;
+      } else {
+        resultDiv.innerHTML = `<span class="text-danger"><i class="fa fa-times"></i> ${result.error}</span>`;
+      }
+    } catch (e) {
+      resultDiv.innerHTML = `<span class="text-danger"><i class="fa fa-times"></i> ${t('validation.errorValidating')}</span>`;
+    }
+  }
+
+  function getConditions() {
+    const conditions = [];
+    const container = document.getElementById('conditionsContainer');
+    const cards = Array.from(container.querySelectorAll('.condition-card'))
+      .sort((a, b) => (parseInt(a.dataset.order) || 0) - (parseInt(b.dataset.order) || 0));
+
+    cards.forEach((card, idx) => {
+      const id = card.id.replace('condition-', '');
+      const criteria = document.getElementById(`condition-criteria-${id}`).value.trim();
+
+      if (!criteria) return; // Saltar condiciones vacías
+
+      conditions.push({
+        orden: idx,
+        nombre: document.getElementById(`condition-name-${id}`).value.trim() || null,
+        criteria: criteria,
+        codigo: document.getElementById(`condition-code-${id}`).value.trim() || null,
+        tiporespuesta: document.getElementById(`condition-type-${id}`).value || null,
+        respuesta: document.getElementById(`condition-response-${id}`).value || null,
+        customHeaders: null, // Se podría expandir para headers por condición
+        activo: document.getElementById(`condition-active-${id}`).checked
+      });
+    });
+
+    return conditions;
+  }
+
+  function setConditions(conditions) {
+    clearConditions();
+    if (conditions && Array.isArray(conditions)) {
+      conditions.forEach(c => addConditionRow(c));
+    }
+  }
+
+  function clearConditions() {
+    document.getElementById('conditionsContainer').innerHTML = '';
+    document.getElementById('noConditionsMsg').style.display = 'block';
+    conditionCounter = 0;
+  }
+
+  async function loadConditionsForRoute(routeId) {
+    try {
+      const response = await fetch(`/api/conditions/${routeId}`);
+      const data = await response.json();
+      if (data.success && data.conditions) {
+        setConditions(data.conditions);
+        // Mostrar la sección si hay condiciones
+        if (data.conditions.length > 0) {
+          document.querySelector('#divConditions .collapsible-body').style.display = 'block';
+        }
+      }
+    } catch (e) {
+      console.error('Error cargando condiciones:', e);
+    }
+  }
+
   function escapeHtml(text) {
     if (!text) return '';
     const div = document.createElement('div');
@@ -1232,6 +1438,11 @@
 
   // ===== MODAL FUNCTIONS =====
   function openModal(type = 'create', objId) {
+    // Limpiar condiciones siempre al abrir
+    clearConditions();
+    // Colapsar sección de condiciones
+    document.querySelector('#divConditions .collapsible-body').style.display = 'none';
+
     if (type === 'create') {
       checkRespuesta();
       $("#botoneditar").hide();
@@ -1246,6 +1457,8 @@
       const obj = Array.from(tabla.rows().data()).find(el => el.id === objId);
       valuesForModal(obj);
       checkRespuesta();
+      // Cargar condiciones existentes
+      loadConditionsForRoute(objId);
       $("#titleModal").html('<i class="fa fa-pencil me-2"></i>Editar Ruta');
       $("#routesModal").modal('show');
     }
@@ -1537,6 +1750,22 @@
     });
 
     if (response.status === 200) {
+      const result = await response.json();
+
+      // Guardar condiciones si hay alguna
+      const conditions = getConditions();
+      if (conditions.length > 0 && result.id) {
+        const condResponse = await fetch(`/api/conditions/${result.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ conditions })
+        });
+        if (!condResponse.ok) {
+          const err = await condResponse.json().catch(() => ({}));
+          showToast(err.error || t('errors.savingConditions'), 'error');
+        }
+      }
+
       tabla.ajax.reload();
       $("#routesModal").modal('hide');
     }
@@ -1599,6 +1828,27 @@
     });
 
     if (response.status === 200) {
+      // Guardar condiciones
+      const conditions = getConditions();
+      if (conditions.length > 0) {
+        const condResponse = await fetch(`/api/conditions/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ conditions })
+        });
+        if (!condResponse.ok) {
+          const err = await condResponse.json().catch(() => ({}));
+          showToast(err.error || t('errors.savingConditions'), 'error');
+        }
+      } else {
+        // Limpiar condiciones existentes si no hay ninguna
+        await fetch(`/api/conditions/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ conditions: [] })
+        });
+      }
+
       tabla.ajax.reload();
       $("#routesModal").modal('hide');
     }

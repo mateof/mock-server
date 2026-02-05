@@ -236,6 +236,107 @@ volumes:
 4. Click "Pendientes" to see waiting requests
 5. Click trigger button to release with default or custom response
 
+### Conditional Responses
+
+Conditional responses allow you to return different responses based on request properties (headers, body, query params, etc.). Conditions are evaluated in order - the first matching condition wins.
+
+#### Setting Up Conditional Responses
+
+1. Create or edit a route
+2. Expand the "Conditional Responses" section
+3. Click "Add" to create a new condition
+4. Enter a criteria expression (JavaScript)
+5. Optionally override: status code, response type, and response body
+6. Drag conditions to reorder priority
+7. Save the route
+
+#### Available Variables
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `headers` | Request headers object | `headers['x-api-key']` |
+| `body` | Parsed request body | `body.userId` |
+| `query` | Query parameters | `query.debug` |
+| `path` | URL path | `path` |
+| `params` | Captured regex groups | `params['$1']` |
+| `method` | HTTP method (lowercase) | `method === 'post'` |
+
+#### Available Helper Functions
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `includes(arr, val)` | Check if array/string contains value | `includes(headers['accept'], 'json')` |
+| `startsWith(str, prefix)` | Check string prefix | `startsWith(path, '/api')` |
+| `endsWith(str, suffix)` | Check string suffix | `endsWith(path, '/list')` |
+| `match(str, regex)` | Test regex pattern | `match(path, '/users/\\d+')` |
+| `hasKey(obj, key)` | Check if object has key | `hasKey(body, 'email')` |
+| `isEmpty(val)` | Check if value is empty | `isEmpty(body.name)` |
+| `isNotEmpty(val)` | Check if value is not empty | `isNotEmpty(query.filter)` |
+| `equals(a, b)` | Strict equality | `equals(body.type, 'admin')` |
+| `isNumber(val)` | Check if number | `isNumber(body.age)` |
+| `isString(val)` | Check if string | `isString(body.name)` |
+| `isArray(val)` | Check if array | `isArray(body.items)` |
+| `length(val)` | Get length | `length(body.items) > 0` |
+| `toNumber(val)` | Convert to number | `toNumber(query.page) > 1` |
+| `toLowerCase(val)` | Convert to lowercase | `toLowerCase(headers['x-env']) === 'prod'` |
+
+#### Criteria Expression Examples
+
+```javascript
+// Check header value
+headers['x-api-key'] === 'premium'
+
+// Check if header exists
+hasKey(headers, 'authorization')
+
+// Check body property
+body.userId > 1000
+
+// Check query parameter
+query.debug === 'true'
+
+// Check HTTP method
+method === 'post'
+
+// Combined conditions with AND
+headers['x-api-key'] && body.type === 'admin'
+
+// Combined conditions with OR
+body.env === 'test' || query.mock === 'true'
+
+// Using helper functions
+hasKey(body, 'email') && isNotEmpty(body.email)
+
+// Regex match on path
+match(path, '/users/\\d+')
+
+// Check if header contains value
+includes(headers['content-type'], 'json')
+
+// Check array length
+isArray(body.items) && length(body.items) > 0
+
+// Check numeric comparison
+toNumber(body.amount) >= 100
+
+// Complex condition
+headers['x-env'] === 'staging' && hasKey(body, 'testMode') && body.testMode === true
+```
+
+#### Use Case Example
+
+For an endpoint `/api/users`, you might want:
+
+1. **Condition 1** - Premium users: `headers['x-subscription'] === 'premium'`
+   - Return: Full user data with extra fields
+
+2. **Condition 2** - Error simulation: `query.simulate === 'error'`
+   - Return: 500 status with error message
+
+3. **Condition 3** - Empty results: `query.filter === 'none'`
+   - Return: Empty array `[]`
+
+4. **Default** - Standard response for all other requests
 
 ## License
 

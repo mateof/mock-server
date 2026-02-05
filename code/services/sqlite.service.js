@@ -190,6 +190,29 @@ async function createTables(newdb) {
         });
     });
 
+    // Crear tabla de respuestas condicionales
+    await new Promise((resolve) => {
+        newdb.exec(`
+            CREATE TABLE IF NOT EXISTS conditional_responses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                route_id INTEGER NOT NULL,
+                orden INTEGER DEFAULT 0,
+                nombre TEXT,
+                criteria TEXT NOT NULL,
+                codigo TEXT,
+                tiporespuesta TEXT,
+                respuesta TEXT,
+                customHeaders TEXT,
+                activo INTEGER DEFAULT 1,
+                FOREIGN KEY (route_id) REFERENCES rutas(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_conditions_route_orden ON conditional_responses(route_id, orden);
+        `, (err) => {
+            if (!err) console.log('[DB] Tabla conditional_responses verificada');
+            resolve();
+        });
+    });
+
     // Inicializar orden para rutas existentes que no lo tengan
     // Proxies empiezan en 99999999 y decrementan
     // Rutas normales empiezan en 1 y incrementan
@@ -226,7 +249,66 @@ async function createTables(newdb) {
     console.log('[DB] Inicialización de tablas completada');
 }
 
+// Obtener respuestas condicionales para una ruta (ordenadas)
+async function getConditionalResponses(routeId) {
+    const sql = `SELECT * FROM conditional_responses
+                 WHERE route_id = ? AND (activo = 1 OR activo IS NULL)
+                 ORDER BY orden ASC`;
+    return new Promise((resolve, reject) => {
+        _db.all(sql, [routeId], (err, rows) => {
+            if (err) {
+                console.error(`[DB] Error obteniendo condiciones: ${err.message}`);
+                reject(err);
+            } else {
+                resolve(rows || []);
+            }
+        });
+    });
+}
+
+// Guardar respuestas condicionales (reemplaza todas las existentes)
+async function saveConditionalResponses(routeId, conditions) {
+    // Eliminar condiciones existentes
+    await new Promise((resolve, reject) => {
+        _db.run('DELETE FROM conditional_responses WHERE route_id = ?', [routeId], (err) => {
+            if (err) reject(err);
+            else resolve();
+        });
+    });
+
+    // Insertar nuevas condiciones
+    for (let i = 0; i < conditions.length; i++) {
+        const c = conditions[i];
+        await new Promise((resolve, reject) => {
+            _db.run(`INSERT INTO conditional_responses
+                     (route_id, orden, nombre, criteria, codigo, tiporespuesta, respuesta, customHeaders, activo)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [routeId, i, c.nombre || null, c.criteria, c.codigo || null, c.tiporespuesta || null,
+                 c.respuesta || null, c.customHeaders || null, c.activo !== false ? 1 : 0],
+                (err) => {
+                    if (err) reject(err);
+                    else resolve();
+                });
+        });
+    }
+
+    console.log(`[DB] Guardadas ${conditions.length} condiciones para ruta ${routeId}`);
+}
+
+// Eliminar condiciones de una ruta (usado al eliminar la ruta)
+async function deleteConditionalResponses(routeId) {
+    return new Promise((resolve, reject) => {
+        _db.run('DELETE FROM conditional_responses WHERE route_id = ?', [routeId], (err) => {
+            if (err) reject(err);
+            else resolve();
+        });
+    });
+}
+
 exports.initSql = initSql;
 exports.getDatabase = getDatabase;
 exports.getRuta = getRuta;
 exports.getProxys = getProxys;
+exports.getConditionalResponses = getConditionalResponses;
+exports.saveConditionalResponses = saveConditionalResponses;
+exports.deleteConditionalResponses = deleteConditionalResponses;

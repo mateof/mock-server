@@ -7,6 +7,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const openapiService = require('../services/openapi.service');
+const criteriaService = require('../services/criteria-evaluator.service');
 
 // Configuración de multer para subida de archivos
 const UPLOADS_DIR = path.join(__dirname, '..', 'data', 'uploads');
@@ -455,6 +456,79 @@ router.post('/validateRegex', function(req, res, next) {
   } catch (e) {
     res.json({ valid: false, matches: false, error: e.message });
   }
+});
+
+/* Validar expresión de criterio */
+router.post('/validateCriteria', function(req, res) {
+    const { criteria, testContext } = req.body;
+
+    const validation = criteriaService.validateCriteria(criteria);
+    if (!validation.valid) {
+        return res.json({ valid: false, error: validation.error });
+    }
+
+    // Si hay contexto de prueba, evaluar la expresión
+    if (testContext) {
+        const result = criteriaService.evaluateCriteria(criteria, testContext);
+        return res.json({ valid: true, testResult: result });
+    }
+
+    res.json({ valid: true });
+});
+
+/* Obtener helpers y ejemplos disponibles para criterios */
+router.get('/criteria-helpers', function(req, res) {
+    res.json({
+        helpers: criteriaService.getAvailableHelpers(),
+        examples: criteriaService.getExamples()
+    });
+});
+
+/* Obtener condiciones de una ruta */
+router.get('/conditions/:routeId', async function(req, res) {
+    try {
+        const conditions = await sqliteService.getConditionalResponses(req.params.routeId);
+        res.json({ success: true, conditions });
+    } catch (err) {
+        console.error(`[API] Error obteniendo condiciones: ${err.message}`);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+/* Guardar condiciones de una ruta */
+router.put('/conditions/:routeId', async function(req, res) {
+    const { conditions } = req.body;
+
+    if (!Array.isArray(conditions)) {
+        return res.status(400).json({ success: false, error: 'conditions debe ser un array' });
+    }
+
+    // Validar cada expresión de criterio
+    for (let i = 0; i < conditions.length; i++) {
+        const c = conditions[i];
+        if (!c.criteria || !c.criteria.trim()) {
+            return res.status(400).json({
+                success: false,
+                error: `La condición ${i + 1} no tiene criterio definido`
+            });
+        }
+
+        const validation = criteriaService.validateCriteria(c.criteria);
+        if (!validation.valid) {
+            return res.status(400).json({
+                success: false,
+                error: `Condición "${c.nombre || i + 1}": ${validation.error}`
+            });
+        }
+    }
+
+    try {
+        await sqliteService.saveConditionalResponses(req.params.routeId, conditions);
+        res.json({ success: true });
+    } catch (err) {
+        console.error(`[API] Error guardando condiciones: ${err.message}`);
+        res.status(500).json({ success: false, error: err.message });
+    }
 });
 
 router.put('/toggle-active/:id', async function(req, res, next) {
