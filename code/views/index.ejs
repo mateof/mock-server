@@ -2594,6 +2594,11 @@
     // Build headers
     const headers = getKeyValuePairs('testerHeadersContainer');
 
+    // Add cache-busting headers to prevent 304 responses
+    headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+    headers['Pragma'] = 'no-cache';
+    headers['X-Request-Time'] = Date.now().toString();
+
     // Build body
     let body = null;
     const bodyType = document.querySelector('input[name="bodyType"]:checked').value;
