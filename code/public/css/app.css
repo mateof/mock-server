@@ -952,40 +952,141 @@ body {
   flex-shrink: 0;
 }
 
+/* ===== NAV TABS MODERNO (Global) ===== */
+.nav-tabs {
+  border-bottom: 1px solid var(--border-color);
+  gap: 0;
+}
+
+.nav-tabs .nav-item {
+  margin-bottom: -1px;
+}
+
+.nav-tabs .nav-link {
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: 0.75rem 1.25rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.nav-tabs .nav-link:hover {
+  color: var(--text-primary);
+  background: var(--surface-secondary);
+  border-color: transparent;
+  border-bottom-color: var(--border-color);
+}
+
+.nav-tabs .nav-link:focus {
+  box-shadow: none;
+  border-color: transparent;
+  border-bottom-color: var(--border-color);
+}
+
+.nav-tabs .nav-link.active {
+  color: var(--primary);
+  background: transparent;
+  border-color: transparent;
+  border-bottom-color: var(--primary);
+}
+
+.nav-tabs .nav-link.active:hover {
+  background: rgba(99, 102, 241, 0.1);
+}
+
+/* Nav tabs con fondo (variante pills-like) */
+.nav-tabs-modern {
+  background: var(--surface-secondary);
+  border-radius: var(--border-radius);
+  padding: 0.25rem;
+  border: none;
+  gap: 0.25rem;
+}
+
+.nav-tabs-modern .nav-link {
+  border: none;
+  border-radius: var(--border-radius-sm);
+  padding: 0.5rem 1rem;
+  border-bottom: none;
+}
+
+.nav-tabs-modern .nav-link:hover {
+  background: var(--surface-primary);
+  border-bottom: none;
+}
+
+.nav-tabs-modern .nav-link.active {
+  background: var(--primary);
+  color: white;
+  border-bottom: none;
+}
+
+.nav-tabs-modern .nav-link.active:hover {
+  background: var(--primary-dark);
+}
+
+/* Icons inside tabs */
+.nav-tabs .nav-link i {
+  margin-right: 0.5rem;
+  opacity: 0.8;
+}
+
+.nav-tabs .nav-link.active i {
+  opacity: 1;
+}
+
+/* Tab content styling */
+.tab-content {
+  padding-top: 1rem;
+}
+
+.tab-content > .tab-pane {
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Nav tabs pequeños */
+.nav-tabs-sm .nav-link {
+  padding: 0.5rem 0.875rem;
+  font-size: 0.85rem;
+}
+
+/* Request tester specific */
 .request-tabs {
   margin-bottom: 1rem;
 }
 
-.request-tabs .nav-tabs {
-  border-bottom: 1px solid var(--border-color);
-}
-
-.request-tabs .nav-link {
-  color: var(--text-secondary);
-  border: none;
-  border-bottom: 2px solid transparent;
-  padding: 0.5rem 1rem;
-  background: transparent;
-}
-
-.request-tabs .nav-link:hover {
-  color: var(--text-primary);
-  border-bottom-color: var(--border-color);
-}
-
-.request-tabs .nav-link.active {
-  color: var(--primary);
-  border-bottom-color: var(--primary);
-  background: transparent;
-}
-
 .tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
   background: var(--surface-secondary);
   color: var(--text-secondary);
-  padding: 0.1rem 0.4rem;
+  padding: 0 0.4rem;
   border-radius: 10px;
-  font-size: 0.75rem;
-  margin-left: 0.3rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  margin-left: 0.5rem;
+  transition: all 0.2s ease;
+}
+
+.nav-link.active .tab-count {
+  background: rgba(255, 255, 255, 0.2);
+  color: var(--primary);
+}
+
+.nav-link:hover .tab-count {
+  background: var(--border-color);
 }
 
 .key-value-section {
