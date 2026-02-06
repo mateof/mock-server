@@ -192,6 +192,18 @@
               <label class="form-label-modern" for="description"><%= __('form.description') %></label>
               <textarea class="form-control-modern" id="description" name="description" rows="3" placeholder="<%= __('form.placeholder.description') %>"></textarea>
             </div>
+            <div class="form-group-modern">
+              <div class="form-label-row">
+                <label class="form-label-modern" for="requestBodyExample"><%= __('form.requestBodyExample') %></label>
+                <button type="button" class="btn-modern btn-modern-secondary btn-sm" id="btnFormatReqBody" onclick="formatRequestBodyJson()" title="<%= __('buttons.format') %>">
+                  <i class="fa fa-align-left"></i> <%= __('buttons.format') %>
+                </button>
+              </div>
+              <textarea class="form-control-modern" id="requestBodyExample" name="requestBodyExample" rows="4" placeholder="<%= __('form.placeholder.requestBodyExample') %>"></textarea>
+              <small style="color: var(--text-muted); margin-top: 0.5rem; display: block;">
+                <%= __('form.help.requestBodyHelp') %>
+              </small>
+            </div>
           </div>
         </div>
 

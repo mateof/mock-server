@@ -18,6 +18,9 @@
             <button type="button" class="dropdown-item-modern" onclick="openTagManager(); closeToolsDropdown();">
               <i class="fa fa-tags"></i> <%= __('form.manageTags') %>
             </button>
+            <button type="button" class="dropdown-item-modern" onclick="openExportImportModal(); closeToolsDropdown();">
+              <i class="fa fa-exchange"></i> <%= __('exportImport.title') %>
+            </button>
           </div>
         </div>
         <button type="button" class="btn-modern btn-modern-secondary" onclick="openList()" style="position: relative;">
@@ -202,6 +205,7 @@
 <%- include('modals/criteria-help') %>
 <%- include('modals/request-tester') %>
 <%- include('modals/tag-manager') %>
+<%- include('modals/export-import') %>
 
 <script src="/js/socket.io.js"></script>
 
@@ -1042,6 +1046,18 @@
       }
     } catch (e) {
       showToast(`${t('responseTypes.' + tipoResp) || tipoResp.toUpperCase()} ${t('validation.' + tipoResp + 'Invalid')}: ${e.message}`, 'error');
+    }
+  }
+
+  function formatRequestBodyJson() {
+    const textarea = document.getElementById('requestBodyExample');
+    if (!textarea || !textarea.value.trim()) return;
+
+    try {
+      const parsed = JSON.parse(textarea.value);
+      textarea.value = JSON.stringify(parsed, null, 2);
+    } catch (e) {
+      showToast(`JSON ${t('validation.jsonInvalid')}: ${e.message}`, 'error');
     }
   }
 
@@ -2276,6 +2292,7 @@
     document.getElementById("operationId").value = '';
     document.getElementById("summary").value = '';
     document.getElementById("description").value = '';
+    document.getElementById("requestBodyExample").value = '';
   }
 
   function valuesForModal(obj) {
@@ -2309,6 +2326,7 @@
     document.getElementById("operationId").value = obj.operationId || '';
     document.getElementById("summary").value = obj.summary || '';
     document.getElementById("description").value = obj.description || '';
+    document.getElementById("requestBodyExample").value = obj.requestBodyExample || '';
   }
 
   async function guardar() {
@@ -2362,9 +2380,11 @@
     const operationId = document.getElementById("operationId").value;
     const summary = document.getElementById("summary").value;
     const description = document.getElementById("description").value;
+    const requestBodyExample = document.getElementById("requestBodyExample").value;
     if (operationId) formData.append('operationId', operationId);
     if (summary) formData.append('summary', summary);
     if (description) formData.append('description', description);
+    if (requestBodyExample) formData.append('requestBodyExample', requestBodyExample);
 
     // Añadir archivo si está seleccionado
     if (tiporespuesta === 'file' && selectedFile) {
@@ -2450,9 +2470,11 @@
     const operationId = document.getElementById("operationId").value;
     const summary = document.getElementById("summary").value;
     const description = document.getElementById("description").value;
+    const requestBodyExample = document.getElementById("requestBodyExample").value;
     if (operationId) formData.append('operationId', operationId);
     if (summary) formData.append('summary', summary);
     if (description) formData.append('description', description);
+    if (requestBodyExample) formData.append('requestBodyExample', requestBodyExample);
 
     // Manejo de archivo
     if (tiporespuesta === 'file') {
@@ -2892,8 +2914,16 @@
     // Generar comando curl
     let curlCmd = `curl -X ${method} "${fullUrl}"`;
 
-    if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
-      curlCmd += ` \\\n  -H "Content-Type: application/json" \\\n  -d '{}'`;
+    if (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE') {
+      curlCmd += ` \\\n  -H "Content-Type: application/json"`;
+      // Use requestBodyExample if available, otherwise use empty object
+      if (obj.requestBodyExample) {
+        // Escape single quotes for shell and format in one line
+        const bodyForCurl = obj.requestBodyExample.replace(/\n/g, '').replace(/'/g, "'\\''");
+        curlCmd += ` \\\n  -d '${bodyForCurl}'`;
+      } else {
+        curlCmd += ` \\\n  -d '{}'`;
+      }
     }
 
     document.getElementById('curlCommand').textContent = curlCmd;
@@ -3287,6 +3317,7 @@
         operationId: route.operationId,
         summary: route.summary,
         description: route.description,
+        requestBodyExample: route.requestBodyExample,
         openApiTags: route.openApiTags
       });
     });
@@ -3447,6 +3478,16 @@
       route = regexToSampleUrl(route);
     }
     document.getElementById('testerUrl').value = baseUrl + route;
+
+    // Pre-fill request body example if available (for POST, PUT, PATCH, DELETE)
+    const methodsWithBody = ['POST', 'PUT', 'PATCH', 'DELETE'];
+    if (methodsWithBody.includes(method) && obj.requestBodyExample) {
+      // Set body type to JSON
+      document.querySelector('input[name="bodyType"][value="json"]').checked = true;
+      changeBodyType('json');
+      // Set the body content
+      document.getElementById('testerBodyJson').value = obj.requestBodyExample;
+    }
 
     // Open modal
     const modal = new bootstrap.Modal(document.getElementById('requestTesterModal'));
@@ -3703,4 +3744,331 @@
   // Initialize tooltips
   var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
   tooltipTriggerList.map(el => new bootstrap.Tooltip(el));
+
+  // ===== EXPORT/IMPORT MODULE =====
+  let currentImportSource = 'file';
+
+  function openExportImportModal() {
+    // Reset to export tab
+    const exportTab = document.getElementById('export-tab');
+    const exportPane = document.getElementById('exportPane');
+    const importTab = document.getElementById('import-tab');
+    const importPane = document.getElementById('importPane');
+
+    exportTab.classList.add('active');
+    importTab.classList.remove('active');
+    exportPane.classList.add('show', 'active');
+    importPane.classList.remove('show', 'active');
+
+    // Load export preview
+    loadExportPreview();
+
+    // Reset import form
+    resetImportForm();
+    switchImportSource('file');
+
+    $('#exportImportModal').modal('show');
+  }
+
+  function resetImportForm() {
+    document.getElementById('importFile').value = '';
+    document.getElementById('importFileInfo').style.display = 'none';
+    document.getElementById('importResults').style.display = 'none';
+    document.getElementById('importBtn').disabled = true;
+    document.getElementById('gitRepoUrl').value = '';
+    document.getElementById('gitBranch').value = '';
+    document.getElementById('gitCommit').value = '';
+    document.getElementById('gitSshKey').value = '';
+  }
+
+  function switchImportSource(source) {
+    currentImportSource = source;
+
+    // Update tabs
+    document.querySelectorAll('.import-source-tab').forEach(tab => {
+      tab.classList.toggle('active', tab.dataset.source === source);
+    });
+
+    // Update content visibility
+    document.getElementById('importSourceFile').style.display = source === 'file' ? 'block' : 'none';
+    document.getElementById('importSourceGit').style.display = source === 'git' ? 'block' : 'none';
+    document.getElementById('importSourceDirectory').style.display = source === 'directory' ? 'block' : 'none';
+
+    // Hide files option for directory import (files are always imported from directory)
+    document.getElementById('importFilesOption').style.display = source === 'directory' ? 'none' : 'block';
+
+    // Update import button state
+    updateImportButtonState();
+
+    // Load directory files if that source is selected
+    if (source === 'directory') {
+      loadDirectoryFiles();
+    }
+
+    // Hide previous results
+    document.getElementById('importResults').style.display = 'none';
+  }
+
+  function updateImportButtonState() {
+    const importBtn = document.getElementById('importBtn');
+
+    if (currentImportSource === 'file') {
+      const file = document.getElementById('importFile').files[0];
+      importBtn.disabled = !file;
+    } else if (currentImportSource === 'git') {
+      const repoUrl = document.getElementById('gitRepoUrl').value.trim();
+      importBtn.disabled = !repoUrl;
+    } else if (currentImportSource === 'directory') {
+      // Check if there are files in the directory
+      const filesList = document.getElementById('directoryFilesList');
+      const hasFiles = filesList.querySelectorAll('.directory-file-item').length > 0;
+      importBtn.disabled = !hasFiles;
+    }
+  }
+
+  async function loadDirectoryFiles() {
+    const listEl = document.getElementById('directoryFilesList');
+    listEl.innerHTML = `<div class="directory-loading"><i class="fa fa-spinner fa-spin"></i> ${t('exportImport.loading')}</div>`;
+
+    try {
+      const response = await fetch('/api/import/directory');
+      const data = await response.json();
+
+      if (data.success) {
+        if (data.files.length === 0) {
+          listEl.innerHTML = `
+            <div class="directory-path">${t('exportImport.directoryPath')}: <code>${data.directory}</code></div>
+            <div class="directory-empty">${t('exportImport.noFilesInDirectory')}</div>
+          `;
+        } else {
+          listEl.innerHTML = `
+            <div class="directory-path">${t('exportImport.directoryPath')}: <code>${data.directory}</code></div>
+            ${data.files.map(file => `
+              <div class="directory-file-item">
+                <i class="fa fa-file-archive-o"></i>
+                <span class="file-name">${escapeHtml(file.path)}</span>
+                <span class="file-size">${file.sizeFormatted}</span>
+              </div>
+            `).join('')}
+          `;
+        }
+        updateImportButtonState();
+      } else {
+        listEl.innerHTML = `<div class="directory-empty">${data.error || 'Error loading directory'}</div>`;
+      }
+    } catch (e) {
+      listEl.innerHTML = `<div class="directory-empty">${e.message}</div>`;
+    }
+  }
+
+  async function loadExportPreview() {
+    const previewEl = document.getElementById('exportPreview');
+    previewEl.innerHTML = `<div class="export-preview-loading"><i class="fa fa-spinner fa-spin"></i> ${t('exportImport.loading')}</div>`;
+
+    try {
+      const response = await fetch('/api/export/preview');
+      const data = await response.json();
+
+      if (data.success) {
+        previewEl.innerHTML = `
+          <div class="export-stats">
+            <div class="export-stat">
+              <div class="export-stat-value">${data.stats.routes}</div>
+              <div class="export-stat-label">${t('exportImport.routes')}</div>
+            </div>
+            <div class="export-stat">
+              <div class="export-stat-value">${data.stats.tags}</div>
+              <div class="export-stat-label">${t('exportImport.tags')}</div>
+            </div>
+            <div class="export-stat">
+              <div class="export-stat-value">${data.stats.conditions}</div>
+              <div class="export-stat-label">${t('exportImport.conditions')}</div>
+            </div>
+            <div class="export-stat">
+              <div class="export-stat-value">${data.stats.files}</div>
+              <div class="export-stat-label">${t('exportImport.files')}</div>
+            </div>
+          </div>
+        `;
+      } else {
+        previewEl.innerHTML = `<div class="alert-modern alert-modern-warning">${data.error || 'Error loading preview'}</div>`;
+      }
+    } catch (e) {
+      previewEl.innerHTML = `<div class="alert-modern alert-modern-warning">${e.message}</div>`;
+    }
+  }
+
+  async function performExport() {
+    const format = document.querySelector('input[name="exportFormat"]:checked').value;
+    const includeFiles = document.getElementById('includeFiles').checked;
+
+    // Create download link with query parameters
+    const url = `/api/export?format=${format}&includeFiles=${includeFiles}`;
+
+    // Trigger download
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `mock-server-export-${new Date().toISOString().slice(0, 10)}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+
+  function handleImportFileSelect(event) {
+    const file = event.target.files[0];
+    const fileInfo = document.getElementById('importFileInfo');
+
+    if (file) {
+      document.getElementById('importFileName').textContent = file.name;
+      document.getElementById('importFileSize').textContent = formatBytes(file.size);
+      fileInfo.style.display = 'flex';
+    } else {
+      fileInfo.style.display = 'none';
+    }
+
+    updateImportButtonState();
+
+    // Hide previous results
+    document.getElementById('importResults').style.display = 'none';
+  }
+
+  // Add input listener for git repo URL
+  document.addEventListener('DOMContentLoaded', function() {
+    const gitRepoUrl = document.getElementById('gitRepoUrl');
+    if (gitRepoUrl) {
+      gitRepoUrl.addEventListener('input', updateImportButtonState);
+    }
+  });
+
+  async function performImport() {
+    const importBtn = document.getElementById('importBtn');
+    const originalText = importBtn.innerHTML;
+    importBtn.disabled = true;
+    importBtn.innerHTML = `<i class="fa fa-spinner fa-spin"></i> ${t('exportImport.importing')}`;
+
+    const conflictStrategy = document.getElementById('importConflictStrategy').value;
+
+    try {
+      let response;
+      let data;
+
+      if (currentImportSource === 'file') {
+        const fileInput = document.getElementById('importFile');
+        const file = fileInput.files[0];
+
+        if (!file) {
+          showToast(t('exportImport.selectFileRequired'), 'warning');
+          importBtn.innerHTML = originalText;
+          importBtn.disabled = false;
+          return;
+        }
+
+        const importFiles = document.getElementById('importFilesCheck').checked;
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('conflictStrategy', conflictStrategy);
+        formData.append('importFiles', importFiles);
+
+        response = await fetch('/api/import', {
+          method: 'POST',
+          body: formData
+        });
+        data = await response.json();
+
+      } else if (currentImportSource === 'git') {
+        const repoUrl = document.getElementById('gitRepoUrl').value.trim();
+        const branch = document.getElementById('gitBranch').value.trim();
+        const commit = document.getElementById('gitCommit').value.trim();
+        const sshKey = document.getElementById('gitSshKey').value.trim();
+
+        if (!repoUrl) {
+          showToast(t('exportImport.gitRepoUrlRequired'), 'warning');
+          importBtn.innerHTML = originalText;
+          importBtn.disabled = false;
+          return;
+        }
+
+        response = await fetch('/api/import/git', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            repoUrl,
+            branch: branch || null,
+            commit: commit || null,
+            sshKey: sshKey || null,
+            conflictStrategy
+          })
+        });
+        data = await response.json();
+
+      } else if (currentImportSource === 'directory') {
+        response = await fetch('/api/import/directory', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ conflictStrategy })
+        });
+        data = await response.json();
+      }
+
+      const resultsEl = document.getElementById('importResults');
+      resultsEl.style.display = 'block';
+
+      if (data.success) {
+        let resultsHtml = '';
+
+        if (currentImportSource === 'file') {
+          resultsHtml = `
+            <strong>${t('exportImport.routes')}:</strong> ${data.results.routes?.imported || 0} ${t('exportImport.created')}, ${data.results.routes?.updated || 0} ${t('exportImport.updated')}, ${data.results.routes?.skipped || 0} ${t('exportImport.skipped')}<br>
+            <strong>${t('exportImport.tags')}:</strong> ${data.results.tags?.imported || 0} ${t('exportImport.created')}, ${data.results.tags?.skipped || 0} ${t('exportImport.skipped')}<br>
+            <strong>${t('exportImport.conditions')}:</strong> ${data.results.conditions?.imported || 0} ${t('exportImport.created')}<br>
+            <strong>${t('exportImport.files')}:</strong> ${data.results.files?.imported || 0} ${t('exportImport.imported')}
+          `;
+        } else {
+          resultsHtml = `${t('exportImport.filesImported')}: ${data.results?.imported || 0}`;
+          if (data.results?.errors?.length > 0) {
+            resultsHtml += `<br>${t('exportImport.errors')}: ${data.results.errors.length}`;
+          }
+        }
+
+        resultsEl.innerHTML = `
+          <div class="alert-modern alert-modern-success">
+            <i class="fa fa-check-circle alert-icon"></i>
+            <div class="alert-content">
+              <div class="alert-title">${t('exportImport.importSuccess')}</div>
+              <div class="alert-text">${resultsHtml}</div>
+            </div>
+          </div>
+        `;
+
+        // Reload page after a short delay to show results
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      } else {
+        resultsEl.innerHTML = `
+          <div class="alert-modern alert-modern-error">
+            <i class="fa fa-times-circle alert-icon"></i>
+            <div class="alert-content">
+              <div class="alert-title">${t('exportImport.importError')}</div>
+              <div class="alert-text">${data.error || 'Unknown error'}</div>
+            </div>
+          </div>
+        `;
+      }
+    } catch (e) {
+      document.getElementById('importResults').innerHTML = `
+        <div class="alert-modern alert-modern-error">
+          <i class="fa fa-times-circle alert-icon"></i>
+          <div class="alert-content">
+            <div class="alert-title">${t('exportImport.importError')}</div>
+            <div class="alert-text">${e.message}</div>
+          </div>
+        </div>
+      `;
+      document.getElementById('importResults').style.display = 'block';
+    }
+
+    importBtn.innerHTML = originalText;
+    importBtn.disabled = false;
+  }
 </script>
