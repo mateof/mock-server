@@ -123,11 +123,13 @@ async function checkRoute(req, res, next) {
                 id: semaphore.generateUUID(),
                 sleep: true,
                 url: rute.ruta,
+                method: method,
                 date: moment().format("MM/DD/YYYY HH:mm:ss:SSS"),
                 defaultResponse: rute.respuesta,
                 tiporespuesta: rute.tiporespuesta,
                 codigo: rute.codigo,
-                customHeaders: rute.customHeaders
+                customHeaders: rute.customHeaders,
+                requestHeaders: req.headers
             };
             sendData('addItem', itemLW);
             await semaphore.addToListAndWait(itemLW);

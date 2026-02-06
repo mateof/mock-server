@@ -17,16 +17,36 @@
                data-headers="<%= element.customHeaders || '{}' %>">
             <div class="pending-item-header">
               <div class="pending-item-info">
+                <span class="badge-method badge-method-<%= (element.method || 'GET').toLowerCase() %>"><%= element.method || 'GET' %></span>
                 <span class="pending-item-url"><%= element.url %></span>
                 <span class="pending-item-date"><%= element.date %></span>
               </div>
               <div class="pending-item-actions">
+                <button class="btn-icon btn-icon-info" onclick="toggleRequestHeaders('<%= element.id %>')" title="<%= __('pending.viewRequestHeaders') %>">
+                  <i class="fa fa-list-ul" aria-hidden="true"></i>
+                </button>
                 <button class="btn-icon btn-icon-primary" onclick="togglePendingResponse('<%= element.id %>')" title="<%= __('modal.editResponse') %>">
                   <i class="fa fa-pencil" aria-hidden="true"></i>
                 </button>
                 <button class="btn-icon btn-icon-success" onclick="iniciaTarea('<%= element.id %>')" title="<%= __('modal.releaseRequest') %>">
                   <i class="fa fa-play" aria-hidden="true"></i>
                 </button>
+              </div>
+            </div>
+            <!-- Request Headers (collapsible) -->
+            <div class="pending-request-headers" id="prqh-<%= element.id %>" style="display: none;">
+              <div class="request-headers-title"><%= __('pending.requestHeaders') %></div>
+              <div class="request-headers-list">
+                <% if (element.requestHeaders) { %>
+                  <% Object.entries(element.requestHeaders).forEach(function([key, value]) { %>
+                    <div class="request-header-item">
+                      <span class="request-header-key"><%= key %>:</span>
+                      <span class="request-header-value"><%= value %></span>
+                    </div>
+                  <% }); %>
+                <% } else { %>
+                  <div class="request-headers-empty"><%= __('pending.noRequestHeaders') %></div>
+                <% } %>
               </div>
             </div>
             <div class="pending-item-response" id="pr-<%= element.id %>" style="display: none;">

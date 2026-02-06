@@ -416,6 +416,27 @@ body {
 .badge-head { background: linear-gradient(135deg, #6366f1 0%, #818cf8 100%); color: white; }
 .badge-any { background: linear-gradient(135deg, #374151 0%, #4b5563 100%); color: white; }
 
+/* HTTP Method badges for pending list */
+.badge-method {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
+}
+.badge-method-get { background: linear-gradient(135deg, #ec4899 0%, #f472b6 100%); color: white; }
+.badge-method-post { background: linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%); color: white; }
+.badge-method-put { background: linear-gradient(135deg, #f97316 0%, #fb923c 100%); color: white; }
+.badge-method-delete { background: linear-gradient(135deg, #ef4444 0%, #f87171 100%); color: white; }
+.badge-method-patch { background: linear-gradient(135deg, #14b8a6 0%, #2dd4bf 100%); color: white; }
+.badge-method-options { background: linear-gradient(135deg, #06b6d4 0%, #22d3ee 100%); color: white; }
+.badge-method-head { background: linear-gradient(135deg, #6366f1 0%, #818cf8 100%); color: white; }
+.badge-method-any { background: linear-gradient(135deg, #374151 0%, #4b5563 100%); color: white; }
+
 /* Status codes */
 .badge-status-2xx { background: var(--success-light); color: var(--success); border: 1px solid var(--success); }
 .badge-status-3xx { background: var(--info-light); color: var(--info); border: 1px solid var(--info); }
@@ -1758,6 +1779,66 @@ table.dataTable.no-footer {
   gap: 0.5rem;
   margin-top: 0.75rem;
   justify-content: flex-end;
+}
+
+/* Request Headers in Pending List */
+.pending-request-headers {
+  padding: 0.75rem 1rem;
+  background: var(--bg-dark);
+  border-top: 1px solid var(--border-color);
+}
+
+.request-headers-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 0.5rem;
+}
+
+.request-headers-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.request-header-item {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  font-family: 'Fira Code', monospace;
+  padding: 0.25rem 0.5rem;
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+}
+
+.request-header-key {
+  color: var(--primary);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.request-header-value {
+  color: var(--text-primary);
+  word-break: break-all;
+}
+
+.request-headers-empty {
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: 0.85rem;
+}
+
+.btn-icon-info {
+  background: var(--info);
+  color: white;
+}
+
+.btn-icon-info:hover {
+  background: #0ea5e9;
 }
 
 /* ===== NAVBAR STATUS BUTTON ===== */

@@ -166,7 +166,10 @@
     "type": "Type",
     "responseBody": "Response body",
     "customHeadersJson": "Custom headers (JSON)",
-    "noPending": "No pending requests"
+    "noPending": "No pending requests",
+    "requestHeaders": "Request headers",
+    "viewRequestHeaders": "View request headers",
+    "noRequestHeaders": "No headers"
   },
   "connection": {
     "connected": "Connected",

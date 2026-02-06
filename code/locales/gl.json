@@ -166,7 +166,10 @@
     "type": "Tipo",
     "responseBody": "Body de resposta",
     "customHeadersJson": "Headers personalizados (JSON)",
-    "noPending": "Non hai peticións pendentes"
+    "noPending": "Non hai peticións pendentes",
+    "requestHeaders": "Headers da petición",
+    "viewRequestHeaders": "Ver headers da petición",
+    "noRequestHeaders": "Non hai headers"
   },
   "connection": {
     "connected": "Conectado",
