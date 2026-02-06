@@ -1,0 +1,47 @@
+name: Tests
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [20.x]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          cache-dependency-path: code/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./code
+        run: npm ci
+
+      - name: Run tests
+        working-directory: ./code
+        run: npm test
+
+      - name: Run tests with coverage
+        working-directory: ./code
+        run: npm run test:coverage
+        continue-on-error: true
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: code/coverage/
+          retention-days: 7
