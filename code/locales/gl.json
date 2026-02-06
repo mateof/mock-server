@@ -16,7 +16,8 @@
     "pendingList": "Pendentes",
     "normalize": "Normalizar",
     "normalizeTitle": "Reorganizar ordes secuencialmente",
-    "importOpenApi": "Importar OpenAPI"
+    "importOpenApi": "Importar OpenAPI",
+    "tools": "Ferramentas"
   },
   "table": {
     "id": "id",
@@ -56,7 +57,8 @@
     "clientError4xx": "4xx (Erro cliente)",
     "serverError5xx": "5xx (Erro servidor)",
     "yes": "Si",
-    "no": "Non"
+    "no": "Non",
+    "tags": "Tags"
   },
   "form": {
     "responseType": "Tipo de Resposta",
@@ -77,7 +79,8 @@
       "testUrl": "/api/users/123",
       "headersJson": "{\"Content-Type\": \"application/json\"}",
       "leaveEmpty": "Deixar baleiro para usar a resposta por defecto",
-      "criteria": "headers['x-api-key'] === 'test' || body.debug === true"
+      "criteria": "headers['x-api-key'] === 'test' || body.debug === true",
+      "tagName": "Nome do tag..."
     },
     "help": {
       "proxyExample": "Exemplo: Se a ruta é [route] e o destino é [target], unha petición a [request] redirixirase a [result]",
@@ -85,7 +88,8 @@
       "waitModeDesc": "As peticións pausaranse ata que as liberes manualmente desde \"Lista Pendentes\".",
       "routeActiveDesc": "Se está desactivada, as peticións non serán interceptadas por esta ruta.",
       "headersHelp": "Set: Engade ou sobreescribe o header | Remove: Elimina o header da resposta",
-      "conditionsHelp": "As condicións avalíanse en orde. A primeira que coincida sobreescribirá a resposta por defecto."
+      "conditionsHelp": "As condicións avalíanse en orde. A primeira que coincida sobreescribirá a resposta por defecto.",
+      "tagsHelp": "Engade tags para organizar e filtrar as túas rutas"
     },
     "conditionalResponses": "Respostas Condicionais",
     "conditionName": "Nome (opcional)",
@@ -93,7 +97,13 @@
     "useDefault": "Usar por defecto",
     "availableVariables": "Variables dispoñibles",
     "availableFunctions": "Funcións dispoñibles",
-    "criteriaExamples": "Ver exemplos de criterios"
+    "criteriaExamples": "Ver exemplos de criterios",
+    "tags": "Tags",
+    "tagName": "Nome do tag",
+    "tagColor": "Cor do tag",
+    "tagColorHint": "Só para tags novos",
+    "manageTags": "Xestionar Tags",
+    "noMatchingTags": "Non hai tags coincidentes"
   },
   "responseTypes": {
     "json": "JSON",
@@ -124,12 +134,16 @@
     "release": "Liberar",
     "restore": "Restaurar",
     "openNewTab": "Abrir en nova pestana",
-    "duplicate": "Duplicar"
+    "duplicate": "Duplicar",
+    "newTag": "Novo Tag",
+    "create": "Crear",
+    "manage": "Xestionar"
   },
   "modal": {
     "confirmDelete": "Confirmar Eliminación",
     "deleteMessage": "Estás seguro de que desexas eliminar esta ruta?",
     "deleteWarning": "Esta acción non se pode desfacer.",
+    "deleteTagConfirm": "Eliminar o tag",
     "curlExample": "Exemplo de Petición",
     "connectionStatus": "Estado da Conexión",
     "pendingRequests": "Lista de Pendentes",
@@ -197,7 +211,8 @@
     "xmlInvalid": "XML inválido",
     "soapInvalid": "SOAP inválido",
     "htmlInvalid": "HTML inválido",
-    "orderPositive": "A orde debe ser un número positivo"
+    "orderPositive": "A orde debe ser un número positivo",
+    "tagNameRequired": "O nome do tag é obrigatorio"
   },
   "confirm": {
     "normalizeOrder": "Reorganizar todas as ordes secuencialmente?\n\nAs rutas normais terán orde 1, 2, 3...\nOs proxies estarán ao final con orde 99999999, 99999998...",
@@ -207,11 +222,13 @@
     "normalizing": "Erro normalizando ordes",
     "savingConditions": "Erro gardando condicións",
     "movingRoute": "Erro movendo ruta",
-    "updatingOrder": "Erro actualizando orde"
+    "updatingOrder": "Erro actualizando orde",
+    "creatingTag": "Erro creando tag"
   },
   "empty": {
     "noHeaders": "Non hai headers configurados",
-    "noConditions": "Non hai condicións. Usarase sempre a resposta por defecto."
+    "noConditions": "Non hai condicións. Usarase sempre a resposta por defecto.",
+    "noTags": "Non hai tags. Crea un novo."
   },
   "actions": {
     "moveUp": "Subir prioridade",
@@ -289,7 +306,9 @@
     "errorTitle": "Erro de Importacion",
     "successMessage": "Importacion completada",
     "importedCount": "importadas",
-    "skippedCount": "omitidas"
+    "skippedCount": "omitidas",
+    "applyTags": "Aplicar tags ás rutas importadas",
+    "tagsHelp": "Os tags seleccionados aplicaranse a todas as rutas importadas"
   },
   "bulk": {
     "selectAll": "Seleccionar todo",

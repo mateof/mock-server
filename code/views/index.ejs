@@ -7,9 +7,20 @@
         <button type="button" class="btn-modern btn-modern-danger" id="bulkDeleteBtn" onclick="openBulkDeleteModal()" style="display: none;">
           <i class="fa fa-trash"></i> <span id="bulkDeleteCount"></span>
         </button>
-        <button type="button" class="btn-modern btn-modern-secondary" onclick="normalizeOrder()" title="<%= __('routes.normalizeTitle') %>">
-          <i class="fa fa-sort-numeric-asc"></i> <%= __('routes.normalize') %>
-        </button>
+        <div class="dropdown-modern">
+          <button type="button" class="btn-modern btn-modern-secondary dropdown-toggle" onclick="toggleToolsDropdown()">
+            <i class="fa fa-cog"></i> <%= __('routes.tools') %>
+            <i class="fa fa-chevron-down ms-1"></i>
+          </button>
+          <div class="dropdown-menu-modern" id="toolsDropdownMenu">
+            <button type="button" class="dropdown-item-modern" onclick="normalizeOrder(); closeToolsDropdown();">
+              <i class="fa fa-sort-numeric-asc"></i> <%= __('routes.normalize') %>
+            </button>
+            <button type="button" class="dropdown-item-modern" onclick="openTagManager(); closeToolsDropdown();">
+              <i class="fa fa-tags"></i> <%= __('form.manageTags') %>
+            </button>
+          </div>
+        </div>
         <button type="button" class="btn-modern btn-modern-secondary" onclick="openList()" style="position: relative;">
           <i class="fa fa-list"></i> <%= __('routes.pendingList') %>
           <% if (listaEspera.length > 0) { %>
@@ -105,6 +116,18 @@
             <option value="0"><%= __('filters.no') %></option>
           </select>
         </div>
+        <div class="filter-group">
+          <label class="filter-label"><%= __('filters.tags') %></label>
+          <div class="tags-filter-dropdown" id="tagsFilterDropdown">
+            <button type="button" class="tags-filter-button" onclick="toggleTagsFilterDropdown()">
+              <span id="tagsFilterLabel"><%= __('filters.all') %></span>
+              <i class="fa fa-chevron-down"></i>
+            </button>
+            <div class="tags-filter-menu" id="tagsFilterMenu">
+              <!-- Options populated by JS -->
+            </div>
+          </div>
+        </div>
         <div class="filter-group filter-actions">
           <button class="btn-filter-clear" onclick="clearFilters()" title="<%= __('filters.clear') %>">
             <i class="fa fa-times"></i> <%= __('filters.clear') %>
@@ -179,6 +202,7 @@
 <%- include('modals/duplicate') %>
 <%- include('modals/criteria-help') %>
 <%- include('modals/request-tester') %>
+<%- include('modals/tag-manager') %>
 
 <script src="/js/socket.io.js"></script>
 
@@ -672,7 +696,25 @@
         return `<span class="badge-modern badge-${data.tipo}">${data.tipo.toUpperCase()}</span>`;
       }},
       { data: null, render: function (data) {
-        return `<span class="route-path">${data.ruta}</span>`;
+        let html = `<div class="route-cell">`;
+        html += `<span class="route-path">${escapeHtml(data.ruta)}</span>`;
+
+        // Parse and render tags
+        if (data.tags) {
+          try {
+            const tags = JSON.parse(data.tags);
+            if (tags.length > 0) {
+              html += `<div class="route-tags">`;
+              tags.forEach(tag => {
+                html += `<span class="badge-tag badge-tag-sm" style="background: ${tag.color};">${escapeHtml(tag.name)}</span>`;
+              });
+              html += `</div>`;
+            }
+          } catch (e) {}
+        }
+
+        html += `</div>`;
+        return html;
       }},
       { data: null, render: function (data) {
         const icons = { json: 'fa-code', xml: 'fa-file-code-o', soap: 'fa-envelope-o', text: 'fa-align-left', html: 'fa-html5', page: 'fa-file-text-o', file: 'fa-file-o', proxy: 'fa-exchange', empty: 'fa-circle-o' };
@@ -797,6 +839,19 @@
       if (activo !== filterActivo) return false;
     }
 
+    // Filtro Tags
+    const filterTags = getSelectedFilterTags();
+    if (filterTags.length > 0) {
+      let routeTags = [];
+      try {
+        routeTags = rowData.tags ? JSON.parse(rowData.tags).map(t => t.id) : [];
+      } catch (e) {}
+
+      // OR logic - route matches if it has ANY of the selected tags
+      const hasMatch = filterTags.some(tagId => routeTags.includes(tagId));
+      if (!hasMatch) return false;
+    }
+
     return true;
   });
 
@@ -814,6 +869,8 @@
     document.getElementById('filterRegex').value = '';
     document.getElementById('filterWait').value = '';
     document.getElementById('filterActivo').value = '';
+    // Clear tags filter dropdown
+    clearTagFilter();
     applyFilters();
   }
 
@@ -826,6 +883,8 @@
     if (document.getElementById('filterRegex').value) count++;
     if (document.getElementById('filterWait').value) count++;
     if (document.getElementById('filterActivo').value) count++;
+    // Count selected tags from dropdown
+    if (getSelectedFilterTags().length > 0) count++;
 
     const btn = document.querySelector('.btn-filter-clear');
     if (count > 0) {
@@ -836,6 +895,95 @@
       btn.classList.remove('has-filters');
     }
   }
+
+  // Tags filter state
+  let selectedFilterTags = [];
+  let allFilterTags = [];
+
+  // Initialize tag filter options
+  async function initTagFilter() {
+    const menu = document.getElementById('tagsFilterMenu');
+    if (!menu) return;
+
+    try {
+      const response = await fetch('/api/tags');
+      const data = await response.json();
+
+      if (data.success) {
+        allFilterTags = data.tags;
+        renderTagFilterMenu();
+      }
+    } catch (e) {
+      console.error('Error loading tag filter:', e);
+    }
+  }
+
+  function renderTagFilterMenu() {
+    const menu = document.getElementById('tagsFilterMenu');
+    if (!menu) return;
+
+    if (allFilterTags.length === 0) {
+      menu.innerHTML = '<div style="padding: 0.75rem; color: var(--text-muted); text-align: center;">No tags</div>';
+      return;
+    }
+
+    menu.innerHTML = allFilterTags.map(tag => `
+      <label class="tags-filter-option">
+        <input type="checkbox" value="${tag.id}"
+          ${selectedFilterTags.includes(tag.id) ? 'checked' : ''}
+          onchange="toggleTagFilter('${tag.id}')">
+        <span class="badge-tag badge-tag-sm" style="background: ${tag.color};">${escapeHtml(tag.name)}</span>
+      </label>
+    `).join('');
+  }
+
+  function toggleTagsFilterDropdown() {
+    const menu = document.getElementById('tagsFilterMenu');
+    menu.classList.toggle('show');
+  }
+
+  function toggleTagFilter(tagId) {
+    const index = selectedFilterTags.indexOf(tagId);
+    if (index >= 0) {
+      selectedFilterTags.splice(index, 1);
+    } else {
+      selectedFilterTags.push(tagId);
+    }
+    updateTagFilterLabel();
+    applyFilters();
+  }
+
+  function updateTagFilterLabel() {
+    const label = document.getElementById('tagsFilterLabel');
+    if (!label) return;
+
+    if (selectedFilterTags.length === 0) {
+      label.innerHTML = '<%= __("filters.all") %>';
+    } else {
+      label.innerHTML = `${selectedFilterTags.length} <span class="selected-count">${selectedFilterTags.length}</span>`;
+    }
+  }
+
+  function getSelectedFilterTags() {
+    return selectedFilterTags;
+  }
+
+  function clearTagFilter() {
+    selectedFilterTags = [];
+    renderTagFilterMenu();
+    updateTagFilterLabel();
+  }
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', function(e) {
+    const dropdown = document.getElementById('tagsFilterDropdown');
+    if (dropdown && !dropdown.contains(e.target)) {
+      document.getElementById('tagsFilterMenu').classList.remove('show');
+    }
+  });
+
+  // Initialize tag filter on page load
+  document.addEventListener('DOMContentLoaded', initTagFilter);
 
   // ===== FORM FUNCTIONS =====
   const responsePlaceholders = {
@@ -1179,6 +1327,229 @@
     headerCounter = 0;
   }
 
+  // ===== TAGS MODULE =====
+  const TagsModule = {
+    availableTags: [],
+    selectedTags: [],
+    predefinedColors: [
+      '#6366f1', '#8b5cf6', '#ec4899', '#ef4444', '#f97316', '#f59e0b',
+      '#10b981', '#14b8a6', '#06b6d4', '#3b82f6', '#374151', '#1e293b'
+    ],
+
+    async init() {
+      await this.loadTags();
+      this.renderColorPalette();
+    },
+
+    async loadTags() {
+      try {
+        const response = await fetch('/api/tags');
+        const data = await response.json();
+        if (data.success) {
+          this.availableTags = data.tags;
+          this.renderTagSelector();
+        }
+      } catch (e) {
+        console.error('Error loading tags:', e);
+      }
+    },
+
+    renderTagSelector() {
+      const container = document.getElementById('tagsSelector');
+      const noTagsMsg = document.getElementById('noTagsMsg');
+      if (!container) return;
+
+      // Only show selected tags with remove buttons
+      if (this.selectedTags.length === 0) {
+        container.innerHTML = '';
+        if (noTagsMsg) noTagsMsg.style.display = 'block';
+        return;
+      }
+
+      if (noTagsMsg) noTagsMsg.style.display = 'none';
+
+      let html = '<div class="selected-tags-display">';
+      this.selectedTags.forEach(tag => {
+        html += `<span class="badge-tag badge-tag-removable" style="background: ${tag.color};">
+          ${this.escapeHtml(tag.name)}
+          <button type="button" class="tag-remove" onclick="TagsModule.removeTag('${tag.id}')" title="Eliminar">
+            <i class="fa fa-times"></i>
+          </button>
+        </span>`;
+      });
+      html += '</div>';
+
+      container.innerHTML = html;
+    },
+
+    removeTag(tagId) {
+      const index = this.selectedTags.findIndex(t => t.id === tagId);
+      if (index >= 0) {
+        this.selectedTags.splice(index, 1);
+        this.renderTagSelector();
+      }
+    },
+
+    addTag(tagId) {
+      const tag = this.availableTags.find(t => t.id === tagId);
+      if (!tag) return;
+
+      // Don't add if already selected
+      if (this.selectedTags.find(t => t.id === tagId)) {
+        this.closeCreator();
+        return;
+      }
+
+      this.selectedTags.push(tag);
+      this.renderTagSelector();
+      this.closeCreator();
+    },
+
+    setTags(tags) {
+      this.selectedTags = tags || [];
+      this.renderTagSelector();
+    },
+
+    getTags() {
+      return this.selectedTags;
+    },
+
+    clear() {
+      this.selectedTags = [];
+      this.renderTagSelector();
+    },
+
+    renderColorPalette() {
+      const container = document.getElementById('colorPalette');
+      if (!container) return;
+
+      container.innerHTML = this.predefinedColors.map((color, i) => `
+        <button type="button" class="color-swatch ${i === 0 ? 'selected' : ''}"
+          style="background: ${color};"
+          data-color="${color}"
+          onclick="TagsModule.selectColor('${color}')">
+        </button>
+      `).join('');
+    },
+
+    selectColor(color) {
+      document.querySelectorAll('.color-swatch').forEach(el => el.classList.remove('selected'));
+      const swatch = document.querySelector(`.color-swatch[data-color="${color}"]`);
+      if (swatch) swatch.classList.add('selected');
+      document.getElementById('customTagColor').value = color;
+    },
+
+    async createOrAddTag() {
+      const name = document.getElementById('newTagName').value.trim();
+      const color = document.getElementById('customTagColor').value;
+
+      if (!name) {
+        showToast(t('validation.tagNameRequired'), 'warning');
+        return;
+      }
+
+      // Check if tag already exists (case insensitive)
+      const existingTag = this.availableTags.find(t =>
+        t.name.toLowerCase() === name.toLowerCase()
+      );
+
+      if (existingTag) {
+        // Tag exists, just add it to selected
+        if (!this.selectedTags.find(t => t.id === existingTag.id)) {
+          this.selectedTags.push(existingTag);
+          this.renderTagSelector();
+        }
+        this.closeCreator();
+        return;
+      }
+
+      // Create new tag
+      try {
+        const response = await fetch('/api/tags', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, color })
+        });
+        const data = await response.json();
+
+        if (data.success) {
+          this.availableTags.push(data.tag);
+          this.selectedTags.push(data.tag);
+          this.renderTagSelector();
+          this.closeCreator();
+          initTagFilter();
+        } else {
+          showToast(data.error || t('errors.creatingTag'), 'error');
+        }
+      } catch (e) {
+        showToast(t('errors.creatingTag'), 'error');
+      }
+    },
+
+    openCreator() {
+      document.getElementById('newTagName').value = '';
+      document.getElementById('customTagColor').value = '#6366f1';
+      this.selectColor('#6366f1');
+      this.renderTagSuggestions();
+      document.getElementById('tagCreatorPopup').style.display = 'flex';
+    },
+
+    closeCreator() {
+      document.getElementById('tagCreatorPopup').style.display = 'none';
+    },
+
+    renderTagSuggestions(filter = '') {
+      const container = document.getElementById('tagSuggestions');
+      if (!container) return;
+
+      // Filter tags that are not already selected
+      let availableToAdd = this.availableTags.filter(tag =>
+        !this.selectedTags.find(t => t.id === tag.id)
+      );
+
+      // Apply text filter if provided
+      if (filter) {
+        const lowerFilter = filter.toLowerCase();
+        availableToAdd = availableToAdd.filter(tag =>
+          tag.name.toLowerCase().includes(lowerFilter)
+        );
+      }
+
+      if (availableToAdd.length === 0) {
+        container.innerHTML = filter
+          ? `<div class="tag-suggestions-empty">${t('form.noMatchingTags')}</div>`
+          : '';
+        return;
+      }
+
+      container.innerHTML = availableToAdd.map(tag => `
+        <button type="button" class="tag-suggestion" style="--tag-color: ${tag.color};"
+          onclick="TagsModule.addTag('${tag.id}')">
+          <span class="badge-tag" style="background: ${tag.color};">${this.escapeHtml(tag.name)}</span>
+        </button>
+      `).join('');
+    },
+
+    filterSuggestions() {
+      const input = document.getElementById('newTagName');
+      this.renderTagSuggestions(input.value.trim());
+    },
+
+    escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+  };
+
+  function toggleTagsSection() {
+    const body = document.querySelector('#divTags .collapsible-body');
+    body.style.display = body.style.display === 'none' ? 'block' : 'none';
+  }
+
+  // Initialize TagsModule on page load
+  document.addEventListener('DOMContentLoaded', () => TagsModule.init());
+
   // ===== CONDITIONAL RESPONSES =====
   let conditionCounter = 0;
 
@@ -1468,6 +1839,229 @@
 
   function openList() { $("#modalLista").modal('show'); }
 
+  // ===== TOOLS DROPDOWN =====
+  function toggleToolsDropdown() {
+    const menu = document.getElementById('toolsDropdownMenu');
+    menu.classList.toggle('show');
+  }
+
+  function closeToolsDropdown() {
+    const menu = document.getElementById('toolsDropdownMenu');
+    menu.classList.remove('show');
+  }
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', function(e) {
+    const dropdown = document.querySelector('.dropdown-modern');
+    if (dropdown && !dropdown.contains(e.target)) {
+      closeToolsDropdown();
+    }
+  });
+
+  // ===== GLOBAL TAG MANAGER =====
+  const globalPredefinedColors = [
+    '#6366f1', '#8b5cf6', '#ec4899', '#ef4444', '#f97316', '#f59e0b',
+    '#10b981', '#14b8a6', '#06b6d4', '#3b82f6', '#374151', '#1e293b'
+  ];
+
+  function openTagManager() {
+    renderGlobalTagManager();
+    document.getElementById('tagManagerModal').style.display = 'flex';
+  }
+
+  function closeTagManager() {
+    document.getElementById('tagManagerModal').style.display = 'none';
+  }
+
+  function renderGlobalTagManager() {
+    const container = document.getElementById('tagManagerList');
+    if (!container) return;
+
+    const tags = TagsModule.availableTags;
+
+    if (tags.length === 0) {
+      container.innerHTML = `<div class="empty-state"><i class="fa fa-inbox"></i><p>${t('empty.noTags')}</p></div>`;
+      return;
+    }
+
+    container.innerHTML = tags.map(tag => `
+      <div class="tag-manager-item" data-tag-id="${tag.id}">
+        <span class="badge-tag" style="background: ${tag.color};">${escapeHtml(tag.name)}</span>
+        <div class="tag-manager-actions">
+          <input type="color" class="tag-color-picker" value="${tag.color}"
+            onchange="updateGlobalTagColor('${tag.id}', this.value)" title="Cambiar color">
+          <button type="button" class="btn-tag-delete" onclick="prepareDeleteTag('${tag.id}')" title="${t('buttons.delete')}">
+            <i class="fa fa-trash"></i>
+          </button>
+          <button type="button" class="btn-tag-confirm-delete" style="display: none;" onclick="confirmDeleteTag('${tag.id}')">
+            <i class="fa fa-exclamation-triangle"></i> ${t('buttons.delete')}?
+          </button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  async function updateGlobalTagColor(tagId, color) {
+    try {
+      const response = await fetch(`/api/tags/${tagId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ color })
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        const tag = TagsModule.availableTags.find(t => t.id === tagId);
+        if (tag) tag.color = color;
+        const selectedTag = TagsModule.selectedTags.find(t => t.id === tagId);
+        if (selectedTag) selectedTag.color = color;
+
+        const importTag = ImportTagsModule.availableTags.find(t => t.id === tagId);
+        if (importTag) importTag.color = color;
+        const importSelectedTag = ImportTagsModule.selectedTags.find(t => t.id === tagId);
+        if (importSelectedTag) importSelectedTag.color = color;
+
+        renderGlobalTagManager();
+        TagsModule.renderTagSelector();
+        ImportTagsModule.renderTagSelector();
+        initTagFilter();
+        tabla.ajax.reload(null, false);
+      }
+    } catch (e) {
+      console.error('Error updating tag color:', e);
+    }
+  }
+
+  let pendingDeleteTagId = null;
+
+  function prepareDeleteTag(tagId) {
+    // Reset any other pending delete
+    if (pendingDeleteTagId && pendingDeleteTagId !== tagId) {
+      cancelPendingDelete();
+    }
+
+    pendingDeleteTagId = tagId;
+    const item = document.querySelector(`.tag-manager-item[data-tag-id="${tagId}"]`);
+    if (!item) return;
+
+    const deleteBtn = item.querySelector('.btn-tag-delete');
+    const confirmBtn = item.querySelector('.btn-tag-confirm-delete');
+    if (deleteBtn) deleteBtn.style.display = 'none';
+    if (confirmBtn) confirmBtn.style.display = 'inline-flex';
+
+    // Auto-cancel after 3 seconds
+    setTimeout(() => {
+      if (pendingDeleteTagId === tagId) {
+        cancelPendingDelete();
+      }
+    }, 3000);
+  }
+
+  function cancelPendingDelete() {
+    if (!pendingDeleteTagId) return;
+    const item = document.querySelector(`.tag-manager-item[data-tag-id="${pendingDeleteTagId}"]`);
+    if (item) {
+      const deleteBtn = item.querySelector('.btn-tag-delete');
+      const confirmBtn = item.querySelector('.btn-tag-confirm-delete');
+      if (deleteBtn) deleteBtn.style.display = 'inline-flex';
+      if (confirmBtn) confirmBtn.style.display = 'none';
+    }
+    pendingDeleteTagId = null;
+  }
+
+  async function confirmDeleteTag(tagId) {
+    if (pendingDeleteTagId !== tagId) return;
+
+    try {
+      const response = await fetch(`/api/tags/${tagId}`, {
+        method: 'DELETE'
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        pendingDeleteTagId = null;
+        TagsModule.availableTags = TagsModule.availableTags.filter(t => t.id !== tagId);
+        TagsModule.selectedTags = TagsModule.selectedTags.filter(t => t.id !== tagId);
+        ImportTagsModule.availableTags = ImportTagsModule.availableTags.filter(t => t.id !== tagId);
+        ImportTagsModule.selectedTags = ImportTagsModule.selectedTags.filter(t => t.id !== tagId);
+
+        renderGlobalTagManager();
+        TagsModule.renderTagSelector();
+        ImportTagsModule.renderTagSelector();
+        initTagFilter();
+        tabla.ajax.reload(null, false);
+      } else {
+        showToast(data.error || 'Error eliminando tag', 'error');
+      }
+    } catch (e) {
+      showToast('Error eliminando tag', 'error');
+    }
+  }
+
+  function openTagCreatorFromManager() {
+    document.getElementById('globalNewTagName').value = '';
+    document.getElementById('globalCustomTagColor').value = '#6366f1';
+    renderGlobalColorPalette();
+    document.getElementById('globalTagCreatorPopup').style.display = 'flex';
+  }
+
+  function closeGlobalTagCreator() {
+    document.getElementById('globalTagCreatorPopup').style.display = 'none';
+  }
+
+  function renderGlobalColorPalette() {
+    const container = document.getElementById('globalColorPalette');
+    if (!container) return;
+
+    container.innerHTML = globalPredefinedColors.map((color, i) => `
+      <button type="button" class="color-swatch ${i === 0 ? 'selected' : ''}"
+        style="background: ${color};"
+        data-color="${color}"
+        onclick="selectGlobalColor('${color}')">
+      </button>
+    `).join('');
+  }
+
+  function selectGlobalColor(color) {
+    document.querySelectorAll('#globalColorPalette .color-swatch').forEach(el => el.classList.remove('selected'));
+    const swatch = document.querySelector(`#globalColorPalette .color-swatch[data-color="${color}"]`);
+    if (swatch) swatch.classList.add('selected');
+    document.getElementById('globalCustomTagColor').value = color;
+  }
+
+  async function createGlobalTag() {
+    const name = document.getElementById('globalNewTagName').value.trim();
+    const color = document.getElementById('globalCustomTagColor').value;
+
+    if (!name) {
+      showToast(t('validation.tagNameRequired'), 'warning');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/tags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, color })
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        TagsModule.availableTags.push(data.tag);
+        ImportTagsModule.availableTags.push(data.tag);
+        renderGlobalTagManager();
+        TagsModule.renderTagSelector();
+        ImportTagsModule.renderTagSelector();
+        initTagFilter();
+        closeGlobalTagCreator();
+      } else {
+        showToast(data.error || t('errors.creatingTag'), 'error');
+      }
+    } catch (e) {
+      showToast(t('errors.creatingTag'), 'error');
+    }
+  }
+
   let deleteRouteId = null;
 
   function openDeleteModal(id) {
@@ -1672,6 +2266,8 @@
     // Limpiar campos de archivo
     clearFileSelection();
     document.getElementById('currentFileInfo').style.display = 'none';
+    // Limpiar tags
+    TagsModule.clear();
   }
 
   function valuesForModal(obj) {
@@ -1698,6 +2294,9 @@
     if (obj.tiporespuesta === 'file' && obj.fileName) {
       setCurrentFileInfo(obj.fileName);
     }
+    // Tags
+    const tags = obj.tags ? JSON.parse(obj.tags) : [];
+    TagsModule.setTags(tags);
   }
 
   async function guardar() {
@@ -1739,6 +2338,12 @@
     formData.append('isRegex', isRegex);
     if (customHeaders) {
       formData.append('customHeaders', JSON.stringify(customHeaders));
+    }
+
+    // Tags
+    const tags = TagsModule.getTags();
+    if (tags.length > 0) {
+      formData.append('tags', JSON.stringify(tags));
     }
 
     // Añadir archivo si está seleccionado
@@ -1813,6 +2418,12 @@
     formData.append('isRegex', isRegex);
     if (customHeaders) {
       formData.append('customHeaders', JSON.stringify(customHeaders));
+    }
+
+    // Tags
+    const tags = TagsModule.getTags();
+    if (tags.length > 0) {
+      formData.append('tags', JSON.stringify(tags));
     }
 
     // Manejo de archivo
@@ -2178,6 +2789,210 @@
   // ===== OPENAPI IMPORT =====
   let importPreviewData = null;
 
+  // ImportTagsModule - separate module for import modal tags
+  const ImportTagsModule = {
+    availableTags: [],
+    selectedTags: [],
+    predefinedColors: [
+      '#6366f1', '#8b5cf6', '#ec4899', '#ef4444', '#f97316', '#f59e0b',
+      '#10b981', '#14b8a6', '#06b6d4', '#3b82f6', '#374151', '#1e293b'
+    ],
+
+    async init() {
+      await this.loadTags();
+      this.renderColorPalette();
+    },
+
+    async loadTags() {
+      try {
+        const response = await fetch('/api/tags');
+        const data = await response.json();
+        if (data.success) {
+          this.availableTags = data.tags;
+          this.renderTagSelector();
+        }
+      } catch (e) {
+        console.error('Error loading tags for import:', e);
+      }
+    },
+
+    renderTagSelector() {
+      const container = document.getElementById('importTagsSelector');
+      if (!container) return;
+
+      // Only show selected tags with remove buttons
+      if (this.selectedTags.length === 0) {
+        container.innerHTML = '<span class="no-tags-msg">' + t('empty.noTags') + '</span>';
+        return;
+      }
+
+      let html = '<div class="selected-tags-display">';
+      this.selectedTags.forEach(tag => {
+        html += `<span class="badge-tag badge-tag-removable" style="background: ${tag.color};">
+          ${this.escapeHtml(tag.name)}
+          <button type="button" class="tag-remove" onclick="ImportTagsModule.removeTag('${tag.id}')" title="Eliminar">
+            <i class="fa fa-times"></i>
+          </button>
+        </span>`;
+      });
+      html += '</div>';
+
+      container.innerHTML = html;
+    },
+
+    removeTag(tagId) {
+      const index = this.selectedTags.findIndex(t => t.id === tagId);
+      if (index >= 0) {
+        this.selectedTags.splice(index, 1);
+        this.renderTagSelector();
+      }
+    },
+
+    addTag(tagId) {
+      const tag = this.availableTags.find(t => t.id === tagId);
+      if (!tag) return;
+
+      if (this.selectedTags.find(t => t.id === tagId)) {
+        this.closeCreator();
+        return;
+      }
+
+      this.selectedTags.push(tag);
+      this.renderTagSelector();
+      this.closeCreator();
+    },
+
+    getTags() {
+      return this.selectedTags;
+    },
+
+    clear() {
+      this.selectedTags = [];
+      this.renderTagSelector();
+    },
+
+    renderColorPalette() {
+      const container = document.getElementById('importColorPalette');
+      if (!container) return;
+
+      container.innerHTML = this.predefinedColors.map((color, i) => `
+        <button type="button" class="color-swatch ${i === 0 ? 'selected' : ''}"
+          style="background: ${color};"
+          data-color="${color}"
+          onclick="ImportTagsModule.selectColor('${color}')">
+        </button>
+      `).join('');
+    },
+
+    selectColor(color) {
+      document.querySelectorAll('#importColorPalette .color-swatch').forEach(el => el.classList.remove('selected'));
+      const swatch = document.querySelector(`#importColorPalette .color-swatch[data-color="${color}"]`);
+      if (swatch) swatch.classList.add('selected');
+      document.getElementById('importCustomTagColor').value = color;
+    },
+
+    async createOrAddTag() {
+      const name = document.getElementById('importNewTagName').value.trim();
+      const color = document.getElementById('importCustomTagColor').value;
+
+      if (!name) {
+        showToast(t('validation.tagNameRequired'), 'warning');
+        return;
+      }
+
+      // Check if tag already exists
+      const existingTag = this.availableTags.find(t =>
+        t.name.toLowerCase() === name.toLowerCase()
+      );
+
+      if (existingTag) {
+        if (!this.selectedTags.find(t => t.id === existingTag.id)) {
+          this.selectedTags.push(existingTag);
+          this.renderTagSelector();
+        }
+        this.closeCreator();
+        return;
+      }
+
+      // Create new tag
+      try {
+        const response = await fetch('/api/tags', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, color })
+        });
+        const data = await response.json();
+
+        if (data.success) {
+          this.availableTags.push(data.tag);
+          this.selectedTags.push(data.tag);
+          this.renderTagSelector();
+          this.closeCreator();
+          TagsModule.availableTags.push(data.tag);
+          TagsModule.renderTagSelector();
+          initTagFilter();
+        } else {
+          showToast(data.error || t('errors.creatingTag'), 'error');
+        }
+      } catch (e) {
+        showToast(t('errors.creatingTag'), 'error');
+      }
+    },
+
+    openCreator() {
+      document.getElementById('importNewTagName').value = '';
+      document.getElementById('importCustomTagColor').value = '#6366f1';
+      this.selectColor('#6366f1');
+      this.renderTagSuggestions();
+      document.getElementById('importTagCreatorPopup').style.display = 'flex';
+    },
+
+    closeCreator() {
+      document.getElementById('importTagCreatorPopup').style.display = 'none';
+    },
+
+    renderTagSuggestions(filter = '') {
+      const container = document.getElementById('importTagSuggestions');
+      if (!container) return;
+
+      let availableToAdd = this.availableTags.filter(tag =>
+        !this.selectedTags.find(t => t.id === tag.id)
+      );
+
+      if (filter) {
+        const lowerFilter = filter.toLowerCase();
+        availableToAdd = availableToAdd.filter(tag =>
+          tag.name.toLowerCase().includes(lowerFilter)
+        );
+      }
+
+      if (availableToAdd.length === 0) {
+        container.innerHTML = filter
+          ? `<div class="tag-suggestions-empty">${t('form.noMatchingTags')}</div>`
+          : '';
+        return;
+      }
+
+      container.innerHTML = availableToAdd.map(tag => `
+        <button type="button" class="tag-suggestion" style="--tag-color: ${tag.color};"
+          onclick="ImportTagsModule.addTag('${tag.id}')">
+          <span class="badge-tag" style="background: ${tag.color};">${this.escapeHtml(tag.name)}</span>
+        </button>
+      `).join('');
+    },
+
+    filterSuggestions() {
+      const input = document.getElementById('importNewTagName');
+      this.renderTagSuggestions(input.value.trim());
+    },
+
+    escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+  };
+
   function openImportModal() {
     importPreviewData = null;
     document.getElementById('importStep1').style.display = 'block';
@@ -2191,6 +3006,9 @@
     document.getElementById('importSpecUrl').value = '';
     document.getElementById('importSpecContent').value = '';
     document.getElementById('importBasePath').value = '';
+    // Initialize import tags module
+    ImportTagsModule.clear();
+    ImportTagsModule.init();
     $('#importOpenApiModal').modal('show');
   }
 
@@ -2327,6 +3145,7 @@
     if (selectedRoutes.length === 0) return;
 
     const conflictStrategy = document.getElementById('importConflictStrategy').value;
+    const importTags = ImportTagsModule.getTags();
     const btn = document.getElementById('importConfirmBtn');
     btn.disabled = true;
     btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> ' + t('import.importing');
@@ -2335,7 +3154,7 @@
       const response = await fetch('/api/import-openapi/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ routes: selectedRoutes, conflictStrategy })
+        body: JSON.stringify({ routes: selectedRoutes, conflictStrategy, tags: importTags })
       });
       const data = await response.json();
 

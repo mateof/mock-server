@@ -96,10 +96,13 @@ router.post('/create', upload.single('file'), async function(req, res, next) {
         console.log(`[API] Archivo subido: ${fileName} (${fileMimeType})`);
     }
 
+    // Tags
+    const tags = req.body.tags || null;
+
     try {
         const result = await new Promise((resolve, reject) => {
-            db.run(`INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders, activo, orden, fileName, filePath, fileMimeType) values (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-                [req.body.tipo, req.body.ruta, req.body.codigo, req.body.respuesta, req.body.tiporespuesta, esperaActiva, req.body.isRegex === 'true' || req.body.isRegex === true ? 1 : 0, customHeaders, activo, orden, fileName, filePath, fileMimeType],
+            db.run(`INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders, activo, orden, fileName, filePath, fileMimeType, tags) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                [req.body.tipo, req.body.ruta, req.body.codigo, req.body.respuesta, req.body.tiporespuesta, esperaActiva, req.body.isRegex === 'true' || req.body.isRegex === true ? 1 : 0, customHeaders, activo, orden, fileName, filePath, fileMimeType, tags],
                 function(err) {
                     if (err) {
                         reject(err);
@@ -187,8 +190,8 @@ router.post('/duplicate/:id', async function(req, res) {
         }
 
         const result = await new Promise((resolve, reject) => {
-            db.run(`INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders, activo, orden, fileName, filePath, fileMimeType) values (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-                [original.tipo, newRoute, original.codigo, original.respuesta, original.tiporespuesta, original.esperaActiva, isRegex, original.customHeaders, original.activo, orden, fileName, filePath, fileMimeType],
+            db.run(`INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders, activo, orden, fileName, filePath, fileMimeType, tags) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                [original.tipo, newRoute, original.codigo, original.respuesta, original.tiporespuesta, original.esperaActiva, isRegex, original.customHeaders, original.activo, orden, fileName, filePath, fileMimeType, original.tags],
                 function(err) {
                     if (err) reject(err);
                     else resolve({ lastID: this.lastID });
@@ -281,10 +284,13 @@ router.put('/update/:id', upload.single('file'), async function(req, res) {
         });
     }
 
+    // Tags
+    const tags = req.body.tags || null;
+
     try {
         await new Promise((resolve, reject) => {
-            db.run(`UPDATE rutas SET tipo = ?, ruta = ?, codigo = ?, respuesta = ?, tiporespuesta = ?, esperaActiva = ?, isRegex = ?, customHeaders = ?, activo = ?, orden = ?, fileName = ?, filePath = ?, fileMimeType = ? WHERE id = ?`,
-                [req.body.tipo, req.body.ruta, req.body.codigo, req.body.respuesta, req.body.tiporespuesta, esperaActiva, req.body.isRegex === 'true' || req.body.isRegex === true ? 1 : 0, customHeaders, activo, newOrden, fileName, filePath, fileMimeType, id],
+            db.run(`UPDATE rutas SET tipo = ?, ruta = ?, codigo = ?, respuesta = ?, tiporespuesta = ?, esperaActiva = ?, isRegex = ?, customHeaders = ?, activo = ?, orden = ?, fileName = ?, filePath = ?, fileMimeType = ?, tags = ? WHERE id = ?`,
+                [req.body.tipo, req.body.ruta, req.body.codigo, req.body.respuesta, req.body.tiporespuesta, esperaActiva, req.body.isRegex === 'true' || req.body.isRegex === true ? 1 : 0, customHeaders, activo, newOrden, fileName, filePath, fileMimeType, tags, id],
                 function(err) {
                     if (err) {
                         reject(err);
@@ -527,6 +533,60 @@ router.put('/conditions/:routeId', async function(req, res) {
         res.json({ success: true });
     } catch (err) {
         console.error(`[API] Error guardando condiciones: ${err.message}`);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// ===== TAGS API =====
+
+/* Obtener todos los tags */
+router.get('/tags', async function(req, res) {
+    try {
+        const tags = await sqliteService.getAllTags();
+        res.json({ success: true, tags });
+    } catch (err) {
+        console.error(`[API] Error obteniendo tags: ${err.message}`);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+/* Crear nuevo tag */
+router.post('/tags', async function(req, res) {
+    const { name, color } = req.body;
+    if (!name || !name.trim()) {
+        return res.status(400).json({ success: false, error: 'Tag name is required' });
+    }
+    try {
+        const tag = await sqliteService.getOrCreateTag(name, color || '#6366f1');
+        res.json({ success: true, tag });
+    } catch (err) {
+        console.error(`[API] Error creando tag: ${err.message}`);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+/* Actualizar color de tag */
+router.put('/tags/:id', async function(req, res) {
+    const { color } = req.body;
+    if (!color) {
+        return res.status(400).json({ success: false, error: 'Color is required' });
+    }
+    try {
+        await sqliteService.updateTagColor(req.params.id, color);
+        res.json({ success: true });
+    } catch (err) {
+        console.error(`[API] Error actualizando tag: ${err.message}`);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+/* Eliminar tag */
+router.delete('/tags/:id', async function(req, res) {
+    try {
+        await sqliteService.deleteTag(req.params.id);
+        res.json({ success: true });
+    } catch (err) {
+        console.error(`[API] Error eliminando tag: ${err.message}`);
         res.status(500).json({ success: false, error: err.message });
     }
 });
@@ -916,7 +976,7 @@ router.post('/import-openapi/preview', upload.single('specFile'), async function
 
 // Confirm: inserta las rutas seleccionadas en la BD
 router.post('/import-openapi/confirm', async function(req, res) {
-    const { routes, conflictStrategy = 'skip' } = req.body;
+    const { routes, conflictStrategy = 'skip', tags: importTags } = req.body;
 
     if (!Array.isArray(routes) || routes.length === 0) {
         return res.status(400).json({ success: false, error: 'No routes provided' });
@@ -970,10 +1030,12 @@ router.post('/import-openapi/confirm', async function(req, res) {
             }
 
             // Insertar nueva ruta
+            // Use tags from the route (if provided per-route) or from importTags
+            const routeTags = route.tags ? JSON.stringify(route.tags) : (importTags ? JSON.stringify(importTags) : null);
             await new Promise((resolve, reject) => {
                 db.run(
-                    `INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders, activo, orden) VALUES (?,?,?,?,?,?,?,?,?,?)`,
-                    [route.tipo, route.ruta, route.codigo, route.respuesta, route.tiporespuesta, 0, route.isRegex ? 1 : 0, null, 1, currentOrder],
+                    `INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders, activo, orden, tags) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+                    [route.tipo, route.ruta, route.codigo, route.respuesta, route.tiporespuesta, 0, route.isRegex ? 1 : 0, null, 1, currentOrder, routeTags],
                     function(err) {
                         if (err) reject(err);
                         else resolve();

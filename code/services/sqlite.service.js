@@ -177,6 +177,7 @@ async function createTables(newdb) {
     await addColumn(newdb, 'fileName', 'TEXT');
     await addColumn(newdb, 'filePath', 'TEXT');
     await addColumn(newdb, 'fileMimeType', 'TEXT');
+    await addColumn(newdb, 'tags', 'TEXT');
 
     // Crear índices para optimizar búsquedas de rutas
     await new Promise((resolve) => {
@@ -186,6 +187,21 @@ async function createTables(newdb) {
             CREATE INDEX IF NOT EXISTS idx_rutas_orden ON rutas(orden);
         `, (err) => {
             if (!err) console.log('[DB] Indices verificados');
+            resolve();
+        });
+    });
+
+    // Crear tabla de tags registry
+    await new Promise((resolve) => {
+        newdb.exec(`
+            CREATE TABLE IF NOT EXISTS tags (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                color TEXT NOT NULL DEFAULT '#6366f1'
+            );
+            CREATE INDEX IF NOT EXISTS idx_tags_name ON tags(name);
+        `, (err) => {
+            if (!err) console.log('[DB] Tabla tags verificada');
             resolve();
         });
     });
@@ -305,6 +321,116 @@ async function deleteConditionalResponses(routeId) {
     });
 }
 
+// ===== TAGS FUNCTIONS =====
+
+// Get all tags from registry
+async function getAllTags() {
+    const sql = `SELECT * FROM tags ORDER BY name ASC`;
+    return new Promise((resolve, reject) => {
+        _db.all(sql, [], (err, rows) => {
+            if (err) {
+                console.error(`[DB] Error obteniendo tags: ${err.message}`);
+                reject(err);
+            } else {
+                resolve(rows || []);
+            }
+        });
+    });
+}
+
+// Create or get existing tag
+async function getOrCreateTag(name, color) {
+    const normalizedName = name.trim();
+    // Try to get existing
+    const existing = await new Promise((resolve, reject) => {
+        _db.get('SELECT * FROM tags WHERE name = ? COLLATE NOCASE', [normalizedName], (err, row) => {
+            if (err) reject(err);
+            else resolve(row);
+        });
+    });
+
+    if (existing) return existing;
+
+    // Create new
+    const crypto = require('crypto');
+    const id = crypto.randomUUID();
+    await new Promise((resolve, reject) => {
+        _db.run('INSERT INTO tags (id, name, color) VALUES (?, ?, ?)', [id, normalizedName, color || '#6366f1'], (err) => {
+            if (err) reject(err);
+            else resolve();
+        });
+    });
+
+    console.log(`[DB] Tag creado: ${normalizedName} (${color})`);
+    return { id, name: normalizedName, color: color || '#6366f1' };
+}
+
+// Update tag color
+async function updateTagColor(id, color) {
+    return new Promise((resolve, reject) => {
+        _db.run('UPDATE tags SET color = ? WHERE id = ?', [color, id], (err) => {
+            if (err) reject(err);
+            else {
+                console.log(`[DB] Tag ${id} color actualizado a ${color}`);
+                resolve();
+            }
+        });
+    });
+}
+
+// Delete tag from registry and remove from all routes
+async function deleteTag(id) {
+    return new Promise((resolve, reject) => {
+        // First, get all routes that have tags
+        _db.all('SELECT id, tags FROM rutas WHERE tags IS NOT NULL AND tags != ""', [], (err, rows) => {
+            if (err) {
+                reject(err);
+                return;
+            }
+
+            // Update routes that contain this tag
+            const updatePromises = rows.map(row => {
+                return new Promise((resolveUpdate, rejectUpdate) => {
+                    try {
+                        const tags = JSON.parse(row.tags || '[]');
+                        const filteredTags = tags.filter(tag => tag.id !== id);
+
+                        // Only update if the tag was actually removed
+                        if (filteredTags.length !== tags.length) {
+                            const newTagsJson = JSON.stringify(filteredTags);
+                            _db.run('UPDATE rutas SET tags = ? WHERE id = ?', [newTagsJson, row.id], (updateErr) => {
+                                if (updateErr) rejectUpdate(updateErr);
+                                else {
+                                    console.log(`[DB] Tag ${id} eliminado de ruta ${row.id}`);
+                                    resolveUpdate();
+                                }
+                            });
+                        } else {
+                            resolveUpdate();
+                        }
+                    } catch (parseErr) {
+                        // Skip rows with invalid JSON
+                        resolveUpdate();
+                    }
+                });
+            });
+
+            // After updating all routes, delete the tag from the registry
+            Promise.all(updatePromises)
+                .then(() => {
+                    _db.run('DELETE FROM tags WHERE id = ?', [id], (deleteErr) => {
+                        if (deleteErr) reject(deleteErr);
+                        else {
+                            console.log(`[DB] Tag ${id} eliminado del registro`);
+                            resolve();
+                        }
+                    });
+                })
+                .catch(reject);
+        });
+    });
+}
+
 exports.initSql = initSql;
 exports.getDatabase = getDatabase;
 exports.getRuta = getRuta;
@@ -312,3 +438,7 @@ exports.getProxys = getProxys;
 exports.getConditionalResponses = getConditionalResponses;
 exports.saveConditionalResponses = saveConditionalResponses;
 exports.deleteConditionalResponses = deleteConditionalResponses;
+exports.getAllTags = getAllTags;
+exports.getOrCreateTag = getOrCreateTag;
+exports.updateTagColor = updateTagColor;
+exports.deleteTag = deleteTag;

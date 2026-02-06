@@ -76,6 +76,54 @@
               <option value="overwrite"><%= __('import.overwriteExisting') %></option>
             </select>
           </div>
+
+          <!-- Tags for imported routes -->
+          <div class="form-group-modern" style="margin-top: 1rem;">
+            <label class="form-label-modern"><%= __('import.applyTags') %></label>
+            <div id="importTagsSelector" class="tags-selector">
+              <!-- Tag chips rendered by JS -->
+            </div>
+            <button type="button" class="btn-modern btn-modern-secondary btn-sm" style="margin-top: 0.5rem;"
+                onclick="ImportTagsModule.openCreator()">
+              <i class="fa fa-plus"></i> <%= __('buttons.newTag') %>
+            </button>
+            <small style="color: var(--text-muted); margin-top: 0.5rem; display: block;">
+              <%= __('import.tagsHelp') %>
+            </small>
+          </div>
+
+          <!-- Tag Creator Popup for Import -->
+          <div id="importTagCreatorPopup" class="tag-creator-popup" style="display: none;">
+            <div class="tag-creator-content">
+              <label class="form-label-modern"><%= __('form.tagName') %></label>
+              <input type="text" class="form-control-modern" id="importNewTagName"
+                placeholder="<%= __('form.placeholder.tagName') %>"
+                oninput="ImportTagsModule.filterSuggestions()"
+                autocomplete="off">
+
+              <!-- Existing tags suggestions -->
+              <div id="importTagSuggestions" class="tag-suggestions">
+                <!-- Rendered by JS -->
+              </div>
+
+              <label class="form-label-modern" style="margin-top: 0.75rem;"><%= __('form.tagColor') %></label>
+              <small style="color: var(--text-muted); display: block; margin-bottom: 0.5rem;">
+                <%= __('form.tagColorHint') %>
+              </small>
+              <div class="color-palette" id="importColorPalette">
+                <!-- Color swatches rendered by JS -->
+              </div>
+              <input type="color" id="importCustomTagColor" class="custom-color-input" value="#6366f1">
+              <div class="tag-creator-actions">
+                <button type="button" class="btn-modern btn-modern-secondary btn-sm" onclick="ImportTagsModule.closeCreator()">
+                  <%= __('buttons.cancel') %>
+                </button>
+                <button type="button" class="btn-modern btn-modern-primary btn-sm" onclick="ImportTagsModule.createOrAddTag()">
+                  <i class="fa fa-plus"></i> <%= __('buttons.add') %>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Step 2: Preview -->

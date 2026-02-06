@@ -2073,3 +2073,510 @@ table.dataTable.no-footer {
 .language-selector .dropdown-item.active:hover {
   background: var(--primary-hover);
 }
+
+/* ===== TAGS SYSTEM ===== */
+
+/* Tag Selector Grid */
+.tags-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.tag-checkbox {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.tag-checkbox input {
+  display: none;
+}
+
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  border-radius: 20px;
+  background: var(--bg-card-hover);
+  border: 2px solid transparent;
+  color: var(--text-primary);
+  transition: var(--transition-fast);
+}
+
+.tag-checkbox input:checked + .tag-chip {
+  background: var(--tag-color, var(--primary));
+  color: white;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.tag-checkbox:hover .tag-chip {
+  border-color: var(--tag-color, var(--primary));
+}
+
+/* Selected Tags Display */
+.selected-tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  min-height: 32px;
+}
+
+/* Tag Badge (used in table and selected display) */
+.badge-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 12px;
+  color: white;
+  white-space: nowrap;
+}
+
+.badge-tag-sm {
+  padding: 0.15rem 0.5rem;
+  font-size: 0.7rem;
+}
+
+.tag-remove {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  padding: 0;
+  margin-left: 0.25rem;
+  font-size: 0.65rem;
+  transition: var(--transition-fast);
+}
+
+.tag-remove:hover {
+  color: white;
+}
+
+/* Route Cell with Tags */
+.route-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.route-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+/* Tag Creator Popup */
+.tag-creator-popup {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1060;
+}
+
+.tag-creator-content {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: 1.5rem;
+  width: 320px;
+  max-width: 90vw;
+}
+
+/* Color Palette */
+.color-palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.color-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.color-swatch:hover {
+  transform: scale(1.15);
+}
+
+.color-swatch.selected {
+  border-color: white;
+  box-shadow: 0 0 0 2px var(--primary);
+}
+
+.custom-color-input {
+  width: 100%;
+  height: 36px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  background: var(--bg-input);
+  cursor: pointer;
+}
+
+.tag-creator-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+}
+
+/* Tag Suggestions */
+.tag-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.tag-suggestion {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.tag-suggestion:hover {
+  transform: scale(1.05);
+}
+
+.tag-suggestion .badge-tag {
+  pointer-events: none;
+}
+
+.tag-suggestions-empty {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  padding: 0.5rem 0;
+}
+
+/* Multi-select for tag filter */
+.filter-tags-select {
+  min-height: 32px;
+  max-height: 100px;
+}
+
+.filter-tags-select option {
+  padding: 0.35rem 0.5rem;
+  border-radius: 4px;
+  margin: 2px 0;
+}
+
+/* Tags collapsible section header */
+#divTags .collapsible-header h4 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Selected tags display */
+.selected-tags-display {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.badge-tag-removable {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+.available-tags-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Tag Manager Modal */
+.tag-manager-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1060;
+}
+
+.tag-manager-content {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  width: 400px;
+  max-width: 90vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.tag-manager-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.tag-manager-header h5 {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.tag-manager-body {
+  padding: 1rem 1.5rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.tag-manager-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.tag-manager-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  margin-bottom: 0.5rem;
+  background: var(--bg-secondary);
+}
+
+.tag-manager-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tag-color-picker {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  background: transparent;
+}
+
+.btn-tag-delete {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--danger);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.btn-tag-delete:hover {
+  background: #dc2626;
+}
+
+.btn-tag-confirm-delete {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  background: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 500;
+  animation: pulse-danger 0.5s ease-in-out infinite alternate;
+  white-space: nowrap;
+}
+
+.btn-tag-confirm-delete:hover {
+  background: #b91c1c;
+}
+
+@keyframes pulse-danger {
+  from {
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4);
+  }
+  to {
+    box-shadow: 0 0 0 4px rgba(220, 38, 38, 0);
+  }
+}
+
+/* Tools Dropdown */
+.dropdown-modern {
+  position: relative;
+  display: inline-block;
+}
+
+.dropdown-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.dropdown-menu-modern {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  min-width: 180px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow-lg);
+  z-index: 1000;
+  padding: 0.5rem 0;
+  display: none;
+  margin-top: 4px;
+}
+
+.dropdown-menu-modern.show {
+  display: block;
+}
+
+.dropdown-item-modern {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.6rem 1rem;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.15s;
+  text-align: left;
+  font-size: 0.9rem;
+}
+
+.dropdown-item-modern:hover {
+  background: var(--bg-secondary);
+}
+
+.dropdown-item-modern i {
+  width: 16px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+/* Tag Manager Footer with multiple buttons */
+.tag-manager-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+/* Tags Filter Dropdown */
+.tags-filter-dropdown {
+  position: relative;
+}
+
+.tags-filter-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.85rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.tags-filter-button:hover {
+  border-color: var(--primary);
+}
+
+.tags-filter-button .selected-count {
+  background: var(--primary);
+  color: white;
+  padding: 0.1rem 0.4rem;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  margin-left: 0.5rem;
+}
+
+.tags-filter-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  box-shadow: var(--shadow-md);
+  z-index: 100;
+  max-height: 250px;
+  overflow-y: auto;
+  display: none;
+  margin-top: 4px;
+}
+
+.tags-filter-menu.show {
+  display: block;
+}
+
+.tags-filter-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.tags-filter-option:hover {
+  background: var(--bg-secondary);
+}
+
+.tags-filter-option input {
+  accent-color: var(--primary);
+}
+
+.tags-filter-option .badge-tag {
+  font-size: 0.8rem;
+}
+
+/* Empty tags state */
+.no-tags-msg {
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 0.5rem 0;
+}
