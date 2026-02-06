@@ -19,6 +19,7 @@ const i18n = require('i18n');
 const sqliteService = require('./services/sqlite.service');
 const socketService = require('./services/socket.service');
 const semaphore = require('./services/semaphore.service');
+const autoImportService = require('./services/auto-import.service');
 
 // ===== MIDDLEWARES =====
 const routesMiddleware = require('./middlewares/routes.middleware');
@@ -27,6 +28,7 @@ const proxyMiddleware = require('./middlewares/proxy.middleware');
 // ===== RUTAS =====
 const indexRouter = require('./routes/index');
 const apiRouter = require('./routes/api');
+const exportImportRouter = require('./routes/export-import');
 
 // ============================================
 // CONFIGURACIÓN
@@ -105,6 +107,7 @@ console.log('[APP] Express configurado');
 
 app.use('/', indexRouter);
 app.use('/api', apiRouter);
+app.use('/api', exportImportRouter);
 
 console.log('[APP] Rutas registradas');
 
@@ -199,12 +202,21 @@ server.on('listening', () => {
   await sqliteService.initSql();
   console.log('[APP] Base de datos inicializada');
 
+  console.log('[APP] Inicializando servicio de auto-importación...');
+  await autoImportService.init(sqliteService);
+  console.log('[APP] Servicio de auto-importación inicializado');
+
   console.log('[APP] Configurando proxy...');
   await proxyMiddleware.configureProxy(app);
 
   console.log('[APP] ==========================================');
   console.log('[APP]      MOCK SERVER LISTO PARA USAR         ');
   console.log('[APP] ==========================================');
+
+  // Run auto-import after server is ready
+  console.log('[APP] Ejecutando importación automática...');
+  await autoImportService.runStartupImport();
+  console.log('[APP] Importación automática completada');
 })();
 
 // ============================================
