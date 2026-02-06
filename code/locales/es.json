@@ -169,7 +169,10 @@
     "noPending": "No hay peticiones pendientes",
     "requestHeaders": "Headers de la petición",
     "viewRequestHeaders": "Ver headers de la petición",
-    "noRequestHeaders": "No hay headers"
+    "noRequestHeaders": "No hay headers",
+    "selectCondition": "Cargar respuesta",
+    "currentResponse": "Respuesta actual (evaluada)",
+    "originalResponse": "Respuesta original (sin criterios)"
   },
   "connection": {
     "connected": "Conectado",

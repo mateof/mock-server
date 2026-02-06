@@ -1774,6 +1774,16 @@ table.dataTable.no-footer {
   flex-shrink: 0;
 }
 
+.pending-condition-selector {
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.pending-condition-selector select {
+  background-color: var(--bg-dark);
+}
+
 .pending-response-actions {
   display: flex;
   gap: 0.5rem;

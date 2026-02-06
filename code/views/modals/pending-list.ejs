@@ -14,7 +14,12 @@
                data-response="<%= element.defaultResponse || '' %>"
                data-type="<%= element.tiporespuesta || 'json' %>"
                data-code="<%= element.codigo || 200 %>"
-               data-headers="<%= element.customHeaders || '{}' %>">
+               data-headers="<%= element.customHeaders || '{}' %>"
+               data-original-response="<%= element.originalResponse || '' %>"
+               data-original-type="<%= element.originalType || 'json' %>"
+               data-original-code="<%= element.originalCode || 200 %>"
+               data-original-headers="<%= element.originalHeaders || '{}' %>"
+               data-conditions="<%= element.conditions ? encodeURIComponent(JSON.stringify(element.conditions)) : '' %>">
             <div class="pending-item-header">
               <div class="pending-item-info">
                 <span class="badge-method badge-method-<%= (element.method || 'GET').toLowerCase() %>"><%= element.method || 'GET' %></span>
@@ -50,6 +55,18 @@
               </div>
             </div>
             <div class="pending-item-response" id="pr-<%= element.id %>" style="display: none;">
+              <% if (element.conditions && element.conditions.length > 0) { %>
+              <div class="form-group-modern pending-condition-selector">
+                <label class="form-label-modern" for="prcs-<%= element.id %>"><%= __('pending.selectCondition') %></label>
+                <select class="form-control-modern" id="prcs-<%= element.id %>" onchange="selectConditionResponse('<%= element.id %>', this.value)">
+                  <option value="current"><%= __('pending.currentResponse') %></option>
+                  <option value="original"><%= __('pending.originalResponse') %></option>
+                  <% element.conditions.forEach(function(cond, index) { %>
+                  <option value="<%= index %>" data-codigo="<%= cond.codigo || '' %>" data-tipo="<%= cond.tiporespuesta || '' %>" data-respuesta="<%= encodeURIComponent(cond.respuesta || '') %>" data-headers="<%= encodeURIComponent(cond.customHeaders || '') %>"><%= cond.nombre %></option>
+                  <% }); %>
+                </select>
+              </div>
+              <% } %>
               <div class="pending-response-row">
                 <div class="form-group-modern pending-code-group">
                   <label class="form-label-modern" for="prc-<%= element.id %>"><%= __('pending.code') %></label>

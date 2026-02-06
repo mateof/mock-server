@@ -2546,6 +2546,12 @@
     div.dataset.type = item.tiporespuesta || 'json';
     div.dataset.code = item.codigo || 200;
     div.dataset.headers = item.customHeaders || '{}';
+    div.dataset.originalResponse = item.originalResponse || '';
+    div.dataset.originalType = item.originalType || 'json';
+    div.dataset.originalCode = item.originalCode || 200;
+    div.dataset.originalHeaders = item.originalHeaders || '{}';
+    div.dataset.conditions = item.conditions ? encodeURIComponent(JSON.stringify(item.conditions)) : '';
+
     // Build request headers HTML
     let requestHeadersHtml = '';
     if (item.requestHeaders && typeof item.requestHeaders === 'object') {
@@ -2558,6 +2564,24 @@
     }
     if (!requestHeadersHtml) {
       requestHeadersHtml = `<div class="request-headers-empty">${t('pending.noRequestHeaders')}</div>`;
+    }
+
+    // Build condition selector HTML
+    let conditionSelectorHtml = '';
+    if (item.conditions && item.conditions.length > 0) {
+      let optionsHtml = item.conditions.map((cond, index) =>
+        `<option value="${index}" data-codigo="${cond.codigo || ''}" data-tipo="${cond.tiporespuesta || ''}" data-respuesta="${encodeURIComponent(cond.respuesta || '')}" data-headers="${encodeURIComponent(cond.customHeaders || '')}">${escapeHtml(cond.nombre)}</option>`
+      ).join('');
+      conditionSelectorHtml = `
+        <div class="form-group-modern pending-condition-selector">
+          <label class="form-label-modern">${t('pending.selectCondition')}</label>
+          <select class="form-control-modern" id="prcs-${item.id}" onchange="selectConditionResponse('${item.id}', this.value)">
+            <option value="current">${t('pending.currentResponse')}</option>
+            <option value="original">${t('pending.originalResponse')}</option>
+            ${optionsHtml}
+          </select>
+        </div>
+      `;
     }
 
     const method = item.method || 'GET';
@@ -2587,6 +2611,7 @@
         </div>
       </div>
       <div class="pending-item-response" id="pr-${item.id}" style="display: none;">
+        ${conditionSelectorHtml}
         <div class="pending-response-row">
           <div class="form-group-modern pending-code-group">
             <label class="form-label-modern">${t('pending.code')}</label>
@@ -2671,6 +2696,7 @@
     const headersTextarea = document.getElementById('prh-' + id);
     const codeInput = document.getElementById('prc-' + id);
     const typeSelect = document.getElementById('prtype-' + id);
+    const conditionSelect = document.getElementById('prcs-' + id);
 
     if (bodyTextarea) bodyTextarea.value = defaults.response || item?.dataset.response || '';
     if (headersTextarea) headersTextarea.value = defaults.headers || item?.dataset.headers || '';
@@ -2679,6 +2705,54 @@
       typeSelect.value = defaults.type || item?.dataset.type || 'json';
       togglePendingFormatBtn(id);
     }
+    // Reset condition selector to current
+    if (conditionSelect) conditionSelect.value = 'current';
+  }
+
+  function selectConditionResponse(id, value) {
+    const item = document.getElementById('pl-' + id);
+    if (!item) return;
+
+    const bodyTextarea = document.getElementById('prt-' + id);
+    const headersTextarea = document.getElementById('prh-' + id);
+    const codeInput = document.getElementById('prc-' + id);
+    const typeSelect = document.getElementById('prtype-' + id);
+    const conditionSelect = document.getElementById('prcs-' + id);
+
+    let newCode, newType, newBody, newHeaders;
+
+    if (value === 'current') {
+      // Restore to the evaluated response (what's stored in pendingDefaults)
+      const defaults = pendingDefaults[id] || {};
+      newCode = defaults.code || item.dataset.code || 200;
+      newType = defaults.type || item.dataset.type || 'json';
+      newBody = defaults.response || item.dataset.response || '';
+      newHeaders = defaults.headers || item.dataset.headers || '';
+    } else if (value === 'original') {
+      // Restore to original route response (before criteria evaluation)
+      newCode = item.dataset.originalCode || 200;
+      newType = item.dataset.originalType || 'json';
+      newBody = item.dataset.originalResponse || '';
+      newHeaders = item.dataset.originalHeaders || '';
+    } else {
+      // Load from selected condition
+      const selectedOption = conditionSelect.options[conditionSelect.selectedIndex];
+      if (selectedOption) {
+        newCode = selectedOption.dataset.codigo || item.dataset.code || 200;
+        newType = selectedOption.dataset.tipo || item.dataset.type || 'json';
+        newBody = selectedOption.dataset.respuesta ? decodeURIComponent(selectedOption.dataset.respuesta) : '';
+        newHeaders = selectedOption.dataset.headers ? decodeURIComponent(selectedOption.dataset.headers) : '';
+      }
+    }
+
+    // Apply the values
+    if (codeInput && newCode) codeInput.value = newCode;
+    if (typeSelect && newType) {
+      typeSelect.value = newType;
+      togglePendingFormatBtn(id);
+    }
+    if (bodyTextarea) bodyTextarea.value = newBody || '';
+    if (headersTextarea) headersTextarea.value = newHeaders || '';
   }
 
   function formatPendingContent(id) {

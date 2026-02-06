@@ -169,7 +169,10 @@
     "noPending": "No pending requests",
     "requestHeaders": "Request headers",
     "viewRequestHeaders": "View request headers",
-    "noRequestHeaders": "No headers"
+    "noRequestHeaders": "No headers",
+    "selectCondition": "Load response",
+    "currentResponse": "Current response (evaluated)",
+    "originalResponse": "Original response (no criteria)"
   },
   "connection": {
     "connected": "Connected",
