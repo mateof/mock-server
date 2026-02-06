@@ -171,6 +171,30 @@
           </label>
         </div>
 
+        <!-- Metadata (operationId, summary, description) -->
+        <div class="collapsible-section" id="divMetadata" style="margin-top: 1.25rem;">
+          <div class="collapsible-header" onclick="toggleMetadataSection()">
+            <h4><i class="fa fa-info-circle"></i> <%= __('form.metadata') %></h4>
+          </div>
+          <div class="collapsible-body">
+            <small style="color: var(--text-muted); margin-bottom: 1rem; display: block;">
+              <%= __('form.help.metadataHelp') %>
+            </small>
+            <div class="form-group-modern">
+              <label class="form-label-modern" for="operationId"><%= __('form.operationId') %></label>
+              <input type="text" class="form-control-modern" id="operationId" name="operationId" placeholder="<%= __('form.placeholder.operationId') %>">
+            </div>
+            <div class="form-group-modern">
+              <label class="form-label-modern" for="summary"><%= __('form.summary') %></label>
+              <input type="text" class="form-control-modern" id="summary" name="summary" placeholder="<%= __('form.placeholder.summary') %>">
+            </div>
+            <div class="form-group-modern">
+              <label class="form-label-modern" for="description"><%= __('form.description') %></label>
+              <textarea class="form-control-modern" id="description" name="description" rows="3" placeholder="<%= __('form.placeholder.description') %>"></textarea>
+            </div>
+          </div>
+        </div>
+
         <!-- Tags -->
         <div class="collapsible-section" id="divTags" style="margin-top: 1.25rem;">
           <div class="collapsible-header" onclick="toggleTagsSection()">

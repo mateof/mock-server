@@ -1638,6 +1638,32 @@ table.dataTable.no-footer {
   word-break: break-all;
 }
 
+.curl-code-info {
+  color: var(--text-secondary);
+}
+
+.curl-text {
+  color: var(--text-primary);
+  font-size: 0.875rem;
+}
+
+.curl-row-description {
+  flex-direction: column;
+  align-items: flex-start !important;
+  gap: 0.25rem !important;
+}
+
+.curl-description {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-dark);
+  border-radius: var(--border-radius-xs);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  width: 100%;
+}
+
 .curl-section {
   margin-bottom: 1.5rem;
 }

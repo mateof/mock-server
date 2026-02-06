@@ -20,6 +20,18 @@
             <span class="curl-label"><%= __('curl.fullUrl') %></span>
             <code id="curlFullUrl" class="curl-code"></code>
           </div>
+          <div class="curl-row" id="curlOperationIdRow" style="display: none;">
+            <span class="curl-label"><%= __('form.operationId') %>:</span>
+            <code id="curlOperationId" class="curl-code curl-code-info"></code>
+          </div>
+          <div class="curl-row" id="curlSummaryRow" style="display: none;">
+            <span class="curl-label"><%= __('form.summary') %>:</span>
+            <span id="curlSummary" class="curl-text"></span>
+          </div>
+          <div class="curl-row curl-row-description" id="curlDescriptionRow" style="display: none;">
+            <span class="curl-label"><%= __('form.description') %>:</span>
+            <p id="curlDescription" class="curl-description"></p>
+          </div>
         </div>
 
         <div class="curl-section">

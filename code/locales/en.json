@@ -80,7 +80,10 @@
       "headersJson": "{\"Content-Type\": \"application/json\"}",
       "leaveEmpty": "Leave empty to use default response",
       "criteria": "headers['x-api-key'] === 'test' || body.debug === true",
-      "tagName": "Tag name..."
+      "tagName": "Tag name...",
+      "operationId": "getUserById",
+      "summary": "Get user by ID",
+      "description": "Detailed description of the endpoint..."
     },
     "help": {
       "proxyExample": "Example: If route is [route] and destination is [target], a request to [request] will be redirected to [result]",
@@ -89,8 +92,13 @@
       "routeActiveDesc": "If disabled, requests will not be intercepted by this route.",
       "headersHelp": "Set: Add or overwrite the header | Remove: Remove the header from the response",
       "conditionsHelp": "Conditions are evaluated in order. The first matching condition will override the default response.",
-      "tagsHelp": "Add tags to organize and filter your routes"
+      "tagsHelp": "Add tags to organize and filter your routes",
+      "metadataHelp": "Additional information about the route. These fields are automatically imported from OpenAPI."
     },
+    "metadata": "Metadata",
+    "operationId": "Operation ID",
+    "summary": "Summary",
+    "description": "Description",
     "conditionalResponses": "Conditional Responses",
     "conditionName": "Name (optional)",
     "criteria": "Criteria",

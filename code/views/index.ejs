@@ -1546,6 +1546,11 @@
     body.style.display = body.style.display === 'none' ? 'block' : 'none';
   }
 
+  function toggleMetadataSection() {
+    const body = document.querySelector('#divMetadata .collapsible-body');
+    body.style.display = body.style.display === 'none' ? 'block' : 'none';
+  }
+
   // Initialize TagsModule on page load
   document.addEventListener('DOMContentLoaded', () => TagsModule.init());
 
@@ -2267,6 +2272,10 @@
     document.getElementById('currentFileInfo').style.display = 'none';
     // Limpiar tags
     TagsModule.clear();
+    // Limpiar metadata
+    document.getElementById("operationId").value = '';
+    document.getElementById("summary").value = '';
+    document.getElementById("description").value = '';
   }
 
   function valuesForModal(obj) {
@@ -2296,6 +2305,10 @@
     // Tags
     const tags = obj.tags ? JSON.parse(obj.tags) : [];
     TagsModule.setTags(tags);
+    // Metadata
+    document.getElementById("operationId").value = obj.operationId || '';
+    document.getElementById("summary").value = obj.summary || '';
+    document.getElementById("description").value = obj.description || '';
   }
 
   async function guardar() {
@@ -2344,6 +2357,14 @@
     if (tags.length > 0) {
       formData.append('tags', JSON.stringify(tags));
     }
+
+    // Metadata fields
+    const operationId = document.getElementById("operationId").value;
+    const summary = document.getElementById("summary").value;
+    const description = document.getElementById("description").value;
+    if (operationId) formData.append('operationId', operationId);
+    if (summary) formData.append('summary', summary);
+    if (description) formData.append('description', description);
 
     // Añadir archivo si está seleccionado
     if (tiporespuesta === 'file' && selectedFile) {
@@ -2424,6 +2445,14 @@
     if (tags.length > 0) {
       formData.append('tags', JSON.stringify(tags));
     }
+
+    // Metadata fields
+    const operationId = document.getElementById("operationId").value;
+    const summary = document.getElementById("summary").value;
+    const description = document.getElementById("description").value;
+    if (operationId) formData.append('operationId', operationId);
+    if (summary) formData.append('summary', summary);
+    if (description) formData.append('description', description);
 
     // Manejo de archivo
     if (tiporespuesta === 'file') {
@@ -2819,26 +2848,10 @@
     const method = obj.tipo.toUpperCase();
     const isRegex = obj.isRegex === 1;
 
-    // Generar ruta de ejemplo para regex (limpiar caracteres especiales)
+    // Generar ruta de ejemplo para regex (usar función compartida)
     let exampleRoute = obj.ruta;
     if (isRegex) {
-      exampleRoute = obj.ruta
-        .replace(/\\\?/g, '?')          // Convertir \? a ?
-        .replace(/\\&/g, '&')           // Convertir \& a &
-        .replace(/\\=/g, '=')           // Convertir \= a =
-        .replace(/\\\./g, '.')          // Convertir \. a .
-        .replace(/\.\*/g, '')           // Eliminar .*
-        .replace(/\.\+/g, '')           // Eliminar .+
-        .replace(/\[.*?\]/g, 'x')       // Reemplazar [abc] por x
-        .replace(/\(.*?\)/g, '')        // Eliminar grupos (...)
-        .replace(/\^/g, '')             // Eliminar ^
-        .replace(/\$/g, '')             // Eliminar $
-        .replace(/\{.*?\}/g, '')        // Eliminar cuantificadores {n,m}
-        .replace(/\+/g, '')             // Eliminar +
-        .replace(/\*/g, '')             // Eliminar *
-        .replace(/\/+/g, '/')           // Normalizar múltiples /
-        .replace(/\/$/g, '');           // Eliminar / final
-      if (!exampleRoute.startsWith('/')) exampleRoute = '/' + exampleRoute;
+      exampleRoute = regexToSampleUrl(obj.ruta);
     }
 
     const fullUrl = baseUrl + exampleRoute;
@@ -2849,6 +2862,32 @@
     document.getElementById('curlMethod').className = `badge-modern badge-${obj.tipo}`;
     document.getElementById('curlRoute').textContent = isRegex ? `${obj.ruta} (regex)` : obj.ruta;
     document.getElementById('curlFullUrl').textContent = fullUrl;
+
+    // Mostrar metadata si existe
+    const operationIdRow = document.getElementById('curlOperationIdRow');
+    const summaryRow = document.getElementById('curlSummaryRow');
+    const descriptionRow = document.getElementById('curlDescriptionRow');
+
+    if (obj.operationId) {
+      document.getElementById('curlOperationId').textContent = obj.operationId;
+      operationIdRow.style.display = 'flex';
+    } else {
+      operationIdRow.style.display = 'none';
+    }
+
+    if (obj.summary) {
+      document.getElementById('curlSummary').textContent = obj.summary;
+      summaryRow.style.display = 'flex';
+    } else {
+      summaryRow.style.display = 'none';
+    }
+
+    if (obj.description) {
+      document.getElementById('curlDescription').textContent = obj.description;
+      descriptionRow.style.display = 'flex';
+    } else {
+      descriptionRow.style.display = 'none';
+    }
 
     // Generar comando curl
     let curlCmd = `curl -X ${method} "${fullUrl}"`;
@@ -3244,7 +3283,11 @@
         codigo: route.codigo,
         tiporespuesta: route.tiporespuesta,
         respuesta: route.respuesta,
-        isRegex: route.isRegex
+        isRegex: route.isRegex,
+        operationId: route.operationId,
+        summary: route.summary,
+        description: route.description,
+        openApiTags: route.openApiTags
       });
     });
 
@@ -3307,8 +3350,29 @@
   function regexToSampleUrl(regexPattern) {
     // Convert a regex pattern to a sample URL
     let sample = regexPattern;
+    let paramCounter = 0;
 
-    // Common regex pattern replacements
+    // Handle [^/]+ and [^/]* patterns - the most common path parameter regex
+    // We need to look at the preceding path segment to name the parameter
+    sample = sample.replace(/(\/[a-zA-Z0-9_-]+)\/\[\^\/\][\+\*]/g, (match, prevSegment) => {
+      const segmentName = prevSegment.replace('/', '');
+      paramCounter++;
+      // Convert plural to singular for parameter name (e.g., /users/[^/]+ -> /users/{userId})
+      if (/^[a-zA-Z]+s$/.test(segmentName)) {
+        return `${prevSegment}/{${segmentName.slice(0, -1)}Id}`;
+      } else if (/^[a-zA-Z]+$/.test(segmentName)) {
+        return `${prevSegment}/{${segmentName}Id}`;
+      }
+      return `${prevSegment}/{param${paramCounter}}`;
+    });
+
+    // Handle remaining [^/]+ patterns without clear context
+    sample = sample.replace(/\[\^\/\][\+\*]/g, () => {
+      paramCounter++;
+      return `{param${paramCounter}}`;
+    });
+
+    // Common regex pattern replacements for remaining patterns
     const replacements = [
       [/\(\?:[^)]+\)/g, ''],           // Remove non-capturing groups
       [/\([^)]+\)/g, 'value'],         // Replace capturing groups
@@ -3325,10 +3389,7 @@
       [/\\s/g, ' '],                   // \s -> space
       [/\.\+/g, 'something'],          // .+ -> something
       [/\.\*/g, ''],                   // .* -> empty
-      [/\./g, 'x'],                    // . -> x (single char)
-      [/\[([^\]]+)\]\+/g, '$1$1$1'],   // [abc]+ -> repeated first char
-      [/\[([^\]]+)\]\*/g, '$1'],       // [abc]* -> first char
-      [/\[([^\]]+)\]/g, (m, chars) => chars.replace(/[^a-zA-Z0-9]/g, '')[0] || 'x'], // [abc] -> a
+      [/\[([^\]]+)\]/g, (m, chars) => chars.replace(/[^a-zA-Z0-9]/g, '')[0] || 'x'], // [abc] -> a (for remaining brackets)
       [/\{(\d+)\}/g, ''],              // Remove quantifiers like {2}
       [/\{(\d+),(\d+)?\}/g, ''],       // Remove quantifiers like {2,5}
       [/\+/g, ''],                     // Remove +
@@ -3351,9 +3412,17 @@
     // Clean up any remaining backslashes
     sample = sample.replace(/\\/g, '');
 
+    // Clean up multiple consecutive slashes
+    sample = sample.replace(/\/+/g, '/');
+
     // Ensure it starts with /
     if (!sample.startsWith('/')) {
       sample = '/' + sample;
+    }
+
+    // Remove trailing slash (unless it's the only character)
+    if (sample.length > 1 && sample.endsWith('/')) {
+      sample = sample.slice(0, -1);
     }
 
     return sample;

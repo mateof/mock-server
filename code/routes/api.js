@@ -99,10 +99,15 @@ router.post('/create', upload.single('file'), async function(req, res, next) {
     // Tags
     const tags = req.body.tags || null;
 
+    // Metadata fields
+    const operationId = req.body.operationId || null;
+    const summary = req.body.summary || null;
+    const description = req.body.description || null;
+
     try {
         const result = await new Promise((resolve, reject) => {
-            db.run(`INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders, activo, orden, fileName, filePath, fileMimeType, tags) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-                [req.body.tipo, req.body.ruta, req.body.codigo, req.body.respuesta, req.body.tiporespuesta, esperaActiva, req.body.isRegex === 'true' || req.body.isRegex === true ? 1 : 0, customHeaders, activo, orden, fileName, filePath, fileMimeType, tags],
+            db.run(`INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders, activo, orden, fileName, filePath, fileMimeType, tags, operationId, summary, description) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                [req.body.tipo, req.body.ruta, req.body.codigo, req.body.respuesta, req.body.tiporespuesta, esperaActiva, req.body.isRegex === 'true' || req.body.isRegex === true ? 1 : 0, customHeaders, activo, orden, fileName, filePath, fileMimeType, tags, operationId, summary, description],
                 function(err) {
                     if (err) {
                         reject(err);
@@ -190,8 +195,8 @@ router.post('/duplicate/:id', async function(req, res) {
         }
 
         const result = await new Promise((resolve, reject) => {
-            db.run(`INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders, activo, orden, fileName, filePath, fileMimeType, tags) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-                [original.tipo, newRoute, original.codigo, original.respuesta, original.tiporespuesta, original.esperaActiva, isRegex, original.customHeaders, original.activo, orden, fileName, filePath, fileMimeType, original.tags],
+            db.run(`INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders, activo, orden, fileName, filePath, fileMimeType, tags, operationId, summary, description) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                [original.tipo, newRoute, original.codigo, original.respuesta, original.tiporespuesta, original.esperaActiva, isRegex, original.customHeaders, original.activo, orden, fileName, filePath, fileMimeType, original.tags, original.operationId, original.summary, original.description],
                 function(err) {
                     if (err) reject(err);
                     else resolve({ lastID: this.lastID });
@@ -287,10 +292,15 @@ router.put('/update/:id', upload.single('file'), async function(req, res) {
     // Tags
     const tags = req.body.tags || null;
 
+    // Metadata fields
+    const operationId = req.body.operationId || null;
+    const summary = req.body.summary || null;
+    const description = req.body.description || null;
+
     try {
         await new Promise((resolve, reject) => {
-            db.run(`UPDATE rutas SET tipo = ?, ruta = ?, codigo = ?, respuesta = ?, tiporespuesta = ?, esperaActiva = ?, isRegex = ?, customHeaders = ?, activo = ?, orden = ?, fileName = ?, filePath = ?, fileMimeType = ?, tags = ? WHERE id = ?`,
-                [req.body.tipo, req.body.ruta, req.body.codigo, req.body.respuesta, req.body.tiporespuesta, esperaActiva, req.body.isRegex === 'true' || req.body.isRegex === true ? 1 : 0, customHeaders, activo, newOrden, fileName, filePath, fileMimeType, tags, id],
+            db.run(`UPDATE rutas SET tipo = ?, ruta = ?, codigo = ?, respuesta = ?, tiporespuesta = ?, esperaActiva = ?, isRegex = ?, customHeaders = ?, activo = ?, orden = ?, fileName = ?, filePath = ?, fileMimeType = ?, tags = ?, operationId = ?, summary = ?, description = ? WHERE id = ?`,
+                [req.body.tipo, req.body.ruta, req.body.codigo, req.body.respuesta, req.body.tiporespuesta, esperaActiva, req.body.isRegex === 'true' || req.body.isRegex === true ? 1 : 0, customHeaders, activo, newOrden, fileName, filePath, fileMimeType, tags, operationId, summary, description, id],
                 function(err) {
                     if (err) {
                         reject(err);
@@ -988,6 +998,13 @@ router.post('/import-openapi/confirm', async function(req, res) {
         return res.status(400).json({ success: false, error: 'Routes starting with /api/ are reserved' });
     }
 
+    // Palette for random tag colors
+    const tagColorPalette = [
+        '#6366f1', '#8b5cf6', '#ec4899', '#ef4444', '#f97316', '#f59e0b',
+        '#10b981', '#14b8a6', '#06b6d4', '#3b82f6', '#374151', '#1e293b'
+    ];
+    const getRandomColor = () => tagColorPalette[Math.floor(Math.random() * tagColorPalette.length)];
+
     const db = sqliteService.getDatabase();
     let imported = 0;
     let skipped = 0;
@@ -1014,10 +1031,25 @@ router.post('/import-openapi/confirm', async function(req, res) {
                     skipped++;
                     continue;
                 } else if (conflictStrategy === 'overwrite') {
+                    // Combine tags for overwrite as well
+                    let finalTags = [];
+                    if (importTags && Array.isArray(importTags)) {
+                        finalTags = [...importTags];
+                    }
+                    if (route.openApiTags && Array.isArray(route.openApiTags) && route.openApiTags.length > 0) {
+                        for (const tagName of route.openApiTags) {
+                            const tag = await sqliteService.getOrCreateTag(tagName, getRandomColor());
+                            if (!finalTags.some(t => t.id === tag.id)) {
+                                finalTags.push({ id: tag.id, name: tag.name, color: tag.color });
+                            }
+                        }
+                    }
+                    const routeTags = finalTags.length > 0 ? JSON.stringify(finalTags) : null;
+
                     await new Promise((resolve, reject) => {
                         db.run(
-                            `UPDATE rutas SET codigo = ?, respuesta = ?, tiporespuesta = ?, isRegex = ? WHERE id = ?`,
-                            [route.codigo, route.respuesta, route.tiporespuesta, route.isRegex ? 1 : 0, existing.id],
+                            `UPDATE rutas SET codigo = ?, respuesta = ?, tiporespuesta = ?, isRegex = ?, operationId = ?, summary = ?, description = ?, tags = ? WHERE id = ?`,
+                            [route.codigo, route.respuesta, route.tiporespuesta, route.isRegex ? 1 : 0, route.operationId || null, route.summary || null, route.description || null, routeTags, existing.id],
                             function(err) {
                                 if (err) reject(err);
                                 else resolve();
@@ -1030,12 +1062,30 @@ router.post('/import-openapi/confirm', async function(req, res) {
             }
 
             // Insertar nueva ruta
-            // Use tags from the route (if provided per-route) or from importTags
-            const routeTags = route.tags ? JSON.stringify(route.tags) : (importTags ? JSON.stringify(importTags) : null);
+            // Combine tags: user-selected import tags + OpenAPI operation tags
+            let finalTags = [];
+
+            // Add user-selected tags from import modal
+            if (importTags && Array.isArray(importTags)) {
+                finalTags = [...importTags];
+            }
+
+            // Add tags from OpenAPI operation (create them if they don't exist)
+            if (route.openApiTags && Array.isArray(route.openApiTags) && route.openApiTags.length > 0) {
+                for (const tagName of route.openApiTags) {
+                    const tag = await sqliteService.getOrCreateTag(tagName, getRandomColor());
+                    // Check if tag already in finalTags
+                    if (!finalTags.some(t => t.id === tag.id)) {
+                        finalTags.push({ id: tag.id, name: tag.name, color: tag.color });
+                    }
+                }
+            }
+
+            const routeTags = finalTags.length > 0 ? JSON.stringify(finalTags) : null;
             await new Promise((resolve, reject) => {
                 db.run(
-                    `INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders, activo, orden, tags) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-                    [route.tipo, route.ruta, route.codigo, route.respuesta, route.tiporespuesta, 0, route.isRegex ? 1 : 0, null, 1, currentOrder, routeTags],
+                    `INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders, activo, orden, tags, operationId, summary, description) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                    [route.tipo, route.ruta, route.codigo, route.respuesta, route.tiporespuesta, 0, route.isRegex ? 1 : 0, null, 1, currentOrder, routeTags, route.operationId || null, route.summary || null, route.description || null],
                     function(err) {
                         if (err) reject(err);
                         else resolve();
