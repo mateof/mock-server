@@ -120,6 +120,56 @@ function extractBestResponse(operation, isSwagger2) {
 }
 
 /**
+ * Extrae el ejemplo de request body de una operación
+ */
+function extractRequestBodyExample(operation, isSwagger2) {
+    // Solo para métodos que tienen body
+    if (!operation.requestBody && !operation.parameters) {
+        return null;
+    }
+
+    let schema = null;
+    let example = null;
+
+    if (isSwagger2) {
+        // En Swagger 2, el body está en parameters con in: "body"
+        const bodyParam = (operation.parameters || []).find(p => p.in === 'body');
+        if (bodyParam) {
+            schema = bodyParam.schema;
+            example = bodyParam.example || (bodyParam.examples && bodyParam.examples['application/json']);
+        }
+    } else {
+        // En OpenAPI 3, el body está en requestBody
+        const requestBody = operation.requestBody;
+        if (requestBody && requestBody.content) {
+            const jsonContent = requestBody.content['application/json']
+                || requestBody.content['*/*']
+                || Object.values(requestBody.content)[0];
+            if (jsonContent) {
+                schema = jsonContent.schema;
+                example = jsonContent.example
+                    || (jsonContent.examples && Object.values(jsonContent.examples)[0]?.value);
+            }
+        }
+    }
+
+    // Generar mock si tenemos schema o ejemplo
+    if (example) {
+        return JSON.stringify(example, null, 2);
+    } else if (schema) {
+        try {
+            const mockData = jsf.generate(schema);
+            return JSON.stringify(mockData, null, 2);
+        } catch (e) {
+            console.error(`[OPENAPI] Error generando mock de requestBody: ${e.message}`);
+            return null;
+        }
+    }
+
+    return null;
+}
+
+/**
  * Genera array de rutas desde una spec parseada
  */
 function generateRoutes(spec, basePath) {
@@ -155,6 +205,7 @@ function generateRoutes(spec, basePath) {
             const fullPath = prefix + specBasePath + pathKey;
             const { path: finalPath, isRegex } = convertPathToRegex(fullPath);
             const { statusCode, responseBody } = extractBestResponse(operation, isSwagger2);
+            const requestBodyExample = extractRequestBodyExample(operation, isSwagger2);
 
             // Extract tags from operation (OpenAPI tags)
             const operationTags = operation.tags || [];
@@ -171,6 +222,7 @@ function generateRoutes(spec, basePath) {
                 operationId: operation.operationId || null,
                 summary: operation.summary || null,
                 description: operation.description || null,
+                requestBodyExample: requestBodyExample,
                 openApiTags: operationTags, // Tags from OpenAPI spec
                 _conflict: false,
                 _existingId: null

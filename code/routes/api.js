@@ -103,11 +103,12 @@ router.post('/create', upload.single('file'), async function(req, res, next) {
     const operationId = req.body.operationId || null;
     const summary = req.body.summary || null;
     const description = req.body.description || null;
+    const requestBodyExample = req.body.requestBodyExample || null;
 
     try {
         const result = await new Promise((resolve, reject) => {
-            db.run(`INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders, activo, orden, fileName, filePath, fileMimeType, tags, operationId, summary, description) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-                [req.body.tipo, req.body.ruta, req.body.codigo, req.body.respuesta, req.body.tiporespuesta, esperaActiva, req.body.isRegex === 'true' || req.body.isRegex === true ? 1 : 0, customHeaders, activo, orden, fileName, filePath, fileMimeType, tags, operationId, summary, description],
+            db.run(`INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders, activo, orden, fileName, filePath, fileMimeType, tags, operationId, summary, description, requestBodyExample) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                [req.body.tipo, req.body.ruta, req.body.codigo, req.body.respuesta, req.body.tiporespuesta, esperaActiva, req.body.isRegex === 'true' || req.body.isRegex === true ? 1 : 0, customHeaders, activo, orden, fileName, filePath, fileMimeType, tags, operationId, summary, description, requestBodyExample],
                 function(err) {
                     if (err) {
                         reject(err);
@@ -195,8 +196,8 @@ router.post('/duplicate/:id', async function(req, res) {
         }
 
         const result = await new Promise((resolve, reject) => {
-            db.run(`INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders, activo, orden, fileName, filePath, fileMimeType, tags, operationId, summary, description) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-                [original.tipo, newRoute, original.codigo, original.respuesta, original.tiporespuesta, original.esperaActiva, isRegex, original.customHeaders, original.activo, orden, fileName, filePath, fileMimeType, original.tags, original.operationId, original.summary, original.description],
+            db.run(`INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders, activo, orden, fileName, filePath, fileMimeType, tags, operationId, summary, description, requestBodyExample) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                [original.tipo, newRoute, original.codigo, original.respuesta, original.tiporespuesta, original.esperaActiva, isRegex, original.customHeaders, original.activo, orden, fileName, filePath, fileMimeType, original.tags, original.operationId, original.summary, original.description, original.requestBodyExample],
                 function(err) {
                     if (err) reject(err);
                     else resolve({ lastID: this.lastID });
@@ -296,11 +297,12 @@ router.put('/update/:id', upload.single('file'), async function(req, res) {
     const operationId = req.body.operationId || null;
     const summary = req.body.summary || null;
     const description = req.body.description || null;
+    const requestBodyExample = req.body.requestBodyExample || null;
 
     try {
         await new Promise((resolve, reject) => {
-            db.run(`UPDATE rutas SET tipo = ?, ruta = ?, codigo = ?, respuesta = ?, tiporespuesta = ?, esperaActiva = ?, isRegex = ?, customHeaders = ?, activo = ?, orden = ?, fileName = ?, filePath = ?, fileMimeType = ?, tags = ?, operationId = ?, summary = ?, description = ? WHERE id = ?`,
-                [req.body.tipo, req.body.ruta, req.body.codigo, req.body.respuesta, req.body.tiporespuesta, esperaActiva, req.body.isRegex === 'true' || req.body.isRegex === true ? 1 : 0, customHeaders, activo, newOrden, fileName, filePath, fileMimeType, tags, operationId, summary, description, id],
+            db.run(`UPDATE rutas SET tipo = ?, ruta = ?, codigo = ?, respuesta = ?, tiporespuesta = ?, esperaActiva = ?, isRegex = ?, customHeaders = ?, activo = ?, orden = ?, fileName = ?, filePath = ?, fileMimeType = ?, tags = ?, operationId = ?, summary = ?, description = ?, requestBodyExample = ? WHERE id = ?`,
+                [req.body.tipo, req.body.ruta, req.body.codigo, req.body.respuesta, req.body.tiporespuesta, esperaActiva, req.body.isRegex === 'true' || req.body.isRegex === true ? 1 : 0, customHeaders, activo, newOrden, fileName, filePath, fileMimeType, tags, operationId, summary, description, requestBodyExample, id],
                 function(err) {
                     if (err) {
                         reject(err);
@@ -1048,8 +1050,8 @@ router.post('/import-openapi/confirm', async function(req, res) {
 
                     await new Promise((resolve, reject) => {
                         db.run(
-                            `UPDATE rutas SET codigo = ?, respuesta = ?, tiporespuesta = ?, isRegex = ?, operationId = ?, summary = ?, description = ?, tags = ? WHERE id = ?`,
-                            [route.codigo, route.respuesta, route.tiporespuesta, route.isRegex ? 1 : 0, route.operationId || null, route.summary || null, route.description || null, routeTags, existing.id],
+                            `UPDATE rutas SET codigo = ?, respuesta = ?, tiporespuesta = ?, isRegex = ?, operationId = ?, summary = ?, description = ?, tags = ?, requestBodyExample = ? WHERE id = ?`,
+                            [route.codigo, route.respuesta, route.tiporespuesta, route.isRegex ? 1 : 0, route.operationId || null, route.summary || null, route.description || null, routeTags, route.requestBodyExample || null, existing.id],
                             function(err) {
                                 if (err) reject(err);
                                 else resolve();
@@ -1084,8 +1086,8 @@ router.post('/import-openapi/confirm', async function(req, res) {
             const routeTags = finalTags.length > 0 ? JSON.stringify(finalTags) : null;
             await new Promise((resolve, reject) => {
                 db.run(
-                    `INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders, activo, orden, tags, operationId, summary, description) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-                    [route.tipo, route.ruta, route.codigo, route.respuesta, route.tiporespuesta, 0, route.isRegex ? 1 : 0, null, 1, currentOrder, routeTags, route.operationId || null, route.summary || null, route.description || null],
+                    `INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders, activo, orden, tags, operationId, summary, description, requestBodyExample) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                    [route.tipo, route.ruta, route.codigo, route.respuesta, route.tiporespuesta, 0, route.isRegex ? 1 : 0, null, 1, currentOrder, routeTags, route.operationId || null, route.summary || null, route.description || null, route.requestBodyExample || null],
                     function(err) {
                         if (err) reject(err);
                         else resolve();

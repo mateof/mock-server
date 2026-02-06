@@ -181,6 +181,7 @@ async function createTables(newdb) {
     await addColumn(newdb, 'operationId', 'TEXT');
     await addColumn(newdb, 'summary', 'TEXT');
     await addColumn(newdb, 'description', 'TEXT');
+    await addColumn(newdb, 'requestBodyExample', 'TEXT');
 
     // Crear índices para optimizar búsquedas de rutas
     await new Promise((resolve) => {

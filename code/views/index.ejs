@@ -1045,6 +1045,18 @@
     }
   }
 
+  function formatRequestBodyJson() {
+    const textarea = document.getElementById('requestBodyExample');
+    if (!textarea || !textarea.value.trim()) return;
+
+    try {
+      const parsed = JSON.parse(textarea.value);
+      textarea.value = JSON.stringify(parsed, null, 2);
+    } catch (e) {
+      showToast(`JSON ${t('validation.jsonInvalid')}: ${e.message}`, 'error');
+    }
+  }
+
   // Usar httpCodes de las traducciones
   const httpCodes = t('httpCodes') || {};
 
@@ -2276,6 +2288,7 @@
     document.getElementById("operationId").value = '';
     document.getElementById("summary").value = '';
     document.getElementById("description").value = '';
+    document.getElementById("requestBodyExample").value = '';
   }
 
   function valuesForModal(obj) {
@@ -2309,6 +2322,7 @@
     document.getElementById("operationId").value = obj.operationId || '';
     document.getElementById("summary").value = obj.summary || '';
     document.getElementById("description").value = obj.description || '';
+    document.getElementById("requestBodyExample").value = obj.requestBodyExample || '';
   }
 
   async function guardar() {
@@ -2362,9 +2376,11 @@
     const operationId = document.getElementById("operationId").value;
     const summary = document.getElementById("summary").value;
     const description = document.getElementById("description").value;
+    const requestBodyExample = document.getElementById("requestBodyExample").value;
     if (operationId) formData.append('operationId', operationId);
     if (summary) formData.append('summary', summary);
     if (description) formData.append('description', description);
+    if (requestBodyExample) formData.append('requestBodyExample', requestBodyExample);
 
     // Añadir archivo si está seleccionado
     if (tiporespuesta === 'file' && selectedFile) {
@@ -2450,9 +2466,11 @@
     const operationId = document.getElementById("operationId").value;
     const summary = document.getElementById("summary").value;
     const description = document.getElementById("description").value;
+    const requestBodyExample = document.getElementById("requestBodyExample").value;
     if (operationId) formData.append('operationId', operationId);
     if (summary) formData.append('summary', summary);
     if (description) formData.append('description', description);
+    if (requestBodyExample) formData.append('requestBodyExample', requestBodyExample);
 
     // Manejo de archivo
     if (tiporespuesta === 'file') {
@@ -2892,8 +2910,16 @@
     // Generar comando curl
     let curlCmd = `curl -X ${method} "${fullUrl}"`;
 
-    if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
-      curlCmd += ` \\\n  -H "Content-Type: application/json" \\\n  -d '{}'`;
+    if (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE') {
+      curlCmd += ` \\\n  -H "Content-Type: application/json"`;
+      // Use requestBodyExample if available, otherwise use empty object
+      if (obj.requestBodyExample) {
+        // Escape single quotes for shell and format in one line
+        const bodyForCurl = obj.requestBodyExample.replace(/\n/g, '').replace(/'/g, "'\\''");
+        curlCmd += ` \\\n  -d '${bodyForCurl}'`;
+      } else {
+        curlCmd += ` \\\n  -d '{}'`;
+      }
     }
 
     document.getElementById('curlCommand').textContent = curlCmd;
@@ -3287,6 +3313,7 @@
         operationId: route.operationId,
         summary: route.summary,
         description: route.description,
+        requestBodyExample: route.requestBodyExample,
         openApiTags: route.openApiTags
       });
     });
@@ -3447,6 +3474,16 @@
       route = regexToSampleUrl(route);
     }
     document.getElementById('testerUrl').value = baseUrl + route;
+
+    // Pre-fill request body example if available (for POST, PUT, PATCH, DELETE)
+    const methodsWithBody = ['POST', 'PUT', 'PATCH', 'DELETE'];
+    if (methodsWithBody.includes(method) && obj.requestBodyExample) {
+      // Set body type to JSON
+      document.querySelector('input[name="bodyType"][value="json"]').checked = true;
+      changeBodyType('json');
+      // Set the body content
+      document.getElementById('testerBodyJson').value = obj.requestBodyExample;
+    }
 
     // Open modal
     const modal = new bootstrap.Modal(document.getElementById('requestTesterModal'));

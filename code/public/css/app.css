@@ -2654,7 +2654,9 @@ table.dataTable.no-footer {
   position: absolute;
   top: 100%;
   left: 0;
-  right: 0;
+  min-width: 220px;
+  width: max-content;
+  max-width: 320px;
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius-sm);
@@ -2662,6 +2664,7 @@ table.dataTable.no-footer {
   z-index: 100;
   max-height: 250px;
   overflow-y: auto;
+  overflow-x: hidden;
   display: none;
   margin-top: 4px;
 }
@@ -2689,6 +2692,8 @@ table.dataTable.no-footer {
 
 .tags-filter-option .badge-tag {
   font-size: 0.8rem;
+  white-space: nowrap;
+  max-width: none;
 }
 
 /* Empty tags state */

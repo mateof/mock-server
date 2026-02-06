@@ -83,7 +83,8 @@
       "tagName": "Nome do tag...",
       "operationId": "getUserById",
       "summary": "Obter usuario por ID",
-      "description": "Descrición detallada do endpoint..."
+      "description": "Descrición detallada do endpoint...",
+      "requestBodyExample": "{\"name\": \"John\", \"email\": \"john@example.com\"}"
     },
     "help": {
       "proxyExample": "Exemplo: Se a ruta é [route] e o destino é [target], unha petición a [request] redirixirase a [result]",
@@ -93,8 +94,10 @@
       "headersHelp": "Set: Engade ou sobreescribe o header | Remove: Elimina o header da resposta",
       "conditionsHelp": "As condicións avalíanse en orde. A primeira que coincida sobreescribirá a resposta por defecto.",
       "tagsHelp": "Engade tags para organizar e filtrar as túas rutas",
-      "metadataHelp": "Información adicional sobre a ruta. Estes campos impórtanse automaticamente desde OpenAPI."
+      "metadataHelp": "Información adicional sobre a ruta. Estes campos impórtanse automaticamente desde OpenAPI.",
+      "requestBodyHelp": "Exemplo de body para a petición. Usarase no Test Request e cURL example."
     },
+    "requestBodyExample": "Exemplo de Request Body",
     "metadata": "Metadata",
     "operationId": "Operation ID",
     "summary": "Resumo",

@@ -83,7 +83,8 @@
       "tagName": "Tag name...",
       "operationId": "getUserById",
       "summary": "Get user by ID",
-      "description": "Detailed description of the endpoint..."
+      "description": "Detailed description of the endpoint...",
+      "requestBodyExample": "{\"name\": \"John\", \"email\": \"john@example.com\"}"
     },
     "help": {
       "proxyExample": "Example: If route is [route] and destination is [target], a request to [request] will be redirected to [result]",
@@ -93,8 +94,10 @@
       "headersHelp": "Set: Add or overwrite the header | Remove: Remove the header from the response",
       "conditionsHelp": "Conditions are evaluated in order. The first matching condition will override the default response.",
       "tagsHelp": "Add tags to organize and filter your routes",
-      "metadataHelp": "Additional information about the route. These fields are automatically imported from OpenAPI."
+      "metadataHelp": "Additional information about the route. These fields are automatically imported from OpenAPI.",
+      "requestBodyHelp": "Example request body. Used in Test Request and cURL example."
     },
+    "requestBodyExample": "Request Body Example",
     "metadata": "Metadata",
     "operationId": "Operation ID",
     "summary": "Summary",
