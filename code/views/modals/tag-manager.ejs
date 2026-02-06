@@ -1,0 +1,45 @@
+<!-- Tag Manager Modal -->
+<div id="tagManagerModal" class="tag-manager-modal" style="display: none;">
+  <div class="tag-manager-content">
+    <div class="tag-manager-header">
+      <h5><i class="fa fa-tags me-2"></i><%= __('form.manageTags') %></h5>
+      <button type="button" class="btn-close" onclick="closeTagManager()"></button>
+    </div>
+    <div class="tag-manager-body">
+      <div id="tagManagerList">
+        <!-- Tag list rendered by JS -->
+      </div>
+    </div>
+    <div class="tag-manager-footer">
+      <button type="button" class="btn-modern btn-modern-success" onclick="openTagCreatorFromManager()">
+        <i class="fa fa-plus"></i> <%= __('buttons.newTag') %>
+      </button>
+      <button type="button" class="btn-modern btn-modern-secondary" onclick="closeTagManager()">
+        <%= __('buttons.close') %>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Tag Creator Popup (for creating from manager) -->
+<div id="globalTagCreatorPopup" class="tag-creator-popup" style="display: none;">
+  <div class="tag-creator-content">
+    <label class="form-label-modern"><%= __('form.tagName') %></label>
+    <input type="text" class="form-control-modern" id="globalNewTagName"
+      placeholder="<%= __('form.placeholder.tagName') %>"
+      autocomplete="off">
+    <label class="form-label-modern" style="margin-top: 0.75rem;"><%= __('form.tagColor') %></label>
+    <div class="color-palette" id="globalColorPalette">
+      <!-- Color swatches rendered by JS -->
+    </div>
+    <input type="color" id="globalCustomTagColor" class="custom-color-input" value="#6366f1">
+    <div class="tag-creator-actions">
+      <button type="button" class="btn-modern btn-modern-secondary btn-sm" onclick="closeGlobalTagCreator()">
+        <%= __('buttons.cancel') %>
+      </button>
+      <button type="button" class="btn-modern btn-modern-primary btn-sm" onclick="createGlobalTag()">
+        <i class="fa fa-plus"></i> <%= __('buttons.create') %>
+      </button>
+    </div>
+  </div>
+</div>

@@ -114,41 +114,13 @@ async function checkRoute(req, res, next) {
         console.log(`[ROUTE]   - Espera activa: ${rute.esperaActiva}`);
         console.log(`[ROUTE]   - Respuesta (primeros 100 chars): ${rute.respuesta ? rute.respuesta.substring(0, 100) : 'VACÍA'}`);
 
-        // Modo espera activa
-        let customResponse = null;
-        if (rute.esperaActiva === 1) {
-            console.log(`[ROUTE] Modo espera activa ACTIVADO - esperando señal...`);
-            log.wait(method, url);
-            const itemLW = {
-                id: semaphore.generateUUID(),
-                sleep: true,
-                url: rute.ruta,
-                date: moment().format("MM/DD/YYYY HH:mm:ss:SSS"),
-                defaultResponse: rute.respuesta,
-                tiporespuesta: rute.tiporespuesta,
-                codigo: rute.codigo,
-                customHeaders: rute.customHeaders
-            };
-            sendData('addItem', itemLW);
-            await semaphore.addToListAndWait(itemLW);
-            console.log(`[ROUTE] Señal recibida, continuando...`);
-            // Guardar respuesta personalizada si existe
-            if (itemLW.customResponse !== undefined && itemLW.customResponse !== null) {
-                customResponse = itemLW.customResponse;
-                console.log(`[ROUTE] Usando respuesta personalizada:`, JSON.stringify(customResponse).substring(0, 200));
-            }
-            sendData('deleteItem', itemLW.id);
-            rute = await sqliteService.getRuta(url, method.toLowerCase());
-            console.log(`[ROUTE] Ruta recargada después de espera`);
-        }
-
         // Valores por defecto de la ruta
         let responseCode = Number(rute.codigo);
         let responseType = rute.tiporespuesta;
         let responseBody = rute.respuesta;
         let responseHeaders = rute.customHeaders;
 
-        // Evaluar condiciones (si existen)
+        // Evaluar condiciones ANTES de la espera activa (para mostrar la respuesta real en pending list)
         try {
             const conditions = await sqliteService.getConditionalResponses(rute.id);
             if (conditions && conditions.length > 0) {
@@ -194,6 +166,60 @@ async function checkRoute(req, res, next) {
         } catch (condErr) {
             console.error(`[ROUTE] Error evaluando condiciones: ${condErr.message}`);
             // Continuar con respuesta por defecto
+        }
+
+        // Modo espera activa (ahora con los valores ya evaluados por criterios)
+        let customResponse = null;
+        let availableConditions = [];
+        if (rute.esperaActiva === 1) {
+            console.log(`[ROUTE] Modo espera activa ACTIVADO - esperando señal...`);
+            log.wait(method, url);
+
+            // Obtener condiciones disponibles para esta ruta (para selector en pending list)
+            try {
+                const allConditions = await sqliteService.getConditionalResponses(rute.id);
+                if (allConditions && allConditions.length > 0) {
+                    availableConditions = allConditions.map(c => ({
+                        id: c.id,
+                        nombre: c.nombre || `Condición ${c.id}`,
+                        codigo: c.codigo,
+                        tiporespuesta: c.tiporespuesta,
+                        respuesta: c.respuesta,
+                        customHeaders: c.customHeaders
+                    }));
+                }
+            } catch (condErr) {
+                console.error(`[ROUTE] Error obteniendo condiciones para pending list: ${condErr.message}`);
+            }
+
+            const itemLW = {
+                id: semaphore.generateUUID(),
+                sleep: true,
+                url: rute.ruta,
+                method: method,
+                date: moment().format("MM/DD/YYYY HH:mm:ss:SSS"),
+                defaultResponse: responseBody,      // Respuesta después de evaluar criterios
+                tiporespuesta: responseType,        // Tipo después de evaluar criterios
+                codigo: responseCode,               // Código después de evaluar criterios
+                customHeaders: responseHeaders,     // Headers después de evaluar criterios
+                requestHeaders: req.headers,
+                conditions: availableConditions,    // Condiciones disponibles para seleccionar
+                originalResponse: rute.respuesta,   // Respuesta original (sin criterios)
+                originalCode: rute.codigo,          // Código original
+                originalType: rute.tiporespuesta,   // Tipo original
+                originalHeaders: rute.customHeaders // Headers originales
+            };
+            sendData('addItem', itemLW);
+            await semaphore.addToListAndWait(itemLW);
+            console.log(`[ROUTE] Señal recibida, continuando...`);
+            // Guardar respuesta personalizada si existe
+            if (itemLW.customResponse !== undefined && itemLW.customResponse !== null) {
+                customResponse = itemLW.customResponse;
+                console.log(`[ROUTE] Usando respuesta personalizada:`, JSON.stringify(customResponse).substring(0, 200));
+            }
+            sendData('deleteItem', itemLW.id);
+            rute = await sqliteService.getRuta(url, method.toLowerCase());
+            console.log(`[ROUTE] Ruta recargada después de espera`);
         }
 
         // Aplicar personalizaciones de espera activa (si existen)

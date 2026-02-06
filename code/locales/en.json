@@ -16,7 +16,8 @@
     "pendingList": "Pending",
     "normalize": "Normalize",
     "normalizeTitle": "Reorganize orders sequentially",
-    "importOpenApi": "Import OpenAPI"
+    "importOpenApi": "Import OpenAPI",
+    "tools": "Tools"
   },
   "table": {
     "id": "id",
@@ -56,7 +57,8 @@
     "clientError4xx": "4xx (Client error)",
     "serverError5xx": "5xx (Server error)",
     "yes": "Yes",
-    "no": "No"
+    "no": "No",
+    "tags": "Tags"
   },
   "form": {
     "responseType": "Response Type",
@@ -77,7 +79,11 @@
       "testUrl": "/api/users/123",
       "headersJson": "{\"Content-Type\": \"application/json\"}",
       "leaveEmpty": "Leave empty to use default response",
-      "criteria": "headers['x-api-key'] === 'test' || body.debug === true"
+      "criteria": "headers['x-api-key'] === 'test' || body.debug === true",
+      "tagName": "Tag name...",
+      "operationId": "getUserById",
+      "summary": "Get user by ID",
+      "description": "Detailed description of the endpoint..."
     },
     "help": {
       "proxyExample": "Example: If route is [route] and destination is [target], a request to [request] will be redirected to [result]",
@@ -85,15 +91,27 @@
       "waitModeDesc": "Requests will be paused until you manually release them from \"Pending List\".",
       "routeActiveDesc": "If disabled, requests will not be intercepted by this route.",
       "headersHelp": "Set: Add or overwrite the header | Remove: Remove the header from the response",
-      "conditionsHelp": "Conditions are evaluated in order. The first matching condition will override the default response."
+      "conditionsHelp": "Conditions are evaluated in order. The first matching condition will override the default response.",
+      "tagsHelp": "Add tags to organize and filter your routes",
+      "metadataHelp": "Additional information about the route. These fields are automatically imported from OpenAPI."
     },
+    "metadata": "Metadata",
+    "operationId": "Operation ID",
+    "summary": "Summary",
+    "description": "Description",
     "conditionalResponses": "Conditional Responses",
     "conditionName": "Name (optional)",
     "criteria": "Criteria",
     "useDefault": "Use default",
     "availableVariables": "Available variables",
     "availableFunctions": "Available functions",
-    "criteriaExamples": "View criteria examples"
+    "criteriaExamples": "View criteria examples",
+    "tags": "Tags",
+    "tagName": "Tag name",
+    "tagColor": "Tag color",
+    "tagColorHint": "Only for new tags",
+    "manageTags": "Manage Tags",
+    "noMatchingTags": "No matching tags"
   },
   "responseTypes": {
     "json": "JSON",
@@ -124,12 +142,16 @@
     "release": "Release",
     "restore": "Restore",
     "openNewTab": "Open in new tab",
-    "duplicate": "Duplicate"
+    "duplicate": "Duplicate",
+    "newTag": "New Tag",
+    "create": "Create",
+    "manage": "Manage"
   },
   "modal": {
     "confirmDelete": "Confirm Deletion",
     "deleteMessage": "Are you sure you want to delete this route?",
     "deleteWarning": "This action cannot be undone.",
+    "deleteTagConfirm": "Delete tag",
     "curlExample": "Request Example",
     "connectionStatus": "Connection Status",
     "pendingRequests": "Pending List",
@@ -152,7 +174,13 @@
     "type": "Type",
     "responseBody": "Response body",
     "customHeadersJson": "Custom headers (JSON)",
-    "noPending": "No pending requests"
+    "noPending": "No pending requests",
+    "requestHeaders": "Request headers",
+    "viewRequestHeaders": "View request headers",
+    "noRequestHeaders": "No headers",
+    "selectCondition": "Load response",
+    "currentResponse": "Current response (evaluated)",
+    "originalResponse": "Original response (no criteria)"
   },
   "connection": {
     "connected": "Connected",
@@ -197,7 +225,8 @@
     "xmlInvalid": "Invalid XML",
     "soapInvalid": "Invalid SOAP",
     "htmlInvalid": "Invalid HTML",
-    "orderPositive": "Order must be a positive number"
+    "orderPositive": "Order must be a positive number",
+    "tagNameRequired": "Tag name is required"
   },
   "confirm": {
     "normalizeOrder": "Reorganize all orders sequentially?\n\nNormal routes will have order 1, 2, 3...\nProxies will be at the end with order 99999999, 99999998...",
@@ -207,11 +236,13 @@
     "normalizing": "Error normalizing orders",
     "savingConditions": "Error saving conditions",
     "movingRoute": "Error moving route",
-    "updatingOrder": "Error updating order"
+    "updatingOrder": "Error updating order",
+    "creatingTag": "Error creating tag"
   },
   "empty": {
     "noHeaders": "No headers configured",
-    "noConditions": "No conditions configured. Default response will always be used."
+    "noConditions": "No conditions configured. Default response will always be used.",
+    "noTags": "No tags. Create a new one."
   },
   "actions": {
     "moveUp": "Move up",
@@ -289,7 +320,9 @@
     "errorTitle": "Import Error",
     "successMessage": "Import completed",
     "importedCount": "imported",
-    "skippedCount": "skipped"
+    "skippedCount": "skipped",
+    "applyTags": "Apply tags to imported routes",
+    "tagsHelp": "Selected tags will be applied to all imported routes"
   },
   "bulk": {
     "selectAll": "Select all",

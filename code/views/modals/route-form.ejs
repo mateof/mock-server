@@ -171,6 +171,84 @@
           </label>
         </div>
 
+        <!-- Metadata (operationId, summary, description) -->
+        <div class="collapsible-section" id="divMetadata" style="margin-top: 1.25rem;">
+          <div class="collapsible-header" onclick="toggleMetadataSection()">
+            <h4><i class="fa fa-info-circle"></i> <%= __('form.metadata') %></h4>
+          </div>
+          <div class="collapsible-body">
+            <small style="color: var(--text-muted); margin-bottom: 1rem; display: block;">
+              <%= __('form.help.metadataHelp') %>
+            </small>
+            <div class="form-group-modern">
+              <label class="form-label-modern" for="operationId"><%= __('form.operationId') %></label>
+              <input type="text" class="form-control-modern" id="operationId" name="operationId" placeholder="<%= __('form.placeholder.operationId') %>">
+            </div>
+            <div class="form-group-modern">
+              <label class="form-label-modern" for="summary"><%= __('form.summary') %></label>
+              <input type="text" class="form-control-modern" id="summary" name="summary" placeholder="<%= __('form.placeholder.summary') %>">
+            </div>
+            <div class="form-group-modern">
+              <label class="form-label-modern" for="description"><%= __('form.description') %></label>
+              <textarea class="form-control-modern" id="description" name="description" rows="3" placeholder="<%= __('form.placeholder.description') %>"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tags -->
+        <div class="collapsible-section" id="divTags" style="margin-top: 1.25rem;">
+          <div class="collapsible-header" onclick="toggleTagsSection()">
+            <h4><i class="fa fa-tags"></i> <%= __('form.tags') %></h4>
+            <button type="button" class="btn-modern btn-modern-success" onclick="event.stopPropagation(); TagsModule.openCreator()">
+              <i class="fa fa-plus"></i> <%= __('buttons.newTag') %>
+            </button>
+          </div>
+          <div class="collapsible-body">
+            <small style="color: var(--text-muted); margin-bottom: 1rem; display: block;">
+              <%= __('form.help.tagsHelp') %>
+            </small>
+            <div id="tagsSelector" class="tags-selector">
+              <!-- Tag chips will be rendered here -->
+            </div>
+            <div id="noTagsMsg" class="no-tags-msg" style="display: none;">
+              <%= __('empty.noTags') %>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tag Creator Popup -->
+        <div id="tagCreatorPopup" class="tag-creator-popup" style="display: none;">
+          <div class="tag-creator-content">
+            <label class="form-label-modern"><%= __('form.tagName') %></label>
+            <input type="text" class="form-control-modern" id="newTagName"
+              placeholder="<%= __('form.placeholder.tagName') %>"
+              oninput="TagsModule.filterSuggestions()"
+              autocomplete="off">
+
+            <!-- Existing tags suggestions -->
+            <div id="tagSuggestions" class="tag-suggestions">
+              <!-- Rendered by JS -->
+            </div>
+
+            <label class="form-label-modern" style="margin-top: 0.75rem;"><%= __('form.tagColor') %></label>
+            <small style="color: var(--text-muted); display: block; margin-bottom: 0.5rem;">
+              <%= __('form.tagColorHint') %>
+            </small>
+            <div class="color-palette" id="colorPalette">
+              <!-- Color swatches rendered by JS -->
+            </div>
+            <input type="color" id="customTagColor" class="custom-color-input" value="#6366f1">
+            <div class="tag-creator-actions">
+              <button type="button" class="btn-modern btn-modern-secondary btn-sm" onclick="TagsModule.closeCreator()">
+                <%= __('buttons.cancel') %>
+              </button>
+              <button type="button" class="btn-modern btn-modern-primary btn-sm" onclick="TagsModule.createOrAddTag()">
+                <i class="fa fa-plus"></i> <%= __('buttons.add') %>
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- Headers Personalizados -->
         <div class="collapsible-section" id="divHeaders" style="margin-top: 1.25rem;">
           <div class="collapsible-header" onclick="toggleHeadersSection()">

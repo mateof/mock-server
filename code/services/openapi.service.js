@@ -156,6 +156,9 @@ function generateRoutes(spec, basePath) {
             const { path: finalPath, isRegex } = convertPathToRegex(fullPath);
             const { statusCode, responseBody } = extractBestResponse(operation, isSwagger2);
 
+            // Extract tags from operation (OpenAPI tags)
+            const operationTags = operation.tags || [];
+
             routes.push({
                 tipo: method,
                 ruta: finalPath,
@@ -165,8 +168,10 @@ function generateRoutes(spec, basePath) {
                 isRegex: isRegex ? 1 : 0,
                 activo: 1,
                 esperaActiva: 0,
-                _operationId: operation.operationId || null,
-                _summary: operation.summary || operation.description || null,
+                operationId: operation.operationId || null,
+                summary: operation.summary || null,
+                description: operation.description || null,
+                openApiTags: operationTags, // Tags from OpenAPI spec
                 _conflict: false,
                 _existingId: null
             });
