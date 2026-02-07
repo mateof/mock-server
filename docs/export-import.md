@@ -213,6 +213,9 @@ On startup, Mock Server:
 1. Creates the `data/import` directory if it doesn't exist
 2. Scans the directory (including subdirectories) for valid import files
 3. Imports all found files using the configured conflict strategy
+4. **Deletes successfully imported files and empty directories** after import
+
+> **Note:** Files are only deleted on startup auto-import. When importing manually through the UI, files remain in the import directory.
 
 ### Environment Variables for Docker
 
@@ -551,3 +554,5 @@ docker run -d \
 - The import process is atomic - if any error occurs, partial changes may have been applied
 - Git repository clones are automatically deleted after import
 - SSH keys provided via API or environment variables are deleted after use for security
+- **Startup auto-import cleanup:** When files are imported during startup, they are automatically deleted after successful import. Empty directories are also removed, but the main `data/import` directory is preserved
+- Files imported via the UI (Import Folder tab) are NOT deleted - only startup imports trigger cleanup

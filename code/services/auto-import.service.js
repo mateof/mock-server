@@ -64,20 +64,24 @@ async function runStartupImport() {
         }
     }
 
-    // Check for files in import directory
-    await importFromDirectory(IMPORT_DIR, ENV_CONFLICT_STRATEGY);
+    // Check for files in import directory (delete after import on startup)
+    await importFromDirectory(IMPORT_DIR, ENV_CONFLICT_STRATEGY, true);
 }
 
 /**
  * Import all valid files from a directory (recursively)
  * Supports: .zip files, .json files (data.json format), .xml files (data.xml format)
+ * @param {string} directory - Directory to scan for import files
+ * @param {string} conflictStrategy - How to handle conflicts: 'skip', 'overwrite', 'duplicate'
+ * @param {boolean} deleteAfterImport - If true, delete files and folders after successful import
  */
-async function importFromDirectory(directory, conflictStrategy = 'skip') {
+async function importFromDirectory(directory, conflictStrategy = 'skip', deleteAfterImport = false) {
     if (!fs.existsSync(directory)) {
-        return { imported: 0, errors: [] };
+        return { imported: 0, errors: [], deleted: [] };
     }
 
-    const results = { imported: 0, errors: [] };
+    const results = { imported: 0, errors: [], deleted: [] };
+    const importedFiles = []; // Track successfully imported files (with their parent folder info)
 
     const processDirectory = async (dir) => {
         const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -95,18 +99,24 @@ async function importFromDirectory(directory, conflictStrategy = 'skip') {
                 const baseName = path.basename(entry.name, ext).toLowerCase();
 
                 try {
+                    let imported = false;
                     if (ext === '.zip') {
                         console.log(`[AUTO-IMPORT] Importing ZIP file: ${fullPath}`);
                         await importZipFile(fullPath, conflictStrategy);
-                        results.imported++;
+                        imported = true;
                     } else if (ext === '.json' && (baseName === 'data' || baseName.includes('export') || baseName.includes('mock'))) {
                         console.log(`[AUTO-IMPORT] Importing JSON file: ${fullPath}`);
                         await importJsonFile(fullPath, conflictStrategy);
-                        results.imported++;
+                        imported = true;
                     } else if (ext === '.xml' && (baseName === 'data' || baseName.includes('export') || baseName.includes('mock'))) {
                         console.log(`[AUTO-IMPORT] Importing XML file: ${fullPath}`);
                         await importXmlFile(fullPath, conflictStrategy);
+                        imported = true;
+                    }
+
+                    if (imported) {
                         results.imported++;
+                        importedFiles.push({ file: fullPath, dir: dir });
                     }
                 } catch (error) {
                     console.error(`[AUTO-IMPORT] Error importing ${fullPath}:`, error.message);
@@ -120,6 +130,58 @@ async function importFromDirectory(directory, conflictStrategy = 'skip') {
 
     if (results.imported > 0) {
         console.log(`[AUTO-IMPORT] Imported ${results.imported} file(s) from ${directory}`);
+    }
+
+    // Delete imported files and their parent folders if requested
+    if (deleteAfterImport && importedFiles.length > 0) {
+        console.log(`[AUTO-IMPORT] Cleaning up imported files and folders...`);
+
+        // Collect unique parent directories that should be deleted entirely
+        const foldersToDelete = new Set();
+        const filesToDelete = [];
+
+        for (const item of importedFiles) {
+            // If the file is in a subdirectory of the main import directory, mark the folder for deletion
+            if (item.dir !== directory && item.dir !== IMPORT_DIR) {
+                // Find the top-level subfolder within the import directory
+                let currentDir = item.dir;
+                while (path.dirname(currentDir) !== directory && path.dirname(currentDir) !== IMPORT_DIR) {
+                    currentDir = path.dirname(currentDir);
+                }
+                foldersToDelete.add(currentDir);
+            } else {
+                // File is directly in the import directory, just delete the file
+                filesToDelete.push(item.file);
+            }
+        }
+
+        // Delete entire folders (recursively)
+        for (const folder of foldersToDelete) {
+            try {
+                if (fs.existsSync(folder)) {
+                    fs.rmSync(folder, { recursive: true, force: true });
+                    results.deleted.push(folder);
+                    console.log(`[AUTO-IMPORT] Deleted folder: ${folder}`);
+                }
+            } catch (error) {
+                console.error(`[AUTO-IMPORT] Error deleting folder ${folder}:`, error.message);
+            }
+        }
+
+        // Delete individual files that were directly in the import directory
+        for (const filePath of filesToDelete) {
+            try {
+                if (fs.existsSync(filePath)) {
+                    fs.unlinkSync(filePath);
+                    results.deleted.push(filePath);
+                    console.log(`[AUTO-IMPORT] Deleted file: ${filePath}`);
+                }
+            } catch (error) {
+                console.error(`[AUTO-IMPORT] Error deleting file ${filePath}:`, error.message);
+            }
+        }
+
+        console.log(`[AUTO-IMPORT] Cleanup complete. Deleted ${results.deleted.length} item(s)`);
     }
 
     return results;
