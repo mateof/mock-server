@@ -72,6 +72,29 @@ function routesToXml(data) {
                     xml += '      </condition>\n';
                 });
                 xml += '    </conditions>\n';
+            } else if (key === 'fallbacks' && Array.isArray(value) && value.length > 0) {
+                xml += '    <fallbacks>\n';
+                value.forEach(fb => {
+                    xml += '      <fallback>\n';
+                    Object.entries(fb).forEach(([fk, fv]) => {
+                        // Handle nested conditions within fallback
+                        if (fk === 'conditions' && Array.isArray(fv) && fv.length > 0) {
+                            xml += '        <conditions>\n';
+                            fv.forEach(cond => {
+                                xml += '          <condition>\n';
+                                Object.entries(cond).forEach(([ck, cv]) => {
+                                    xml += `            <${ck}>${escapeXml(cv)}</${ck}>\n`;
+                                });
+                                xml += '          </condition>\n';
+                            });
+                            xml += '        </conditions>\n';
+                        } else if (fv !== null && fv !== undefined) {
+                            xml += `        <${fk}>${escapeXml(fv)}</${fk}>\n`;
+                        }
+                    });
+                    xml += '      </fallback>\n';
+                });
+                xml += '    </fallbacks>\n';
             } else if (value !== null && value !== undefined) {
                 xml += `    <${key}>${escapeXml(value)}</${key}>\n`;
             }
@@ -172,6 +195,59 @@ function xmlToRoutes(xmlContent) {
             });
         }
 
+        // Parse fallbacks (for proxy routes)
+        const fallbacksMatch = routeXml.match(/<fallbacks>([\s\S]*?)<\/fallbacks>/);
+        if (fallbacksMatch) {
+            const fallbackXmls = getTagContent(fallbacksMatch[1], 'fallback');
+            route.fallbacks = fallbackXmls.map(fbXml => {
+                const fb = {};
+                const fbFields = ['id', 'orden', 'nombre', 'path_pattern', 'error_types', 'codigo', 'tiporespuesta', 'respuesta', 'customHeaders', 'activo'];
+                fbFields.forEach(field => {
+                    const match = fbXml.match(new RegExp(`<${field}>([\\s\\S]*?)<\\/${field}>`));
+                    if (match) {
+                        let value = match[1].trim()
+                            .replace(/&lt;/g, '<')
+                            .replace(/&gt;/g, '>')
+                            .replace(/&quot;/g, '"')
+                            .replace(/&apos;/g, "'")
+                            .replace(/&amp;/g, '&');
+                        if (['orden', 'activo'].includes(field)) {
+                            value = parseInt(value) || 0;
+                        }
+                        fb[field] = value;
+                    }
+                });
+
+                // Parse conditions within this fallback
+                const fbConditionsMatch = fbXml.match(/<conditions>([\s\S]*?)<\/conditions>/);
+                if (fbConditionsMatch) {
+                    const conditionXmls = getTagContent(fbConditionsMatch[1], 'condition');
+                    fb.conditions = conditionXmls.map(condXml => {
+                        const cond = {};
+                        const condFields = ['id', 'orden', 'nombre', 'criteria', 'codigo', 'tiporespuesta', 'respuesta', 'customHeaders', 'activo'];
+                        condFields.forEach(field => {
+                            const match = condXml.match(new RegExp(`<${field}>([\\s\\S]*?)<\\/${field}>`));
+                            if (match) {
+                                let value = match[1].trim()
+                                    .replace(/&lt;/g, '<')
+                                    .replace(/&gt;/g, '>')
+                                    .replace(/&quot;/g, '"')
+                                    .replace(/&apos;/g, "'")
+                                    .replace(/&amp;/g, '&');
+                                if (['orden', 'activo'].includes(field)) {
+                                    value = parseInt(value) || 0;
+                                }
+                                cond[field] = value;
+                            }
+                        });
+                        return cond;
+                    });
+                }
+
+                return fb;
+            });
+        }
+
         return route;
     };
 
@@ -250,6 +326,29 @@ router.get('/export', async (req, res) => {
                 });
             });
             route.conditions = conditions;
+
+            // Get proxy fallbacks for proxy routes
+            if (route.tiporespuesta === 'proxy') {
+                const fallbacks = await new Promise((resolve, reject) => {
+                    db.all('SELECT * FROM proxy_fallbacks WHERE route_id = ? ORDER BY orden ASC', [route.id], (err, rows) => {
+                        if (err) reject(err);
+                        else resolve(rows || []);
+                    });
+                });
+
+                // Get conditions for each fallback
+                for (const fallback of fallbacks) {
+                    const fallbackConditions = await new Promise((resolve, reject) => {
+                        db.all('SELECT * FROM proxy_fallback_conditions WHERE fallback_id = ? ORDER BY orden ASC', [fallback.id], (err, rows) => {
+                            if (err) reject(err);
+                            else resolve(rows || []);
+                        });
+                    });
+                    fallback.conditions = fallbackConditions;
+                }
+
+                route.fallbacks = fallbacks;
+            }
         }
 
         // Get all tags
@@ -470,6 +569,14 @@ router.post('/import', upload.single('file'), async (req, res) => {
                         });
                     });
 
+                    // Delete old fallbacks
+                    await new Promise((resolve, reject) => {
+                        db.run('DELETE FROM proxy_fallbacks WHERE route_id = ?', [existing.id], (err) => {
+                            if (err) reject(err);
+                            else resolve();
+                        });
+                    });
+
                     newRouteId = existing.id;
                     results.routes.updated++;
                 } else {
@@ -530,6 +637,44 @@ router.post('/import', upload.single('file'), async (req, res) => {
                             });
                     });
                     results.conditions.imported++;
+                }
+            }
+
+            // Import fallbacks for proxy routes
+            if (route.fallbacks && route.fallbacks.length > 0 && newRouteId) {
+                for (const fb of route.fallbacks) {
+                    // Ensure error_types is stored as JSON string
+                    const errorTypes = typeof fb.error_types === 'string' ? fb.error_types : JSON.stringify(fb.error_types || ['all']);
+                    const newFallbackId = await new Promise((resolve, reject) => {
+                        db.run(`INSERT INTO proxy_fallbacks (route_id, orden, nombre, path_pattern, error_types, codigo, tiporespuesta, respuesta, customHeaders, activo)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                            [newRouteId, fb.orden || 0, fb.nombre, fb.path_pattern, errorTypes,
+                            fb.codigo || '200', fb.tiporespuesta || 'json', fb.respuesta, fb.customHeaders, fb.activo ?? 1],
+                            function(err) {
+                                if (err) reject(err);
+                                else resolve(this.lastID);
+                            });
+                    });
+                    if (!results.fallbacks) results.fallbacks = { imported: 0 };
+                    results.fallbacks.imported++;
+
+                    // Import conditions for this fallback
+                    if (fb.conditions && fb.conditions.length > 0 && newFallbackId) {
+                        for (const cond of fb.conditions) {
+                            await new Promise((resolve, reject) => {
+                                db.run(`INSERT INTO proxy_fallback_conditions (fallback_id, orden, nombre, criteria, codigo, tiporespuesta, respuesta, customHeaders, activo)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                                    [newFallbackId, cond.orden || 0, cond.nombre, cond.criteria, cond.codigo,
+                                    cond.tiporespuesta, cond.respuesta, cond.customHeaders, cond.activo ?? 1],
+                                    function(err) {
+                                        if (err) reject(err);
+                                        else resolve();
+                                    });
+                            });
+                            if (!results.fallbackConditions) results.fallbackConditions = { imported: 0 };
+                            results.fallbackConditions.imported++;
+                        }
+                    }
                 }
             }
         }
@@ -610,6 +755,13 @@ router.get('/export/preview', async (req, res) => {
             });
         });
 
+        const fallbacksCount = await new Promise((resolve, reject) => {
+            db.get('SELECT COUNT(*) as count FROM proxy_fallbacks', [], (err, row) => {
+                if (err) reject(err);
+                else resolve(row?.count || 0);
+            });
+        });
+
         const routesWithFiles = await new Promise((resolve, reject) => {
             db.get('SELECT COUNT(*) as count FROM rutas WHERE filePath IS NOT NULL AND filePath != ""', [], (err, row) => {
                 if (err) reject(err);
@@ -634,6 +786,7 @@ router.get('/export/preview', async (req, res) => {
                 routes: routesCount,
                 tags: tagsCount,
                 conditions: conditionsCount,
+                fallbacks: fallbacksCount,
                 files: routesWithFiles
             },
             filesSize: filesSize,
