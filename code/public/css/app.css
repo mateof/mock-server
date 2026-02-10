@@ -918,6 +918,299 @@ body {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
+/* ===== PROXY FALLBACKS ===== */
+.fallback-card {
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  margin-bottom: 1rem;
+  background: var(--surface-primary);
+}
+
+.fallback-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--surface-secondary);
+  border-radius: var(--border-radius) var(--border-radius) 0 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.fallback-drag-handle {
+  cursor: grab;
+  color: var(--text-muted);
+  padding: 0.25rem 0.5rem;
+}
+
+.fallback-drag-handle:active {
+  cursor: grabbing;
+}
+
+.fallback-name {
+  flex: 1;
+  max-width: 250px;
+}
+
+.fallback-body {
+  padding: 1rem;
+}
+
+.fallback-overrides {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px dashed var(--border-color);
+}
+
+.error-types-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.checkbox-modern {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox-modern input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--primary);
+}
+
+.sortable-fallbacks .fallback-card.fallback-ghost {
+  opacity: 0.4;
+  background: var(--primary-light);
+}
+
+.sortable-fallbacks .fallback-card.sortable-chosen {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Fallback Headers Section */
+.fallback-headers-section {
+  margin-top: 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  overflow: hidden;
+}
+
+.fallback-headers-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  background: var(--surface-secondary);
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.fallback-headers-header:hover {
+  background: var(--surface-tertiary);
+}
+
+.fallback-headers-header i.fa-list-ul {
+  margin-right: 0.5rem;
+}
+
+.fallback-headers-chevron {
+  transition: transform var(--transition-fast);
+}
+
+.fallback-headers-chevron.rotated {
+  transform: rotate(180deg);
+}
+
+.fallback-headers-body {
+  padding: 0.75rem;
+  background: var(--surface-primary);
+}
+
+.empty-state-mini {
+  padding: 0.5rem;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+/* Fallback Conditions Section */
+.fallback-conditions-section {
+  margin-top: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  overflow: hidden;
+}
+
+.fallback-conditions-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  background: var(--surface-secondary);
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.fallback-conditions-header:hover {
+  background: var(--surface-tertiary);
+}
+
+.fallback-conditions-header i.fa-code-branch {
+  margin-right: 0.5rem;
+}
+
+.fallback-conditions-chevron {
+  transition: transform var(--transition-fast);
+}
+
+.fallback-conditions-chevron.rotated {
+  transform: rotate(180deg);
+}
+
+.fallback-conditions-body {
+  padding: 0.75rem;
+  background: var(--surface-primary);
+}
+
+/* Fallback Condition Card */
+.fallback-condition-card {
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  margin-bottom: 0.75rem;
+  background: var(--bg-card);
+}
+
+.fallback-condition-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  background: var(--surface-secondary);
+  border-radius: var(--border-radius-sm) var(--border-radius-sm) 0 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.fc-drag-handle {
+  cursor: grab;
+  color: var(--text-muted);
+  padding: 0.25rem;
+}
+
+.fc-drag-handle:active {
+  cursor: grabbing;
+}
+
+.fc-name {
+  flex: 1;
+  max-width: 200px;
+  font-size: 0.875rem;
+}
+
+.fallback-condition-body {
+  padding: 0.75rem;
+}
+
+.fc-overrides {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed var(--border-color);
+}
+
+.fc-overrides .override-row {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.sortable-fallback-conditions .fallback-condition-card.sortable-ghost {
+  opacity: 0.4;
+  background: var(--primary-light);
+}
+
+/* Condition Headers Section (for route conditions) */
+.condition-headers-section {
+  margin-top: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  overflow: hidden;
+}
+
+.condition-headers-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  background: var(--surface-secondary);
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.condition-headers-header:hover {
+  background: var(--surface-tertiary);
+}
+
+.condition-headers-header i.fa-list-ul {
+  margin-right: 0.5rem;
+}
+
+.condition-headers-chevron {
+  transition: transform var(--transition-fast);
+}
+
+.condition-headers-chevron.rotated {
+  transform: rotate(180deg);
+}
+
+.condition-headers-body {
+  padding: 0.75rem;
+  background: var(--surface-primary);
+}
+
+/* Fallback Condition Headers Section */
+.fc-headers-section {
+  margin-top: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  overflow: hidden;
+}
+
+.fc-headers-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  background: var(--surface-secondary);
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.fc-headers-header:hover {
+  background: var(--surface-tertiary);
+}
+
+.fc-headers-header i.fa-list-ul {
+  margin-right: 0.5rem;
+}
+
+.fc-headers-chevron {
+  transition: transform var(--transition-fast);
+}
+
+.fc-headers-chevron.rotated {
+  transform: rotate(180deg);
+}
+
+.fc-headers-body {
+  padding: 0.75rem;
+  background: var(--surface-primary);
+}
+
 /* ===== CRITERIA HELP POPUP ===== */
 .criteria-help {
   text-align: left;
@@ -2991,4 +3284,466 @@ table.dataTable.no-footer {
   padding: 0.15rem 0.4rem;
   border-radius: 3px;
   font-size: 0.75rem;
+}
+
+/* ===== MODAL FULL-WIDTH LAYOUT ===== */
+.modal-fullwidth {
+  max-width: calc(100vw - 2rem);
+  width: 100%;
+  margin: 1rem auto;
+  height: calc(100vh - 2rem);
+}
+
+.modal-fullwidth .modal-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-fullwidth .modal-body {
+  flex: 1;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* ===== ROUTE MODAL GRID LAYOUT ===== */
+.route-modal-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  height: 100%;
+  gap: 0;
+}
+
+/* Panel de navegación lateral */
+.route-nav-panel {
+  background: var(--bg-dark);
+  border-right: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.route-nav-header {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, transparent 100%);
+}
+
+.route-nav-header i {
+  color: var(--primary);
+}
+
+.route-nav-tree {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.75rem;
+}
+
+/* Items del árbol de navegación */
+.route-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.625rem 0.875rem;
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  transition: var(--transition-fast);
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  margin-bottom: 0.25rem;
+}
+
+.route-nav-item:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+}
+
+.route-nav-item.active {
+  background: var(--primary-light);
+  color: var(--primary);
+  border-left: 3px solid var(--primary);
+}
+
+.route-nav-item i {
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.route-nav-item .nav-item-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Item principal con estilo especial */
+.route-nav-main {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  font-weight: 500;
+}
+
+.route-nav-main:hover {
+  border-color: var(--primary);
+}
+
+/* Divisor/título de sección */
+.route-nav-divider {
+  padding: 1rem 0.5rem 0.5rem;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.route-nav-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-color);
+}
+
+/* Contenedor sortable para condiciones en nav */
+.route-nav-conditions {
+  min-height: 40px;
+}
+
+.route-nav-conditions .route-nav-item {
+  padding-left: 1rem;
+}
+
+/* Contenedor para fallbacks en nav */
+.route-nav-fallbacks {
+  min-height: 20px;
+}
+
+/* Item de fallback en nav */
+.route-nav-fallback {
+  font-weight: 500;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  margin-top: 0.25rem;
+}
+
+.route-nav-fallback:hover {
+  border-color: var(--primary);
+}
+
+/* Wrapper para fallback y sus criterios (permite reordenar juntos) */
+.route-nav-fallback-wrapper {
+  margin-bottom: 0.25rem;
+}
+
+/* Contenedor para criterios de un fallback */
+.route-nav-fallback-criteria {
+  padding-left: 1rem;
+  border-left: 2px solid var(--border-color);
+  margin-left: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+/* Ghost durante drag de fallback wrapper */
+.route-nav-fallbacks .sortable-ghost {
+  opacity: 0.4;
+  background: var(--primary-light);
+  border-radius: var(--border-radius-sm);
+}
+
+/* Item de criterio en nav */
+.route-nav-criteria {
+  font-size: 0.8125rem;
+  padding: 0.5rem 0.75rem;
+  color: var(--text-muted);
+}
+
+.route-nav-criteria:hover {
+  color: var(--text-primary);
+}
+
+.route-nav-criteria i {
+  font-size: 0.7rem;
+}
+
+/* Iconos de estado en el árbol */
+.nav-status-icon {
+  font-size: 0.7rem;
+  flex-shrink: 0;
+}
+
+.nav-status-active {
+  color: var(--success);
+}
+
+.nav-status-inactive {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+
+/* Drag handle en items de navegación */
+.route-nav-item .nav-drag-handle {
+  cursor: grab;
+  color: var(--text-muted);
+  opacity: 0.4;
+  transition: opacity var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.route-nav-item:hover .nav-drag-handle {
+  opacity: 1;
+  color: var(--text-primary);
+}
+
+.route-nav-item .nav-drag-handle:active {
+  cursor: grabbing;
+}
+
+/* Ghost durante drag */
+.route-nav-conditions .sortable-ghost,
+.route-nav-fallback-criteria .sortable-ghost {
+  opacity: 0.4;
+  background: var(--primary-light);
+}
+
+/* Panel de contenido principal */
+.route-content-panel {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.5rem;
+  scroll-behavior: smooth;
+}
+
+.route-section {
+  margin-bottom: 2rem;
+}
+
+.route-section:last-child {
+  margin-bottom: 0;
+}
+
+/* ===== ANIMACIÓN FLASH PARA NAVEGACIÓN ===== */
+@keyframes flash-highlight {
+  0% {
+    background-color: var(--primary-light);
+    box-shadow: 0 0 0 4px var(--primary-light);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.flash-highlight {
+  animation: flash-highlight 1s ease-out;
+}
+
+/* Flash específico para condition-card */
+@keyframes flash-highlight-card {
+  0% {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 4px var(--primary-light), var(--shadow-glow);
+  }
+  100% {
+    border-color: var(--border-color);
+    box-shadow: none;
+  }
+}
+
+.condition-card.flash-highlight {
+  animation: flash-highlight-card 1s ease-out;
+}
+
+/* ===== CONDITION/FALLBACK CARDS COLAPSABLES ===== */
+.condition-body-collapsible,
+.fallback-body-collapsible,
+.fc-body-collapsible {
+  max-height: 2000px;
+  overflow: hidden;
+  transition: max-height 0.3s ease, padding 0.3s ease, opacity 0.3s ease;
+}
+
+.condition-body-collapsible.collapsed,
+.fallback-body-collapsible.collapsed,
+.fc-body-collapsible.collapsed {
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  opacity: 0;
+  border-top: none;
+}
+
+/* Botón toggle en header de condition */
+.btn-condition-toggle {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-xs);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.btn-condition-toggle:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+}
+
+.btn-condition-toggle i {
+  transition: transform 0.3s ease;
+}
+
+.btn-condition-toggle.collapsed i {
+  transform: rotate(-90deg);
+}
+
+/* ===== MINI SWITCH PARA ÁRBOL DE NAVEGACIÓN ===== */
+.switch-mini {
+  position: relative;
+  display: inline-flex;
+  width: 28px;
+  height: 16px;
+  flex-shrink: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.switch-mini input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider-mini {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--text-muted);
+  border-radius: 8px;
+  transition: var(--transition-fast);
+}
+
+.slider-mini:before {
+  position: absolute;
+  content: "";
+  height: 12px;
+  width: 12px;
+  left: 2px;
+  bottom: 2px;
+  background-color: white;
+  border-radius: 50%;
+  transition: var(--transition-fast);
+}
+
+.switch-mini input:checked + .slider-mini {
+  background-color: var(--success);
+}
+
+.switch-mini input:checked + .slider-mini:before {
+  transform: translateX(12px);
+}
+
+.switch-mini input:focus + .slider-mini {
+  box-shadow: 0 0 0 2px var(--primary-light);
+}
+
+/* Hover effect */
+.switch-mini:hover .slider-mini {
+  opacity: 0.85;
+}
+
+/* ===== RESPONSIVE MODAL FULLWIDTH ===== */
+
+/* Tablets y pantallas medianas */
+@media (max-width: 992px) {
+  .route-modal-layout {
+    grid-template-columns: 220px 1fr;
+  }
+
+  .route-nav-panel {
+    font-size: 0.8125rem;
+  }
+}
+
+/* Móvil y pantallas pequeñas - layout vertical */
+@media (max-width: 768px) {
+  .modal-fullwidth {
+    max-width: 100%;
+    margin: 0;
+    height: 100vh;
+    border-radius: 0;
+  }
+
+  .modal-fullwidth .modal-content {
+    border-radius: 0;
+  }
+
+  .route-modal-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .route-nav-panel {
+    border-right: none;
+    border-bottom: 1px solid var(--border-color);
+    max-height: 180px;
+    overflow: hidden;
+  }
+
+  .route-nav-tree {
+    display: flex;
+    flex-wrap: wrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0.5rem;
+    gap: 0.5rem;
+  }
+
+  .route-nav-item {
+    flex-shrink: 0;
+    white-space: nowrap;
+    margin-bottom: 0;
+  }
+
+  .route-nav-divider {
+    display: none;
+  }
+
+  .route-nav-conditions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .route-nav-conditions .route-nav-item {
+    padding-left: 0.875rem;
+  }
+}
+
+/* Pantallas muy pequeñas */
+@media (max-width: 576px) {
+  .route-content-panel {
+    padding: 1rem;
+  }
+
+  .route-nav-panel {
+    max-height: 150px;
+  }
 }

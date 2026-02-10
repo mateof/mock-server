@@ -1,4 +1,5 @@
 const sqliteService = require('../services/sqlite.service');
+const criteriaService = require('../services/criteria-evaluator.service');
 const http = require('http');
 const https = require('https');
 const zlib = require('zlib');
@@ -46,7 +47,9 @@ let proxyConfigs = [];
 async function loadProxyConfigs() {
     console.log('[PROXY] Cargando configuraciones de proxy desde BD...');
     const proxys = await sqliteService.getProxys();
-    proxyConfigs = proxys.map(p => {
+
+    // Process each proxy config and load fallback conditions
+    proxyConfigs = await Promise.all(proxys.map(async p => {
         let customHeaders = null;
         if (p.customHeaders) {
             try {
@@ -55,16 +58,204 @@ async function loadProxyConfigs() {
                 console.error(`[PROXY] Error parseando customHeaders para ${p.ruta}: ${e.message}`);
             }
         }
+
+        // Load conditions for each active fallback
+        const activeFallbacks = (p.fallbacks || []).filter(f => f.activo === 1);
+        const fallbacksWithConditions = await Promise.all(activeFallbacks.map(async f => {
+            try {
+                const conditions = await sqliteService.getFallbackConditions(f.id);
+                return { ...f, conditions: conditions || [] };
+            } catch (e) {
+                console.error(`[PROXY] Error cargando condiciones para fallback ${f.id}: ${e.message}`);
+                return { ...f, conditions: [] };
+            }
+        }));
+
         return {
+            id: p.id,
             ruta: p.ruta,
             target: p.respuesta,
             isRegex: p.isRegex === 1,
-            customHeaders
+            customHeaders,
+            timeout: p.proxy_timeout || 30000,
+            fallbacks: fallbacksWithConditions
         };
-    });
+    }));
+
     console.log(`[PROXY] Configuraciones cargadas: ${proxyConfigs.length}`);
     proxyConfigs.forEach((config, i) => {
-        console.log(`[PROXY]   ${i + 1}. ${config.ruta} -> ${config.target} (regex: ${config.isRegex})`);
+        const totalConditions = config.fallbacks.reduce((sum, f) => sum + (f.conditions?.length || 0), 0);
+        console.log(`[PROXY]   ${i + 1}. ${config.ruta} -> ${config.target} (regex: ${config.isRegex}, timeout: ${config.timeout}ms, fallbacks: ${config.fallbacks.length}, conditions: ${totalConditions})`);
+    });
+}
+
+// Determina el tipo de error para fallbacks
+function getErrorType(err, statusCode) {
+    if (err) {
+        if (err.code === 'ETIMEDOUT' || err.code === 'ESOCKETTIMEDOUT' || err.message === 'TIMEOUT') {
+            return 'timeout';
+        }
+        if (err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND' || err.code === 'ECONNRESET' || err.code === 'EHOSTUNREACH') {
+            return 'connection';
+        }
+    }
+    if (statusCode && statusCode >= 500 && statusCode < 600) {
+        return 'http5xx';
+    }
+    return null;
+}
+
+// Busca un fallback que coincida con el path y tipo de error
+function findMatchingFallback(config, subPath, errorType) {
+    if (!config.fallbacks || config.fallbacks.length === 0) {
+        return null;
+    }
+
+    console.log(`[PROXY] Buscando fallback para path="${subPath}", errorType="${errorType}"`);
+
+    for (const fallback of config.fallbacks) {
+        // Parsear error_types si es string
+        let errorTypes = fallback.error_types;
+        if (typeof errorTypes === 'string') {
+            try {
+                errorTypes = JSON.parse(errorTypes);
+            } catch (e) {
+                errorTypes = [];
+            }
+        }
+
+        // Verificar si el tipo de error coincide
+        if (!errorTypes.includes(errorType) && !errorTypes.includes('all')) {
+            continue;
+        }
+
+        // Verificar si el path coincide con el patrón regex
+        try {
+            const regex = new RegExp(fallback.path_pattern);
+            if (regex.test(subPath)) {
+                console.log(`[PROXY] Fallback encontrado: "${fallback.nombre}" (pattern: ${fallback.path_pattern})`);
+                return fallback;
+            }
+        } catch (e) {
+            console.error(`[PROXY] Error en regex de fallback: ${e.message}`);
+        }
+    }
+
+    console.log(`[PROXY] No se encontró fallback coincidente`);
+    return null;
+}
+
+// Envía la respuesta de fallback
+function sendFallbackResponse(res, fallback, req, requestPath, proxyConfig, errorType, requestStart) {
+    // Start with fallback defaults
+    let responseCode = parseInt(fallback.codigo) || 200;
+    let responseType = fallback.tiporespuesta || 'json';
+    let responseBody = fallback.respuesta || '';
+    let responseHeadersJson = fallback.customHeaders;
+    let matchedCondition = null;
+
+    // Evaluate fallback conditions if any
+    if (fallback.conditions && fallback.conditions.length > 0) {
+        console.log(`[PROXY] Evaluando ${fallback.conditions.length} condiciones del fallback...`);
+
+        // Build context for evaluation
+        const evalContext = {
+            headers: req.headers || {},
+            body: req.body || {},
+            path: req.path || requestPath,
+            query: req.query || {},
+            params: {},
+            method: (req.method || 'GET').toLowerCase(),
+            errorType: errorType
+        };
+
+        // Evaluate conditions in order (first match wins)
+        for (const condition of fallback.conditions) {
+            if (!condition.activo) continue;
+
+            const evalResult = criteriaService.evaluateCriteria(condition.criteria, evalContext);
+            if (evalResult.success && evalResult.result) {
+                console.log(`[PROXY] Condición matched: "${condition.nombre || condition.id}"`);
+                matchedCondition = condition;
+
+                // Apply overrides from condition
+                if (condition.codigo) {
+                    responseCode = parseInt(condition.codigo);
+                    console.log(`[PROXY]   → Código: ${responseCode}`);
+                }
+                if (condition.tiporespuesta) {
+                    responseType = condition.tiporespuesta;
+                    console.log(`[PROXY]   → Tipo: ${responseType}`);
+                }
+                if (condition.respuesta !== null && condition.respuesta !== undefined && condition.respuesta !== '') {
+                    responseBody = condition.respuesta;
+                    console.log(`[PROXY]   → Respuesta personalizada`);
+                }
+                if (condition.customHeaders) {
+                    responseHeadersJson = condition.customHeaders;
+                    console.log(`[PROXY]   → Headers personalizados`);
+                }
+                break; // First matching condition wins
+            }
+        }
+    }
+
+    // Parse custom headers
+    let customHeaders = {};
+    if (responseHeadersJson) {
+        try {
+            let headers = responseHeadersJson;
+            if (typeof headers === 'string') {
+                headers = JSON.parse(headers);
+            }
+            if (Array.isArray(headers)) {
+                headers.forEach(h => {
+                    if (h.action === 'set' && h.name) {
+                        customHeaders[h.name.toLowerCase()] = h.value || '';
+                    }
+                });
+            }
+        } catch (e) {
+            console.error(`[PROXY] Error parseando customHeaders de fallback: ${e.message}`);
+        }
+    }
+
+    // Determine content-type
+    const contentTypes = {
+        'json': 'application/json; charset=utf-8',
+        'xml': 'application/xml; charset=utf-8',
+        'text': 'text/plain; charset=utf-8',
+        'html': 'text/html; charset=utf-8'
+    };
+    const contentType = contentTypes[responseType] || 'text/plain; charset=utf-8';
+
+    const responseHeaders = {
+        'Content-Type': contentType,
+        'X-Mock-Fallback': 'true',
+        'X-Mock-Fallback-Name': fallback.nombre || 'unnamed',
+        'X-Mock-Error-Type': errorType,
+        ...(matchedCondition ? { 'X-Mock-Fallback-Condition': matchedCondition.nombre || matchedCondition.id } : {}),
+        ...customHeaders
+    };
+
+    res.writeHead(responseCode, responseHeaders);
+    res.end(responseBody);
+
+    const duration = Date.now() - requestStart;
+    console.log(`[PROXY] Fallback enviado: ${responseCode} en ${duration}ms (${fallback.nombre}${matchedCondition ? ` → ${matchedCondition.nombre}` : ''})`);
+
+    // Log para el panel
+    log.proxyDetailed({
+        method: req.method,
+        url: requestPath,
+        target: proxyConfig.target,
+        targetFull: `FALLBACK: ${fallback.nombre || 'unnamed'}${matchedCondition ? ` (${matchedCondition.nombre})` : ''}`,
+        statusCode: responseCode,
+        duration,
+        requestHeaders: {},
+        requestBody: null,
+        responseHeaders,
+        responseBody: { type: 'fallback', data: responseBody, errorType, condition: matchedCondition?.nombre }
     });
 }
 
@@ -227,6 +418,7 @@ async function configureProxy(app) {
             delete options.headers['connection']; // Evitar keep-alive issues
 
             console.log(`[PROXY] Iniciando petición al servidor destino...`);
+            console.log(`[PROXY] Timeout configurado: ${proxyConfig.timeout}ms`);
 
             // Capturar request body para el log
             let requestBodyForLog = null;
@@ -239,10 +431,36 @@ async function configureProxy(app) {
             delete requestHeadersForLog['authorization'];
             delete requestHeadersForLog['cookie'];
 
+            // Calcular subPath para fallback matching
+            const subPath = targetPath;
+
+            // Control de timeout
+            let timeoutTriggered = false;
+            let timeoutId = null;
+
             const proxyReq = httpModule.request(options, (proxyRes) => {
+                // Limpiar timeout si la respuesta llegó
+                if (timeoutId) {
+                    clearTimeout(timeoutId);
+                    timeoutId = null;
+                }
+
                 console.log(`[PROXY] Respuesta recibida: ${proxyRes.statusCode}`);
                 console.log(`[PROXY] Content-Encoding: ${proxyRes.headers['content-encoding'] || 'none'}`);
                 console.log(`[PROXY] Headers de respuesta: ${JSON.stringify(proxyRes.headers).substring(0, 300)}...`);
+
+                // Verificar si es HTTP 5xx y buscar fallback
+                if (proxyRes.statusCode >= 500 && proxyRes.statusCode < 600) {
+                    const errorType = getErrorType(null, proxyRes.statusCode);
+                    const fallback = findMatchingFallback(proxyConfig, subPath, errorType);
+                    if (fallback) {
+                        console.log(`[PROXY] HTTP ${proxyRes.statusCode} - Usando fallback: ${fallback.nombre}`);
+                        // Consumir y descartar la respuesta del proxy
+                        proxyRes.resume();
+                        sendFallbackResponse(res, fallback, req, requestPath, proxyConfig, errorType, requestStart);
+                        return;
+                    }
+                }
 
                 // Copiar headers de respuesta
                 let responseHeaders = { ...proxyRes.headers };
@@ -340,9 +558,54 @@ async function configureProxy(app) {
                 }
             });
 
+            // Configurar timeout
+            timeoutId = setTimeout(() => {
+                if (!res.headersSent) {
+                    timeoutTriggered = true;
+                    console.log(`[PROXY] TIMEOUT después de ${proxyConfig.timeout}ms`);
+                    proxyReq.destroy();
+
+                    // Buscar fallback para timeout
+                    const errorType = 'timeout';
+                    const fallback = findMatchingFallback(proxyConfig, subPath, errorType);
+                    if (fallback) {
+                        console.log(`[PROXY] Timeout - Usando fallback: ${fallback.nombre}`);
+                        sendFallbackResponse(res, fallback, req, requestPath, proxyConfig, errorType, requestStart);
+                    } else {
+                        log.proxyError(req.method, requestPath, proxyConfig.target, `Timeout after ${proxyConfig.timeout}ms`);
+                        res.status(504).json({ error: 'Gateway Timeout', message: `Request timed out after ${proxyConfig.timeout}ms` });
+                    }
+                }
+            }, proxyConfig.timeout);
+
             proxyReq.on('error', (err) => {
+                // Limpiar timeout
+                if (timeoutId) {
+                    clearTimeout(timeoutId);
+                    timeoutId = null;
+                }
+
+                // Si ya se disparó el timeout, no hacer nada más
+                if (timeoutTriggered) {
+                    return;
+                }
+
                 console.error(`[PROXY] ERROR: ${err.message}`);
                 console.error(`[PROXY] Stack: ${err.stack}`);
+
+                // Determinar tipo de error y buscar fallback
+                const errorType = getErrorType(err, null);
+                if (errorType) {
+                    const fallback = findMatchingFallback(proxyConfig, subPath, errorType);
+                    if (fallback) {
+                        console.log(`[PROXY] Error ${errorType} - Usando fallback: ${fallback.nombre}`);
+                        if (!res.headersSent) {
+                            sendFallbackResponse(res, fallback, req, requestPath, proxyConfig, errorType, requestStart);
+                        }
+                        return;
+                    }
+                }
+
                 log.proxyError(req.method, requestPath, proxyConfig.target, err.message);
                 if (!res.headersSent) {
                     res.status(502).json({ error: 'Bad Gateway', message: err.message });

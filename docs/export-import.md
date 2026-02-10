@@ -56,6 +56,7 @@ GET /api/export/preview
     "routes": 15,
     "tags": 5,
     "conditions": 8,
+    "fallbacks": 4,
     "files": 3
   }
 }
@@ -314,6 +315,7 @@ Contains metadata about the export:
     "routes": 15,
     "tags": 5,
     "conditions": 8,
+    "fallbacks": 4,
     "files": 3
   }
 }
@@ -342,7 +344,79 @@ Contains metadata about the export:
       "operationId": "getUsers",
       "summary": "Get all users",
       "description": "Returns a list of all users",
-      "requestBodyExample": null
+      "requestBodyExample": null,
+      "conditions": [
+        {
+          "id": 1,
+          "nombre": "Admin User",
+          "orden": 0,
+          "criteria": "headers['x-role'] === 'admin'",
+          "codigo": "200",
+          "tiporespuesta": "json",
+          "respuesta": "{\"users\": [], \"isAdmin\": true}",
+          "customHeaders": [
+            { "action": "set", "name": "X-Admin-Access", "value": "true" },
+            { "action": "set", "name": "Cache-Control", "value": "private, no-cache" }
+          ],
+          "activo": 1
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "orden": 99999999,
+      "tipo": "any",
+      "ruta": "/external-api/",
+      "codigo": "200",
+      "tiporespuesta": "proxy",
+      "respuesta": "https://api.external.com",
+      "isRegex": 0,
+      "activo": 1,
+      "esperaActiva": 0,
+      "proxy_timeout": 30000,
+      "fallbacks": [
+        {
+          "id": 1,
+          "orden": 0,
+          "nombre": "Users Fallback",
+          "path_pattern": "^/users/.*",
+          "error_types": "[\"timeout\", \"connection\"]",
+          "codigo": "503",
+          "tiporespuesta": "json",
+          "respuesta": "{\"error\": \"Service temporarily unavailable\"}",
+          "customHeaders": null,
+          "activo": 1,
+          "conditions": [
+            {
+              "id": 1,
+              "orden": 0,
+              "nombre": "VIP User Error",
+              "criteria": "headers['x-user-type'] === 'vip'",
+              "codigo": "503",
+              "tiporespuesta": "json",
+              "respuesta": "{\"error\": \"Service unavailable\", \"priority\": \"high\", \"support\": \"1-800-VIP\"}",
+              "customHeaders": [
+                { "action": "set", "name": "X-VIP-Support", "value": "1-800-VIP" },
+                { "action": "set", "name": "Retry-After", "value": "30" }
+              ],
+              "activo": 1
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "orden": 1,
+          "nombre": "Generic Fallback",
+          "path_pattern": ".*",
+          "error_types": "[\"all\"]",
+          "codigo": "502",
+          "tiporespuesta": "json",
+          "respuesta": "{\"error\": \"Bad Gateway\"}",
+          "customHeaders": null,
+          "activo": 1,
+          "conditions": []
+        }
+      ]
     }
   ],
   "tags": [
@@ -350,19 +424,6 @@ Contains metadata about the export:
       "id": "tag1",
       "name": "API",
       "color": "#6366f1"
-    }
-  ],
-  "conditions": [
-    {
-      "id": 1,
-      "routeId": 1,
-      "nombre": "Admin User",
-      "orden": 1,
-      "criterio": "headers['x-role'] === 'admin'",
-      "codigo": "200",
-      "tiporespuesta": "json",
-      "respuesta": "{\"users\": [], \"isAdmin\": true}",
-      "customHeaders": null
     }
   ]
 }
@@ -385,14 +446,69 @@ Contains metadata about the export:
       <isRegex>0</isRegex>
       <activo>1</activo>
       <esperaActiva>0</esperaActiva>
-      <proxyDestination></proxyDestination>
       <customHeaders></customHeaders>
-      <fileToReturn></fileToReturn>
       <tags><![CDATA[[{"id":"tag1","name":"API","color":"#6366f1"}]]]></tags>
       <operationId>getUsers</operationId>
       <summary>Get all users</summary>
       <description>Returns a list of all users</description>
-      <requestBodyExample></requestBodyExample>
+      <conditions>
+        <condition>
+          <nombre>Admin User</nombre>
+          <orden>0</orden>
+          <criteria>headers['x-role'] === 'admin'</criteria>
+          <codigo>200</codigo>
+          <tiporespuesta>json</tiporespuesta>
+          <respuesta><![CDATA[{"users": [], "isAdmin": true}]]></respuesta>
+          <customHeaders><![CDATA[[{"action":"set","name":"X-Admin-Access","value":"true"}]]]></customHeaders>
+          <activo>1</activo>
+        </condition>
+      </conditions>
+    </route>
+    <route>
+      <id>2</id>
+      <orden>99999999</orden>
+      <tipo>any</tipo>
+      <ruta>/external-api/</ruta>
+      <codigo>200</codigo>
+      <tiporespuesta>proxy</tiporespuesta>
+      <respuesta>https://api.external.com</respuesta>
+      <isRegex>0</isRegex>
+      <activo>1</activo>
+      <proxy_timeout>30000</proxy_timeout>
+      <fallbacks>
+        <fallback>
+          <orden>0</orden>
+          <nombre>Users Fallback</nombre>
+          <path_pattern>^/users/.*</path_pattern>
+          <error_types>["timeout", "connection"]</error_types>
+          <codigo>503</codigo>
+          <tiporespuesta>json</tiporespuesta>
+          <respuesta><![CDATA[{"error": "Service temporarily unavailable"}]]></respuesta>
+          <activo>1</activo>
+          <conditions>
+            <condition>
+              <orden>0</orden>
+              <nombre>VIP User Error</nombre>
+              <criteria>headers['x-user-type'] === 'vip'</criteria>
+              <codigo>503</codigo>
+              <tiporespuesta>json</tiporespuesta>
+              <respuesta><![CDATA[{"error": "Service unavailable", "priority": "high"}]]></respuesta>
+              <customHeaders><![CDATA[[{"action":"set","name":"X-VIP-Support","value":"1-800-VIP"}]]]></customHeaders>
+              <activo>1</activo>
+            </condition>
+          </conditions>
+        </fallback>
+        <fallback>
+          <orden>1</orden>
+          <nombre>Generic Fallback</nombre>
+          <path_pattern>.*</path_pattern>
+          <error_types>["all"]</error_types>
+          <codigo>502</codigo>
+          <tiporespuesta>json</tiporespuesta>
+          <respuesta><![CDATA[{"error": "Bad Gateway"}]]></respuesta>
+          <activo>1</activo>
+        </fallback>
+      </fallbacks>
     </route>
   </routes>
   <tags>
@@ -402,19 +518,6 @@ Contains metadata about the export:
       <color>#6366f1</color>
     </tag>
   </tags>
-  <conditions>
-    <condition>
-      <id>1</id>
-      <routeId>1</routeId>
-      <nombre>Admin User</nombre>
-      <orden>1</orden>
-      <criterio>headers['x-role'] === 'admin'</criterio>
-      <codigo>200</codigo>
-      <tiporespuesta>json</tiporespuesta>
-      <respuesta><![CDATA[{"users": [], "isAdmin": true}]]></respuesta>
-      <customHeaders></customHeaders>
-    </condition>
-  </conditions>
 </mockServerExport>
 ```
 
@@ -473,6 +576,8 @@ Create a `data.json` file with the same structure as inside the ZIP:
 | `summary` | string | Route summary |
 | `description` | string | Route description |
 | `requestBodyExample` | string | Example request body JSON |
+| `proxy_timeout` | integer | Timeout in milliseconds for proxy requests (default: 30000) |
+| `fallbacks` | array | Array of proxy fallback objects (for proxy routes only) |
 
 ### Tags
 
@@ -494,7 +599,61 @@ Create a `data.json` file with the same structure as inside the ZIP:
 | `codigo` | string | HTTP response code |
 | `tiporespuesta` | string | Response type |
 | `respuesta` | string | Response body content |
+| `customHeaders` | string/array | Custom headers (JSON string or array of header objects) |
+
+#### Custom Headers Format
+
+Custom headers can be defined as an array of header objects with the following structure:
+
+```json
+[
+  { "action": "set", "name": "X-Custom-Header", "value": "custom-value" },
+  { "action": "set", "name": "Cache-Control", "value": "no-cache" },
+  { "action": "remove", "name": "X-Unwanted-Header", "value": "" }
+]
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `action` | string | `set` to add/override a header, `remove` to delete it |
+| `name` | string | Header name |
+| `value` | string | Header value (ignored when action is `remove`) |
+
+### Proxy Fallbacks
+
+Fallbacks are defined for proxy routes and provide mock responses when the proxy fails.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | integer | Unique fallback identifier |
+| `route_id` | integer | Associated proxy route ID |
+| `orden` | integer | Fallback order/priority (first match wins) |
+| `nombre` | string | Fallback name |
+| `path_pattern` | string | Regex pattern to match the request path |
+| `error_types` | string | JSON array of error types: `timeout`, `connection`, `http5xx`, `all` |
+| `codigo` | string | HTTP response code |
+| `tiporespuesta` | string | Response type (json, xml, text, html) |
+| `respuesta` | string | Response body content |
 | `customHeaders` | string | JSON string of custom headers |
+| `activo` | integer | 1 if fallback is active, 0 otherwise |
+| `conditions` | array | Array of fallback condition objects |
+
+### Fallback Conditions
+
+Conditions can be defined within each fallback to provide dynamic responses based on request context.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | integer | Unique condition identifier |
+| `fallback_id` | integer | Associated fallback ID |
+| `orden` | integer | Condition order/priority (first match wins) |
+| `nombre` | string | Condition name |
+| `criteria` | string | JavaScript condition expression |
+| `codigo` | string | HTTP response code (overrides fallback) |
+| `tiporespuesta` | string | Response type (overrides fallback) |
+| `respuesta` | string | Response body content (overrides fallback) |
+| `customHeaders` | string/array | Custom headers (overrides fallback, same format as route conditions) |
+| `activo` | integer | 1 if condition is active, 0 otherwise |
 
 ## Use Cases
 

@@ -79,6 +79,8 @@
       "testUrl": "/api/users/123",
       "headersJson": "{\"Content-Type\": \"application/json\"}",
       "leaveEmpty": "Deixar baleiro para usar a resposta por defecto",
+      "leaveEmptyInherit": "Deixar baleiro para herdar do fallback",
+      "fallbackResponse": "{\"error\": \"Servizo non dispoñible\", \"fallback\": true}",
       "criteria": "headers['x-api-key'] === 'test' || body.debug === true",
       "tagName": "Nome do tag...",
       "operationId": "getUserById",
@@ -95,17 +97,32 @@
       "conditionsHelp": "As condicións avalíanse en orde. A primeira que coincida sobreescribirá a resposta por defecto.",
       "tagsHelp": "Engade tags para organizar e filtrar as túas rutas",
       "metadataHelp": "Información adicional sobre a ruta. Estes campos impórtanse automaticamente desde OpenAPI.",
-      "requestBodyHelp": "Exemplo de body para a petición. Usarase no Test Request e cURL example."
+      "requestBodyHelp": "Exemplo de body para a petición. Usarase no Test Request e cURL example.",
+      "proxyTimeoutHelp": "Tempo máximo de espera para a resposta do proxy antes de activar o fallback (1000-300000 ms)",
+      "fallbacksHelp": "Define respostas mock que se devolverán cando o proxy falle por timeout, erros de conexión ou respostas HTTP 5xx."
     },
+    "proxyTimeout": "Timeout de Petición",
+    "proxyFallbacks": "Respostas de Fallback",
+    "fallbackName": "Nome (opcional)",
+    "pathPattern": "Patrón de Ruta (regex)",
+    "errorTypesLabel": "Activar en erros",
+    "pathPatterns": "Patróns de ruta",
+    "pathPatternsAll": "todas as rutas",
+    "pathPatternsUsers": "/users/ e subrutas",
+    "pathPatternsOrders": "IDs de pedidos específicos",
     "requestBodyExample": "Exemplo de Request Body",
     "metadata": "Metadata",
     "operationId": "Operation ID",
     "summary": "Resumo",
     "description": "Descrición",
     "conditionalResponses": "Respostas Condicionais",
+    "navigationTree": "Navegación",
+    "mainResponse": "Resposta Principal",
+    "condition": "Condición",
     "conditionName": "Nome (opcional)",
     "criteria": "Criterio",
     "useDefault": "Usar por defecto",
+    "inherit": "Herdar",
     "availableVariables": "Variables dispoñibles",
     "availableFunctions": "Funcións dispoñibles",
     "criteriaExamples": "Ver exemplos de criterios",
@@ -148,7 +165,10 @@
     "duplicate": "Duplicar",
     "newTag": "Novo Tag",
     "create": "Crear",
-    "manage": "Xestionar"
+    "manage": "Xestionar",
+    "addHeader": "Engadir Header",
+    "addCondition": "Engadir Condición",
+    "toggleCollapse": "Alternar colapso"
   },
   "modal": {
     "confirmDelete": "Confirmar Eliminación",
@@ -245,7 +265,14 @@
   "empty": {
     "noHeaders": "Non hai headers configurados",
     "noConditions": "Non hai condicións. Usarase sempre a resposta por defecto.",
-    "noTags": "Non hai tags. Crea un novo."
+    "noTags": "Non hai tags. Crea un novo.",
+    "noFallbacks": "Non hai fallbacks configurados. Devolverase a resposta de erro por defecto cando falle o proxy."
+  },
+  "errorTypes": {
+    "timeout": "Timeout",
+    "connection": "Erro de Conexión",
+    "http5xx": "HTTP 5xx",
+    "all": "Todos os Erros"
   },
   "actions": {
     "moveUp": "Subir prioridade",

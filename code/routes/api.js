@@ -105,10 +105,13 @@ router.post('/create', upload.single('file'), async function(req, res, next) {
     const description = req.body.description || null;
     const requestBodyExample = req.body.requestBodyExample || null;
 
+    // Proxy timeout
+    const proxyTimeout = isProxy ? (parseInt(req.body.proxyTimeout) || 30000) : null;
+
     try {
         const result = await new Promise((resolve, reject) => {
-            db.run(`INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders, activo, orden, fileName, filePath, fileMimeType, tags, operationId, summary, description, requestBodyExample) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-                [req.body.tipo, req.body.ruta, req.body.codigo, req.body.respuesta, req.body.tiporespuesta, esperaActiva, req.body.isRegex === 'true' || req.body.isRegex === true ? 1 : 0, customHeaders, activo, orden, fileName, filePath, fileMimeType, tags, operationId, summary, description, requestBodyExample],
+            db.run(`INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders, activo, orden, fileName, filePath, fileMimeType, tags, operationId, summary, description, requestBodyExample, proxy_timeout) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                [req.body.tipo, req.body.ruta, req.body.codigo, req.body.respuesta, req.body.tiporespuesta, esperaActiva, req.body.isRegex === 'true' || req.body.isRegex === true ? 1 : 0, customHeaders, activo, orden, fileName, filePath, fileMimeType, tags, operationId, summary, description, requestBodyExample, proxyTimeout],
                 function(err) {
                     if (err) {
                         reject(err);
@@ -299,10 +302,13 @@ router.put('/update/:id', upload.single('file'), async function(req, res) {
     const description = req.body.description || null;
     const requestBodyExample = req.body.requestBodyExample || null;
 
+    // Proxy timeout
+    const proxyTimeout = isProxy ? (parseInt(req.body.proxyTimeout) || 30000) : null;
+
     try {
         await new Promise((resolve, reject) => {
-            db.run(`UPDATE rutas SET tipo = ?, ruta = ?, codigo = ?, respuesta = ?, tiporespuesta = ?, esperaActiva = ?, isRegex = ?, customHeaders = ?, activo = ?, orden = ?, fileName = ?, filePath = ?, fileMimeType = ?, tags = ?, operationId = ?, summary = ?, description = ?, requestBodyExample = ? WHERE id = ?`,
-                [req.body.tipo, req.body.ruta, req.body.codigo, req.body.respuesta, req.body.tiporespuesta, esperaActiva, req.body.isRegex === 'true' || req.body.isRegex === true ? 1 : 0, customHeaders, activo, newOrden, fileName, filePath, fileMimeType, tags, operationId, summary, description, requestBodyExample, id],
+            db.run(`UPDATE rutas SET tipo = ?, ruta = ?, codigo = ?, respuesta = ?, tiporespuesta = ?, esperaActiva = ?, isRegex = ?, customHeaders = ?, activo = ?, orden = ?, fileName = ?, filePath = ?, fileMimeType = ?, tags = ?, operationId = ?, summary = ?, description = ?, requestBodyExample = ?, proxy_timeout = ? WHERE id = ?`,
+                [req.body.tipo, req.body.ruta, req.body.codigo, req.body.respuesta, req.body.tiporespuesta, esperaActiva, req.body.isRegex === 'true' || req.body.isRegex === true ? 1 : 0, customHeaders, activo, newOrden, fileName, filePath, fileMimeType, tags, operationId, summary, description, requestBodyExample, proxyTimeout, id],
                 function(err) {
                     if (err) {
                         reject(err);
@@ -545,6 +551,133 @@ router.put('/conditions/:routeId', async function(req, res) {
         res.json({ success: true });
     } catch (err) {
         console.error(`[API] Error guardando condiciones: ${err.message}`);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// ===== PROXY FALLBACKS API =====
+
+/* Obtener fallbacks de una ruta proxy */
+router.get('/fallbacks/:routeId', async function(req, res) {
+    try {
+        const fallbacks = await sqliteService.getAllProxyFallbacks(req.params.routeId);
+        res.json({ success: true, fallbacks });
+    } catch (err) {
+        console.error(`[API] Error obteniendo fallbacks: ${err.message}`);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+/* Guardar fallbacks de una ruta proxy */
+router.put('/fallbacks/:routeId', async function(req, res) {
+    const { fallbacks } = req.body;
+
+    if (!Array.isArray(fallbacks)) {
+        return res.status(400).json({ success: false, error: 'fallbacks debe ser un array' });
+    }
+
+    const validErrorTypes = ['timeout', 'connection', 'http5xx', 'all'];
+
+    // Validar cada fallback
+    for (let i = 0; i < fallbacks.length; i++) {
+        const f = fallbacks[i];
+
+        // Validar path_pattern es regex válido
+        if (!f.path_pattern || !f.path_pattern.trim()) {
+            return res.status(400).json({
+                success: false,
+                error: `El fallback ${i + 1} no tiene path_pattern definido`
+            });
+        }
+
+        try {
+            new RegExp(f.path_pattern);
+        } catch (regexErr) {
+            return res.status(400).json({
+                success: false,
+                error: `Fallback "${f.nombre || i + 1}": regex inválido - ${regexErr.message}`
+            });
+        }
+
+        // Validar error_types
+        if (!f.error_types || !Array.isArray(f.error_types) || f.error_types.length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: `El fallback ${i + 1} debe tener al menos un tipo de error`
+            });
+        }
+
+        for (const errorType of f.error_types) {
+            if (!validErrorTypes.includes(errorType)) {
+                return res.status(400).json({
+                    success: false,
+                    error: `Fallback "${f.nombre || i + 1}": tipo de error inválido "${errorType}"`
+                });
+            }
+        }
+    }
+
+    try {
+        await sqliteService.saveProxyFallbacks(req.params.routeId, fallbacks);
+
+        // Recargar configuración de proxies
+        const pm = req.app.get('proxyMiddleware');
+        if (pm && pm.reloadProxyConfigs) {
+            await pm.reloadProxyConfigs();
+        }
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error(`[API] Error guardando fallbacks: ${err.message}`);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// ===== FALLBACK CONDITIONS API =====
+
+/* Obtener condiciones de un fallback */
+router.get('/fallback-conditions/:fallbackId', async function(req, res) {
+    try {
+        const conditions = await sqliteService.getAllFallbackConditions(req.params.fallbackId);
+        res.json({ success: true, conditions });
+    } catch (err) {
+        console.error(`[API] Error obteniendo condiciones de fallback: ${err.message}`);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+/* Guardar condiciones de un fallback */
+router.put('/fallback-conditions/:fallbackId', async function(req, res) {
+    const { conditions } = req.body;
+
+    if (!Array.isArray(conditions)) {
+        return res.status(400).json({ success: false, error: 'conditions debe ser un array' });
+    }
+
+    // Validar cada condición
+    for (let i = 0; i < conditions.length; i++) {
+        const c = conditions[i];
+
+        if (!c.criteria || !c.criteria.trim()) {
+            return res.status(400).json({
+                success: false,
+                error: `La condición ${i + 1} no tiene criteria definido`
+            });
+        }
+    }
+
+    try {
+        await sqliteService.saveFallbackConditions(req.params.fallbackId, conditions);
+
+        // Recargar configuración de proxies
+        const pm = req.app.get('proxyMiddleware');
+        if (pm && pm.reloadProxyConfigs) {
+            await pm.reloadProxyConfigs();
+        }
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error(`[API] Error guardando condiciones de fallback: ${err.message}`);
         res.status(500).json({ success: false, error: err.message });
     }
 });

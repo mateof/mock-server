@@ -1002,12 +1002,13 @@
 
   function checkRespuesta() {
     const tipoResp = document.getElementById("tiporespuesta").value;
-    showElements(['#divtresp', '#divtipo', '#divruta', '#divcodresp', '#divresp', '#divEsperaActiva']);
-    hideElements(['#divDestino', '#divFile']);
+    showElements(['#divtresp', '#divtipo', '#divruta', '#divcodresp', '#divresp', '#divEsperaActiva', '#divMetadata', '#divHeaders', '#divConditions']);
+    hideElements(['#divDestino', '#divFile', '#divProxyTimeout', '#divFallbacks']);
 
     if (tipoResp === 'proxy') {
-      hideElements(['#divtipo', '#divcodresp', '#divEsperaActiva', '#divresp', '#divFile']);
-      showElements(['#divDestino']);
+      // For proxy: hide response fields, metadata, headers, conditions (those are per-fallback)
+      hideElements(['#divtipo', '#divcodresp', '#divEsperaActiva', '#divresp', '#divFile', '#divMetadata', '#divHeaders', '#divConditions']);
+      showElements(['#divDestino', '#divProxyTimeout', '#divFallbacks']);
     } else if (tipoResp === 'file') {
       hideElements(['#divresp']);
       showElements(['#divFile']);
@@ -1570,6 +1571,488 @@
   // Initialize TagsModule on page load
   document.addEventListener('DOMContentLoaded', () => TagsModule.init());
 
+  // ===== ROUTE NAVIGATION PANEL =====
+  const RouteNavigation = {
+    navContainer: null,
+    navFallbacksContainer: null,
+    contentPanel: null,
+    navSortable: null,
+    navFallbacksSortable: null,
+
+    init() {
+      this.navContainer = document.getElementById('routeNavConditions');
+      this.navFallbacksContainer = document.getElementById('routeNavFallbacks');
+      this.contentPanel = document.getElementById('routeContentPanel');
+
+      // Limpiar items de navegación existentes
+      if (this.navContainer) {
+        this.navContainer.innerHTML = '';
+      }
+      if (this.navFallbacksContainer) {
+        this.navFallbacksContainer.innerHTML = '';
+      }
+
+      // Ocultar sección de fallbacks por defecto
+      this.hideFallbacksSection();
+
+      // Inicializar SortableJS para el árbol de navegación
+      if (this.navContainer && typeof Sortable !== 'undefined' && !this.navSortable) {
+        this.navSortable = new Sortable(this.navContainer, {
+          handle: '.nav-drag-handle',
+          animation: 150,
+          ghostClass: 'sortable-ghost',
+          onEnd: () => this.syncOrderFromNav()
+        });
+      }
+    },
+
+    // ===== CONDITIONAL RESPONSES =====
+    addNavItem(conditionId, name, isActive = true) {
+      if (!this.navContainer) {
+        this.navContainer = document.getElementById('routeNavConditions');
+      }
+      if (!this.navContainer) return;
+
+      const item = document.createElement('div');
+      item.className = 'route-nav-item';
+      item.id = `nav-condition-${conditionId}`;
+      item.dataset.conditionId = conditionId;
+      item.dataset.target = `condition-${conditionId}`;
+
+      item.innerHTML = `
+        <span class="nav-drag-handle"><i class="fa fa-grip-vertical"></i></span>
+        <label class="switch-mini" onclick="event.stopPropagation()">
+          <input type="checkbox" id="nav-switch-condition-${conditionId}" ${isActive ? 'checked' : ''}>
+          <span class="slider-mini"></span>
+        </label>
+        <span class="nav-item-name">${this.escapeHtml(name) || t('form.condition') + ' ' + conditionId}</span>
+      `;
+
+      // Click para navegar (excepto en drag handle y switch)
+      item.addEventListener('click', (e) => {
+        if (!e.target.closest('.nav-drag-handle') && !e.target.closest('.switch-mini')) {
+          this.navigateTo(`condition-${conditionId}`);
+        }
+      });
+
+      // Sincronizar switch del árbol con el de la tarjeta
+      const navSwitch = item.querySelector(`#nav-switch-condition-${conditionId}`);
+      if (navSwitch) {
+        navSwitch.addEventListener('change', (e) => {
+          const cardSwitch = document.getElementById(`condition-active-${conditionId}`);
+          if (cardSwitch) {
+            cardSwitch.checked = e.target.checked;
+            cardSwitch.dispatchEvent(new Event('change'));
+          }
+        });
+      }
+
+      this.navContainer.appendChild(item);
+    },
+
+    updateNavItemName(conditionId, name) {
+      const navItem = document.getElementById(`nav-condition-${conditionId}`);
+      if (navItem) {
+        const nameSpan = navItem.querySelector('.nav-item-name');
+        if (nameSpan) {
+          nameSpan.textContent = name || t('form.condition') + ' ' + conditionId;
+        }
+      }
+    },
+
+    updateNavItemStatus(conditionId, isActive) {
+      const navSwitch = document.getElementById(`nav-switch-condition-${conditionId}`);
+      if (navSwitch) {
+        navSwitch.checked = isActive;
+      }
+    },
+
+    removeNavItem(conditionId) {
+      const navItem = document.getElementById(`nav-condition-${conditionId}`);
+      if (navItem) navItem.remove();
+    },
+
+    clearNavItems() {
+      if (this.navContainer) {
+        this.navContainer.innerHTML = '';
+      }
+    },
+
+    // ===== FALLBACKS =====
+    showFallbacksSection() {
+      const divider = document.getElementById('navDividerFallbacks');
+      const container = document.getElementById('routeNavFallbacks');
+      if (divider) divider.style.display = '';
+      if (container) container.style.display = '';
+    },
+
+    hideFallbacksSection() {
+      const divider = document.getElementById('navDividerFallbacks');
+      const container = document.getElementById('routeNavFallbacks');
+      if (divider) divider.style.display = 'none';
+      if (container) container.style.display = 'none';
+    },
+
+    addFallbackNavItem(fallbackId, name, isActive = true) {
+      if (!this.navFallbacksContainer) {
+        this.navFallbacksContainer = document.getElementById('routeNavFallbacks');
+      }
+      if (!this.navFallbacksContainer) return;
+
+      this.showFallbacksSection();
+
+      // Wrapper para el fallback y sus criterios (permite reordenar juntos)
+      const wrapper = document.createElement('div');
+      wrapper.className = 'route-nav-fallback-wrapper';
+      wrapper.id = `nav-fallback-wrapper-${fallbackId}`;
+      wrapper.dataset.fallbackId = fallbackId;
+
+      const item = document.createElement('div');
+      item.className = 'route-nav-item route-nav-fallback';
+      item.id = `nav-fallback-${fallbackId}`;
+      item.dataset.fallbackId = fallbackId;
+      item.dataset.target = `fallback-${fallbackId}`;
+
+      item.innerHTML = `
+        <span class="nav-drag-handle"><i class="fa fa-grip-vertical"></i></span>
+        <label class="switch-mini" onclick="event.stopPropagation()">
+          <input type="checkbox" id="nav-switch-fallback-${fallbackId}" ${isActive ? 'checked' : ''}>
+          <span class="slider-mini"></span>
+        </label>
+        <span class="nav-item-name">${this.escapeHtml(name) || 'Fallback ' + fallbackId}</span>
+      `;
+
+      // Click para navegar (excepto en drag handle y switch)
+      item.addEventListener('click', (e) => {
+        if (!e.target.closest('.nav-drag-handle') && !e.target.closest('.switch-mini')) {
+          this.navigateTo(`fallback-${fallbackId}`);
+        }
+      });
+
+      // Sincronizar switch del árbol con el de la tarjeta
+      const navSwitch = item.querySelector(`#nav-switch-fallback-${fallbackId}`);
+      if (navSwitch) {
+        navSwitch.addEventListener('change', (e) => {
+          const cardSwitch = document.getElementById(`fallback-active-${fallbackId}`);
+          if (cardSwitch) {
+            cardSwitch.checked = e.target.checked;
+            cardSwitch.dispatchEvent(new Event('change'));
+          }
+        });
+      }
+
+      // Contenedor para los criterios de este fallback
+      const criteriaContainer = document.createElement('div');
+      criteriaContainer.className = 'route-nav-fallback-criteria';
+      criteriaContainer.id = `nav-fallback-criteria-${fallbackId}`;
+
+      wrapper.appendChild(item);
+      wrapper.appendChild(criteriaContainer);
+      this.navFallbacksContainer.appendChild(wrapper);
+
+      // Inicializar sortable para el contenedor de fallbacks (solo una vez)
+      if (typeof Sortable !== 'undefined' && !this.navFallbacksSortable) {
+        this.navFallbacksSortable = new Sortable(this.navFallbacksContainer, {
+          handle: '.route-nav-fallback .nav-drag-handle',
+          animation: 150,
+          ghostClass: 'sortable-ghost',
+          onEnd: () => this.syncFallbacksOrderFromNav()
+        });
+      }
+
+      // Inicializar sortable para los criterios de este fallback
+      if (typeof Sortable !== 'undefined') {
+        new Sortable(criteriaContainer, {
+          handle: '.nav-drag-handle',
+          animation: 150,
+          ghostClass: 'sortable-ghost',
+          onEnd: () => this.syncFallbackConditionsOrder(fallbackId)
+        });
+      }
+    },
+
+    updateFallbackNavItemName(fallbackId, name) {
+      const navItem = document.getElementById(`nav-fallback-${fallbackId}`);
+      if (navItem) {
+        const nameSpan = navItem.querySelector('.nav-item-name');
+        if (nameSpan) {
+          nameSpan.textContent = name || 'Fallback ' + fallbackId;
+        }
+      }
+    },
+
+    updateFallbackNavItemStatus(fallbackId, isActive) {
+      const navSwitch = document.getElementById(`nav-switch-fallback-${fallbackId}`);
+      if (navSwitch) {
+        navSwitch.checked = isActive;
+      }
+    },
+
+    removeFallbackNavItem(fallbackId) {
+      // Remover el wrapper completo (contiene el item y sus criterios)
+      const wrapper = document.getElementById(`nav-fallback-wrapper-${fallbackId}`);
+      if (wrapper) wrapper.remove();
+
+      // Ocultar sección si no hay más fallbacks
+      if (this.navFallbacksContainer && this.navFallbacksContainer.children.length === 0) {
+        this.hideFallbacksSection();
+      }
+    },
+
+    clearFallbackNavItems() {
+      if (this.navFallbacksContainer) {
+        this.navFallbacksContainer.innerHTML = '';
+      }
+      this.hideFallbacksSection();
+    },
+
+    // ===== FALLBACK CONDITIONS (CRITERIA) =====
+    addFallbackConditionNavItem(fallbackId, condId, name, order, isActive = true) {
+      const criteriaContainer = document.getElementById(`nav-fallback-criteria-${fallbackId}`);
+      if (!criteriaContainer) return;
+
+      const displayName = name || t('form.criteria') + ' ' + order;
+
+      const item = document.createElement('div');
+      item.className = 'route-nav-item route-nav-criteria';
+      item.id = `nav-fc-${fallbackId}-${condId}`;
+      item.dataset.fallbackId = fallbackId;
+      item.dataset.condId = condId;
+      item.dataset.target = `fc-${fallbackId}-${condId}`;
+
+      item.innerHTML = `
+        <span class="nav-drag-handle"><i class="fa fa-grip-vertical"></i></span>
+        <label class="switch-mini" onclick="event.stopPropagation()">
+          <input type="checkbox" id="nav-switch-fc-${fallbackId}-${condId}" ${isActive ? 'checked' : ''}>
+          <span class="slider-mini"></span>
+        </label>
+        <span class="nav-item-name">${this.escapeHtml(displayName)}</span>
+      `;
+
+      // Click para navegar (excepto en drag handle y switch)
+      item.addEventListener('click', (e) => {
+        if (!e.target.closest('.nav-drag-handle') && !e.target.closest('.switch-mini')) {
+          this.navigateTo(`fc-${fallbackId}-${condId}`, fallbackId);
+        }
+      });
+
+      // Sincronizar switch del árbol con el de la tarjeta
+      const navSwitch = item.querySelector(`#nav-switch-fc-${fallbackId}-${condId}`);
+      if (navSwitch) {
+        navSwitch.addEventListener('change', (e) => {
+          const cardSwitch = document.getElementById(`fc-active-${fallbackId}-${condId}`);
+          if (cardSwitch) {
+            cardSwitch.checked = e.target.checked;
+            cardSwitch.dispatchEvent(new Event('change'));
+          }
+        });
+      }
+
+      criteriaContainer.appendChild(item);
+    },
+
+    updateFallbackConditionNavItemName(fallbackId, condId, name, order) {
+      const navItem = document.getElementById(`nav-fc-${fallbackId}-${condId}`);
+      if (navItem) {
+        const nameSpan = navItem.querySelector('.nav-item-name');
+        if (nameSpan) {
+          nameSpan.textContent = name || t('form.criteria') + ' ' + order;
+        }
+      }
+    },
+
+    updateFallbackConditionNavItemStatus(fallbackId, condId, isActive) {
+      const navSwitch = document.getElementById(`nav-switch-fc-${fallbackId}-${condId}`);
+      if (navSwitch) {
+        navSwitch.checked = isActive;
+      }
+    },
+
+    // Sincronizar orden de criterios desde el árbol
+    syncFallbackConditionsOrder(fallbackId) {
+      const criteriaNavContainer = document.getElementById(`nav-fallback-criteria-${fallbackId}`);
+      const criteriaContainer = document.getElementById(`fallback-conditions-container-${fallbackId}`);
+      if (!criteriaNavContainer || !criteriaContainer) return;
+
+      const navItems = Array.from(criteriaNavContainer.querySelectorAll('.route-nav-criteria'));
+
+      navItems.forEach((navItem, index) => {
+        const condId = navItem.dataset.condId;
+        const card = document.getElementById(`fc-${fallbackId}-${condId}`);
+        if (card) {
+          card.dataset.order = index + 1;
+          criteriaContainer.appendChild(card);
+          // Actualizar nombre por defecto si no tiene nombre personalizado
+          const nameInput = document.getElementById(`fc-name-${fallbackId}-${condId}`);
+          if (nameInput && !nameInput.value.trim()) {
+            this.updateFallbackConditionNavItemName(fallbackId, condId, '', index + 1);
+          }
+        }
+      });
+    },
+
+    // Sincronizar orden de fallbacks desde el árbol
+    syncFallbacksOrderFromNav() {
+      if (!this.navFallbacksContainer) return;
+
+      const fallbacksContainer = document.getElementById('fallbacksContainer');
+      if (!fallbacksContainer) return;
+
+      const navWrappers = Array.from(this.navFallbacksContainer.querySelectorAll('.route-nav-fallback-wrapper'));
+
+      navWrappers.forEach((wrapper, index) => {
+        const fallbackId = wrapper.dataset.fallbackId;
+        const fallbackCard = document.getElementById(`fallback-${fallbackId}`);
+        if (fallbackCard) {
+          fallbackCard.dataset.order = index + 1;
+          fallbacksContainer.appendChild(fallbackCard);
+        }
+      });
+    },
+
+    removeFallbackConditionNavItem(fallbackId, condId) {
+      const navItem = document.getElementById(`nav-fc-${fallbackId}-${condId}`);
+      if (navItem) navItem.remove();
+    },
+
+    clearFallbackConditionNavItems(fallbackId) {
+      const criteriaContainer = document.getElementById(`nav-fallback-criteria-${fallbackId}`);
+      if (criteriaContainer) {
+        criteriaContainer.innerHTML = '';
+      }
+    },
+
+    // ===== NAVIGATION =====
+    navigateTo(targetId, fallbackId = null) {
+      const target = document.getElementById(targetId);
+      if (!target) return;
+
+      if (!this.contentPanel) {
+        this.contentPanel = document.getElementById('routeContentPanel');
+      }
+      if (!this.contentPanel) return;
+
+      // Actualizar item activo en navegación
+      document.querySelectorAll('.route-nav-item').forEach(item => {
+        item.classList.remove('active');
+      });
+
+      const navItem = document.querySelector(`[data-target="${targetId}"]`);
+      if (navItem) navItem.classList.add('active');
+
+      // Si es una condition-card colapsada, expandirla primero
+      if (targetId.startsWith('condition-')) {
+        const condId = targetId.replace('condition-', '');
+        expandCondition(condId);
+        // Asegurar que la sección de condiciones esté visible
+        const conditionsBody = document.querySelector('#divConditions .collapsible-body');
+        if (conditionsBody && conditionsBody.style.display === 'none') {
+          conditionsBody.style.display = 'block';
+        }
+      }
+
+      // Si es un fallback, expandirlo
+      if (targetId.startsWith('fallback-') && !targetId.startsWith('fallback-condition')) {
+        const fbId = targetId.replace('fallback-', '');
+        expandFallback(fbId);
+        // Asegurar que la sección de fallbacks esté visible
+        const fallbacksBody = document.querySelector('#divFallbacks .collapsible-body');
+        if (fallbacksBody && fallbacksBody.style.display === 'none') {
+          fallbacksBody.style.display = 'block';
+        }
+      }
+
+      // Si es un criterio de fallback (fc-X-Y), expandir el fallback y el criterio
+      if (targetId.startsWith('fc-')) {
+        const parts = targetId.replace('fc-', '').split('-');
+        const fbId = parts[0];
+        const condId = parts[1];
+        // Expandir el fallback padre
+        expandFallback(fbId);
+        // Expandir el criterio
+        expandFallbackCondition(fbId, condId);
+        // Asegurar que la sección de fallbacks esté visible
+        const fallbacksBody = document.querySelector('#divFallbacks .collapsible-body');
+        if (fallbacksBody && fallbacksBody.style.display === 'none') {
+          fallbacksBody.style.display = 'block';
+        }
+        // Asegurar que la sección de conditions del fallback esté visible
+        const fcBody = document.getElementById(`fallback-conditions-body-${fbId}`);
+        if (fcBody && fcBody.style.display === 'none') {
+          fcBody.style.display = 'block';
+        }
+      }
+
+      // Scroll suave al elemento
+      const offsetTop = target.offsetTop - 20;
+      this.contentPanel.scrollTo({
+        top: offsetTop,
+        behavior: 'smooth'
+      });
+
+      // Efecto flash
+      target.classList.add('flash-highlight');
+      setTimeout(() => {
+        target.classList.remove('flash-highlight');
+      }, 1000);
+    },
+
+    syncOrderFromNav() {
+      if (!this.navContainer) return;
+
+      const navItems = Array.from(this.navContainer.querySelectorAll('.route-nav-item'));
+      const conditionsContainer = document.getElementById('conditionsContainer');
+
+      navItems.forEach((navItem, index) => {
+        const conditionId = navItem.dataset.conditionId;
+        const conditionCard = document.getElementById(`condition-${conditionId}`);
+        if (conditionCard) {
+          conditionCard.dataset.order = index + 1;
+          conditionsContainer.appendChild(conditionCard);
+        }
+      });
+    },
+
+    escapeHtml(text) {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+  };
+
+  // ===== CONDITION COLLAPSE FUNCTIONS =====
+  function toggleConditionCollapse(conditionId) {
+    const body = document.getElementById(`condition-body-${conditionId}`);
+    const toggleBtn = document.getElementById(`condition-toggle-${conditionId}`);
+
+    if (!body) return;
+
+    const isCollapsed = body.classList.contains('collapsed');
+
+    if (isCollapsed) {
+      expandCondition(conditionId);
+    } else {
+      collapseCondition(conditionId);
+    }
+  }
+
+  function expandCondition(conditionId) {
+    const body = document.getElementById(`condition-body-${conditionId}`);
+    const toggleBtn = document.getElementById(`condition-toggle-${conditionId}`);
+
+    if (body) body.classList.remove('collapsed');
+    if (toggleBtn) toggleBtn.classList.remove('collapsed');
+  }
+
+  function collapseCondition(conditionId) {
+    const body = document.getElementById(`condition-body-${conditionId}`);
+    const toggleBtn = document.getElementById(`condition-toggle-${conditionId}`);
+
+    if (body) body.classList.add('collapsed');
+    if (toggleBtn) toggleBtn.classList.add('collapsed');
+  }
+
   // ===== CONDITIONAL RESPONSES =====
   let conditionCounter = 0;
 
@@ -1602,6 +2085,10 @@
         <div class="condition-drag-handle" title="${t('actions.moveUp')}/${t('actions.moveDown')}">
           <i class="fa fa-bars"></i>
         </div>
+        <button class="btn-condition-toggle" type="button" id="condition-toggle-${conditionCounter}"
+                onclick="toggleConditionCollapse(${conditionCounter})" title="${t('buttons.toggleCollapse')}">
+          <i class="fa fa-chevron-down"></i>
+        </button>
         <input type="text" class="form-control-modern condition-name"
                placeholder="${t('form.conditionName')}"
                id="condition-name-${conditionCounter}"
@@ -1614,7 +2101,7 @@
           <i class="fa fa-trash"></i>
         </button>
       </div>
-      <div class="condition-body">
+      <div class="condition-body condition-body-collapsible" id="condition-body-${conditionCounter}">
         <div class="form-group-modern">
           <label class="form-label-modern">${t('form.criteria')} <span style="color: var(--danger);">*</span></label>
           <div class="d-flex gap-2">
@@ -1661,11 +2148,42 @@
                       placeholder="${t('form.placeholder.leaveEmpty')}"
                       rows="3">${escapeHtml(data.respuesta || '')}</textarea>
           </div>
+
+          <!-- Custom Headers for this condition -->
+          <div class="condition-headers-section">
+            <div class="condition-headers-header" onclick="toggleConditionHeaders(${conditionCounter})">
+              <span><i class="fa fa-list-ul"></i> ${t('form.customHeaders')}</span>
+              <i class="fa fa-chevron-down condition-headers-chevron" id="condition-headers-chevron-${conditionCounter}"></i>
+            </div>
+            <div class="condition-headers-body" id="condition-headers-body-${conditionCounter}" style="display: none;">
+              <div id="condition-headers-container-${conditionCounter}"></div>
+              <div id="condition-no-headers-${conditionCounter}" class="empty-state-mini">
+                <small>${t('empty.noHeaders')}</small>
+              </div>
+              <button type="button" class="btn-modern btn-modern-outline btn-sm" onclick="addConditionHeaderRow(${conditionCounter})">
+                <i class="fa fa-plus"></i> ${t('buttons.addHeader')}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     `;
 
     container.appendChild(card);
+
+    // Cargar headers si existen
+    if (data.customHeaders) {
+      let headers = data.customHeaders;
+      if (typeof headers === 'string') {
+        try { headers = JSON.parse(headers); } catch (e) { headers = []; }
+      }
+      if (Array.isArray(headers) && headers.length > 0) {
+        headers.forEach(h => addConditionHeaderRow(conditionCounter, h.name, h.value, h.action));
+        document.getElementById(`condition-headers-body-${conditionCounter}`).style.display = 'block';
+        const chevron = document.getElementById(`condition-headers-chevron-${conditionCounter}`);
+        if (chevron) chevron.classList.add('rotated');
+      }
+    }
 
     // Inicializar sortable si es la primera condición
     if (container.children.length === 1 && typeof Sortable !== 'undefined') {
@@ -1680,9 +2198,34 @@
         }
       });
     }
+
+    // Agregar al árbol de navegación con estado
+    const isActive = data.activo !== false;
+    RouteNavigation.addNavItem(conditionCounter, data.nombre || '', isActive);
+
+    // Escuchar cambios en el nombre para actualizar el árbol
+    const nameInput = document.getElementById(`condition-name-${conditionCounter}`);
+    if (nameInput) {
+      nameInput.addEventListener('input', (e) => {
+        const condId = e.target.id.replace('condition-name-', '');
+        RouteNavigation.updateNavItemName(condId, e.target.value);
+      });
+    }
+
+    // Escuchar cambios en el estado activo para actualizar el icono
+    const activeSwitch = document.getElementById(`condition-active-${conditionCounter}`);
+    if (activeSwitch) {
+      activeSwitch.addEventListener('change', (e) => {
+        const condId = e.target.id.replace('condition-active-', '');
+        RouteNavigation.updateNavItemStatus(condId, e.target.checked);
+      });
+    }
   }
 
   function removeConditionRow(id) {
+    // Eliminar del árbol de navegación
+    RouteNavigation.removeNavItem(id);
+
     const card = document.getElementById(`condition-${id}`);
     if (card) card.remove();
 
@@ -1738,7 +2281,7 @@
         codigo: document.getElementById(`condition-code-${id}`).value.trim() || null,
         tiporespuesta: document.getElementById(`condition-type-${id}`).value || null,
         respuesta: document.getElementById(`condition-response-${id}`).value || null,
-        customHeaders: null, // Se podría expandir para headers por condición
+        customHeaders: getConditionHeaders(id),
         activo: document.getElementById(`condition-active-${id}`).checked
       });
     });
@@ -1757,6 +2300,84 @@
     document.getElementById('conditionsContainer').innerHTML = '';
     document.getElementById('noConditionsMsg').style.display = 'block';
     conditionCounter = 0;
+    // Limpiar árbol de navegación
+    RouteNavigation.clearNavItems();
+  }
+
+  // Condition header row counters per condition
+  const conditionHeaderCounters = {};
+
+  function toggleConditionHeaders(conditionId) {
+    const body = document.getElementById(`condition-headers-body-${conditionId}`);
+    const chevron = document.getElementById(`condition-headers-chevron-${conditionId}`);
+    if (body) {
+      const isHidden = body.style.display === 'none';
+      body.style.display = isHidden ? 'block' : 'none';
+      if (chevron) chevron.classList.toggle('rotated', isHidden);
+    }
+  }
+
+  function addConditionHeaderRow(conditionId, name = '', value = '', action = 'set') {
+    if (!conditionHeaderCounters[conditionId]) conditionHeaderCounters[conditionId] = 0;
+    conditionHeaderCounters[conditionId]++;
+    const rowId = conditionHeaderCounters[conditionId];
+
+    const container = document.getElementById(`condition-headers-container-${conditionId}`);
+    const noHeadersMsg = document.getElementById(`condition-no-headers-${conditionId}`);
+    if (noHeadersMsg) noHeadersMsg.style.display = 'none';
+
+    const row = document.createElement('div');
+    row.className = 'd-flex gap-2 mb-2 align-items-center';
+    row.id = `condition-header-${conditionId}-${rowId}`;
+    row.innerHTML = `
+      <select class="form-control-modern form-select-modern" style="width: 90px;" id="ch-action-${conditionId}-${rowId}">
+        <option value="set" ${action === 'set' ? 'selected' : ''}>Set</option>
+        <option value="remove" ${action === 'remove' ? 'selected' : ''}>Remove</option>
+      </select>
+      <input type="text" class="form-control-modern" placeholder="Header name" id="ch-name-${conditionId}-${rowId}" value="${escapeHtml(name)}" style="width: 140px;">
+      <input type="text" class="form-control-modern" placeholder="Value" id="ch-value-${conditionId}-${rowId}" value="${escapeHtml(value)}" style="flex: 1;">
+      <button class="btn-icon btn-icon-danger" type="button" onclick="removeConditionHeaderRow(${conditionId}, ${rowId})">
+        <i class="fa fa-times"></i>
+      </button>
+    `;
+    container.appendChild(row);
+
+    // Update value visibility based on action
+    const actionSelect = document.getElementById(`ch-action-${conditionId}-${rowId}`);
+    const valueInput = document.getElementById(`ch-value-${conditionId}-${rowId}`);
+    if (action === 'remove') valueInput.style.display = 'none';
+    actionSelect.addEventListener('change', function() {
+      valueInput.style.display = this.value === 'remove' ? 'none' : 'block';
+      if (this.value === 'remove') valueInput.value = '';
+    });
+  }
+
+  function removeConditionHeaderRow(conditionId, rowId) {
+    const row = document.getElementById(`condition-header-${conditionId}-${rowId}`);
+    if (row) row.remove();
+
+    const container = document.getElementById(`condition-headers-container-${conditionId}`);
+    const noHeadersMsg = document.getElementById(`condition-no-headers-${conditionId}`);
+    if (container && container.children.length === 0 && noHeadersMsg) {
+      noHeadersMsg.style.display = 'block';
+    }
+  }
+
+  function getConditionHeaders(conditionId) {
+    const headers = [];
+    const container = document.getElementById(`condition-headers-container-${conditionId}`);
+    if (!container) return null;
+
+    const rows = container.querySelectorAll('[id^="condition-header-"]');
+    rows.forEach(row => {
+      const parts = row.id.split('-'); // condition-header-{conditionId}-{rowId}
+      const rowId = parts[parts.length - 1];
+      const action = document.getElementById(`ch-action-${conditionId}-${rowId}`)?.value || 'set';
+      const name = document.getElementById(`ch-name-${conditionId}-${rowId}`)?.value.trim() || '';
+      const value = document.getElementById(`ch-value-${conditionId}-${rowId}`)?.value || '';
+      if (name) headers.push({ action, name, value });
+    });
+    return headers.length > 0 ? headers : null;
   }
 
   async function loadConditionsForRoute(routeId) {
@@ -1773,6 +2394,763 @@
     } catch (e) {
       console.error('Error cargando condiciones:', e);
     }
+  }
+
+  // ===== PROXY FALLBACK FUNCTIONS =====
+  let fallbackCounter = 0;
+
+  function toggleFallbacksSection() {
+    const body = document.querySelector('#divFallbacks .collapsible-body');
+    body.style.display = body.style.display === 'none' ? 'block' : 'none';
+  }
+
+  function addFallbackRow(data = {}) {
+    fallbackCounter++;
+    const container = document.getElementById('fallbacksContainer');
+    document.getElementById('noFallbacksMsg').style.display = 'none';
+
+    // Parsear error_types si es string
+    let errorTypes = data.error_types || ['all'];
+    if (typeof errorTypes === 'string') {
+      try {
+        errorTypes = JSON.parse(errorTypes);
+      } catch (e) {
+        errorTypes = ['all'];
+      }
+    }
+
+    const card = document.createElement('div');
+    card.className = 'fallback-card';
+    card.id = `fallback-${fallbackCounter}`;
+    card.dataset.order = fallbackCounter;
+
+    card.innerHTML = `
+      <div class="fallback-header">
+        <div class="fallback-drag-handle" title="${t('actions.moveUp')}/${t('actions.moveDown')}">
+          <i class="fa fa-bars"></i>
+        </div>
+        <button class="btn-condition-toggle" type="button" id="fallback-toggle-${fallbackCounter}"
+                onclick="toggleFallbackCollapse(${fallbackCounter})" title="${t('buttons.toggleCollapse')}">
+          <i class="fa fa-chevron-down"></i>
+        </button>
+        <input type="text" class="form-control-modern fallback-name"
+               placeholder="${t('form.fallbackName')}"
+               id="fallback-name-${fallbackCounter}"
+               value="${escapeHtml(data.nombre || '')}">
+        <label class="switch-modern" style="margin-left: auto;">
+          <input type="checkbox" id="fallback-active-${fallbackCounter}" ${data.activo !== 0 ? 'checked' : ''}>
+          <span class="slider"></span>
+        </label>
+        <button class="btn-icon btn-icon-danger" type="button" onclick="removeFallbackRow(${fallbackCounter})" title="${t('buttons.delete')}">
+          <i class="fa fa-trash"></i>
+        </button>
+      </div>
+      <div class="fallback-body fallback-body-collapsible" id="fallback-body-${fallbackCounter}">
+        <div class="form-group-modern">
+          <label class="form-label-modern">${t('form.pathPattern')} <span style="color: var(--danger);">*</span></label>
+          <input type="text" class="form-control-modern"
+                 id="fallback-pattern-${fallbackCounter}"
+                 placeholder=".*"
+                 value="${escapeHtml(data.path_pattern || '.*')}">
+          <div id="fallback-pattern-validation-${fallbackCounter}" class="condition-validation"></div>
+        </div>
+
+        <div class="form-group-modern">
+          <label class="form-label-modern">${t('form.errorTypesLabel')}</label>
+          <div class="error-types-checkboxes">
+            <label class="checkbox-modern">
+              <input type="checkbox" id="fallback-error-timeout-${fallbackCounter}" ${errorTypes.includes('timeout') ? 'checked' : ''}>
+              <span>${t('errorTypes.timeout')}</span>
+            </label>
+            <label class="checkbox-modern">
+              <input type="checkbox" id="fallback-error-connection-${fallbackCounter}" ${errorTypes.includes('connection') ? 'checked' : ''}>
+              <span>${t('errorTypes.connection')}</span>
+            </label>
+            <label class="checkbox-modern">
+              <input type="checkbox" id="fallback-error-http5xx-${fallbackCounter}" ${errorTypes.includes('http5xx') ? 'checked' : ''}>
+              <span>${t('errorTypes.http5xx')}</span>
+            </label>
+            <label class="checkbox-modern">
+              <input type="checkbox" id="fallback-error-all-${fallbackCounter}" ${errorTypes.includes('all') ? 'checked' : ''}>
+              <span>${t('errorTypes.all')}</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="fallback-overrides">
+          <div class="override-row">
+            <div class="form-group-modern" style="flex: 0 0 100px;">
+              <label class="form-label-modern">${t('table.code')}</label>
+              <input type="text" class="form-control-modern"
+                     id="fallback-code-${fallbackCounter}"
+                     placeholder="200"
+                     value="${escapeHtml(data.codigo || '200')}">
+            </div>
+            <div class="form-group-modern" style="flex: 0 0 150px;">
+              <label class="form-label-modern">${t('table.type')}</label>
+              <select class="form-control-modern form-select-modern"
+                      id="fallback-type-${fallbackCounter}">
+                <option value="json" ${(data.tiporespuesta || 'json') === 'json' ? 'selected' : ''}>JSON</option>
+                <option value="xml" ${data.tiporespuesta === 'xml' ? 'selected' : ''}>XML</option>
+                <option value="text" ${data.tiporespuesta === 'text' ? 'selected' : ''}>Text</option>
+                <option value="html" ${data.tiporespuesta === 'html' ? 'selected' : ''}>HTML</option>
+                <option value="empty" ${data.tiporespuesta === 'empty' ? 'selected' : ''}>Empty</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group-modern">
+            <label class="form-label-modern">${t('form.response')}</label>
+            <textarea class="form-control-modern"
+                      id="fallback-response-${fallbackCounter}"
+                      placeholder="${t('form.placeholder.fallbackResponse')}"
+                      rows="3">${escapeHtml(data.respuesta || '')}</textarea>
+          </div>
+
+          <!-- Custom Headers for this fallback -->
+          <div class="fallback-headers-section">
+            <div class="fallback-headers-header" onclick="toggleFallbackHeaders(${fallbackCounter})">
+              <span><i class="fa fa-list-ul"></i> ${t('form.customHeaders')}</span>
+              <i class="fa fa-chevron-down fallback-headers-chevron" id="fallback-headers-chevron-${fallbackCounter}"></i>
+            </div>
+            <div class="fallback-headers-body" id="fallback-headers-body-${fallbackCounter}" style="display: none;">
+              <div id="fallback-headers-container-${fallbackCounter}"></div>
+              <div id="fallback-no-headers-${fallbackCounter}" class="empty-state-mini">
+                <small>${t('empty.noHeaders')}</small>
+              </div>
+              <button type="button" class="btn-modern btn-modern-outline btn-sm" onclick="addFallbackHeaderRow(${fallbackCounter})">
+                <i class="fa fa-plus"></i> ${t('buttons.addHeader')}
+              </button>
+            </div>
+          </div>
+
+          <!-- Conditional Responses for this fallback -->
+          <div class="fallback-conditions-section">
+            <div class="fallback-conditions-header" onclick="toggleFallbackConditions(${fallbackCounter})">
+              <span><i class="fa fa-code-branch"></i> ${t('form.conditionalResponses')}</span>
+              <i class="fa fa-chevron-down fallback-conditions-chevron" id="fallback-conditions-chevron-${fallbackCounter}"></i>
+            </div>
+            <div class="fallback-conditions-body" id="fallback-conditions-body-${fallbackCounter}" style="display: none;">
+              <small style="color: var(--text-muted); margin-bottom: 0.5rem; display: block;">
+                ${t('form.help.conditionsHelp')}
+              </small>
+              <div id="fallback-conditions-container-${fallbackCounter}" class="sortable-fallback-conditions"></div>
+              <div id="fallback-no-conditions-${fallbackCounter}" class="empty-state-mini">
+                <small>${t('empty.noConditions')}</small>
+              </div>
+              <button type="button" class="btn-modern btn-modern-outline btn-sm" onclick="addFallbackConditionRow(${fallbackCounter})">
+                <i class="fa fa-plus"></i> ${t('buttons.addCondition')}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    container.appendChild(card);
+
+    // Agregar al árbol de navegación con estado
+    const isActive = data.activo !== 0;
+    RouteNavigation.addFallbackNavItem(fallbackCounter, data.nombre || '', isActive);
+
+    // Escuchar cambios en el nombre para actualizar el árbol
+    const nameInput = document.getElementById(`fallback-name-${fallbackCounter}`);
+    if (nameInput) {
+      nameInput.addEventListener('input', (e) => {
+        const fbId = e.target.id.replace('fallback-name-', '');
+        RouteNavigation.updateFallbackNavItemName(fbId, e.target.value);
+      });
+    }
+
+    // Escuchar cambios en el estado activo para actualizar el icono
+    const activeSwitch = document.getElementById(`fallback-active-${fallbackCounter}`);
+    if (activeSwitch) {
+      activeSwitch.addEventListener('change', (e) => {
+        const fbId = e.target.id.replace('fallback-active-', '');
+        RouteNavigation.updateFallbackNavItemStatus(fbId, e.target.checked);
+      });
+    }
+
+    // Cargar headers si existen
+    if (data.customHeaders) {
+      let headers = data.customHeaders;
+      if (typeof headers === 'string') {
+        try { headers = JSON.parse(headers); } catch (e) { headers = []; }
+      }
+      if (Array.isArray(headers) && headers.length > 0) {
+        headers.forEach(h => addFallbackHeaderRow(fallbackCounter, h.name, h.value, h.action));
+        document.getElementById(`fallback-headers-body-${fallbackCounter}`).style.display = 'block';
+        const chevron = document.getElementById(`fallback-headers-chevron-${fallbackCounter}`);
+        if (chevron) chevron.classList.add('rotated');
+      }
+    }
+
+    // Cargar condiciones si existen
+    if (data.conditions && Array.isArray(data.conditions) && data.conditions.length > 0) {
+      data.conditions.forEach(c => addFallbackConditionRow(fallbackCounter, c));
+      document.getElementById(`fallback-conditions-body-${fallbackCounter}`).style.display = 'block';
+      const chevron = document.getElementById(`fallback-conditions-chevron-${fallbackCounter}`);
+      if (chevron) chevron.classList.add('rotated');
+    }
+
+    // Inicializar sortable si es la primera condición
+    if (fallbackCounter === 1 && typeof Sortable !== 'undefined') {
+      new Sortable(container, {
+        animation: 150,
+        handle: '.fallback-drag-handle',
+        onEnd: function(evt) {
+          Array.from(container.children).forEach((card, i) => {
+            card.dataset.order = i + 1;
+          });
+        }
+      });
+    }
+  }
+
+  function removeFallbackRow(id) {
+    // Eliminar del árbol de navegación
+    RouteNavigation.removeFallbackNavItem(id);
+
+    const card = document.getElementById(`fallback-${id}`);
+    if (card) card.remove();
+
+    const container = document.getElementById('fallbacksContainer');
+    if (container.children.length === 0) {
+      document.getElementById('noFallbacksMsg').style.display = 'block';
+    }
+  }
+
+  function getFallbacks() {
+    const fallbacks = [];
+    const container = document.getElementById('fallbacksContainer');
+    const cards = Array.from(container.querySelectorAll('.fallback-card'))
+      .sort((a, b) => (parseInt(a.dataset.order) || 0) - (parseInt(b.dataset.order) || 0));
+
+    cards.forEach((card, idx) => {
+      const id = card.id.replace('fallback-', '');
+      const pathPattern = document.getElementById(`fallback-pattern-${id}`).value.trim();
+
+      if (!pathPattern) return; // Saltar fallbacks vacíos
+
+      // Recoger tipos de error seleccionados
+      const errorTypes = [];
+      if (document.getElementById(`fallback-error-timeout-${id}`).checked) errorTypes.push('timeout');
+      if (document.getElementById(`fallback-error-connection-${id}`).checked) errorTypes.push('connection');
+      if (document.getElementById(`fallback-error-http5xx-${id}`).checked) errorTypes.push('http5xx');
+      if (document.getElementById(`fallback-error-all-${id}`).checked) errorTypes.push('all');
+
+      // Si no hay ninguno seleccionado, usar 'all'
+      if (errorTypes.length === 0) errorTypes.push('all');
+
+      fallbacks.push({
+        orden: idx,
+        nombre: document.getElementById(`fallback-name-${id}`).value.trim() || null,
+        path_pattern: pathPattern,
+        error_types: errorTypes,
+        codigo: document.getElementById(`fallback-code-${id}`).value.trim() || '200',
+        tiporespuesta: document.getElementById(`fallback-type-${id}`).value || 'json',
+        respuesta: document.getElementById(`fallback-response-${id}`).value || null,
+        customHeaders: getFallbackHeaders(id),
+        conditions: getFallbackConditions(id),
+        activo: document.getElementById(`fallback-active-${id}`).checked ? 1 : 0
+      });
+    });
+
+    return fallbacks;
+  }
+
+  function setFallbacks(fallbacks) {
+    clearFallbacks();
+    if (fallbacks && Array.isArray(fallbacks)) {
+      fallbacks.forEach(f => addFallbackRow(f));
+    }
+  }
+
+  function clearFallbacks() {
+    document.getElementById('fallbacksContainer').innerHTML = '';
+    document.getElementById('noFallbacksMsg').style.display = 'block';
+    fallbackCounter = 0;
+    // Limpiar árbol de navegación de fallbacks
+    RouteNavigation.clearFallbackNavItems();
+  }
+
+  async function loadFallbacksForRoute(routeId) {
+    try {
+      const response = await fetch(`/api/fallbacks/${routeId}`);
+      const data = await response.json();
+      if (data.success && data.fallbacks) {
+        setFallbacks(data.fallbacks);
+        // Mostrar la sección si hay fallbacks
+        if (data.fallbacks.length > 0) {
+          document.querySelector('#divFallbacks .collapsible-body').style.display = 'block';
+        }
+      }
+    } catch (e) {
+      console.error('Error cargando fallbacks:', e);
+    }
+  }
+
+  async function saveFallbacksForRoute(routeId) {
+    const fallbacks = getFallbacks();
+    if (fallbacks.length === 0) return true;
+
+    try {
+      const response = await fetch(`/api/fallbacks/${routeId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fallbacks })
+      });
+      const data = await response.json();
+      if (!data.success) {
+        showToast(data.error || 'Error guardando fallbacks', 'error');
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.error('Error guardando fallbacks:', e);
+      showToast('Error guardando fallbacks', 'error');
+      return false;
+    }
+  }
+
+  // ===== FALLBACK COLLAPSE FUNCTIONS =====
+  function toggleFallbackCollapse(fallbackId) {
+    const body = document.getElementById(`fallback-body-${fallbackId}`);
+    const toggleBtn = document.getElementById(`fallback-toggle-${fallbackId}`);
+
+    if (!body) return;
+
+    const isCollapsed = body.classList.contains('collapsed');
+
+    if (isCollapsed) {
+      expandFallback(fallbackId);
+    } else {
+      collapseFallback(fallbackId);
+    }
+  }
+
+  function expandFallback(fallbackId) {
+    const body = document.getElementById(`fallback-body-${fallbackId}`);
+    const toggleBtn = document.getElementById(`fallback-toggle-${fallbackId}`);
+
+    if (body) body.classList.remove('collapsed');
+    if (toggleBtn) toggleBtn.classList.remove('collapsed');
+  }
+
+  function collapseFallback(fallbackId) {
+    const body = document.getElementById(`fallback-body-${fallbackId}`);
+    const toggleBtn = document.getElementById(`fallback-toggle-${fallbackId}`);
+
+    if (body) body.classList.add('collapsed');
+    if (toggleBtn) toggleBtn.classList.add('collapsed');
+  }
+
+  // Fallback header row counters per fallback
+  const fallbackHeaderCounters = {};
+
+  function toggleFallbackHeaders(fallbackId) {
+    const body = document.getElementById(`fallback-headers-body-${fallbackId}`);
+    const chevron = document.getElementById(`fallback-headers-chevron-${fallbackId}`);
+    if (body) {
+      const isHidden = body.style.display === 'none';
+      body.style.display = isHidden ? 'block' : 'none';
+      if (chevron) chevron.classList.toggle('rotated', isHidden);
+    }
+  }
+
+  function addFallbackHeaderRow(fallbackId, name = '', value = '', action = 'set') {
+    if (!fallbackHeaderCounters[fallbackId]) fallbackHeaderCounters[fallbackId] = 0;
+    fallbackHeaderCounters[fallbackId]++;
+    const rowId = fallbackHeaderCounters[fallbackId];
+
+    const container = document.getElementById(`fallback-headers-container-${fallbackId}`);
+    const noHeadersMsg = document.getElementById(`fallback-no-headers-${fallbackId}`);
+    if (noHeadersMsg) noHeadersMsg.style.display = 'none';
+
+    const row = document.createElement('div');
+    row.className = 'd-flex gap-2 mb-2 align-items-center';
+    row.id = `fallback-header-${fallbackId}-${rowId}`;
+    row.innerHTML = `
+      <select class="form-control-modern form-select-modern" style="width: 90px;" id="fh-action-${fallbackId}-${rowId}">
+        <option value="set" ${action === 'set' ? 'selected' : ''}>Set</option>
+        <option value="remove" ${action === 'remove' ? 'selected' : ''}>Remove</option>
+      </select>
+      <input type="text" class="form-control-modern" placeholder="Header name" id="fh-name-${fallbackId}-${rowId}" value="${escapeHtml(name)}" style="width: 140px;">
+      <input type="text" class="form-control-modern" placeholder="Value" id="fh-value-${fallbackId}-${rowId}" value="${escapeHtml(value)}" style="flex: 1;">
+      <button class="btn-icon btn-icon-danger" type="button" onclick="removeFallbackHeaderRow(${fallbackId}, ${rowId})">
+        <i class="fa fa-times"></i>
+      </button>
+    `;
+    container.appendChild(row);
+
+    // Update value visibility based on action
+    const actionSelect = document.getElementById(`fh-action-${fallbackId}-${rowId}`);
+    const valueInput = document.getElementById(`fh-value-${fallbackId}-${rowId}`);
+    if (action === 'remove') valueInput.style.display = 'none';
+    actionSelect.addEventListener('change', function() {
+      valueInput.style.display = this.value === 'remove' ? 'none' : 'block';
+      if (this.value === 'remove') valueInput.value = '';
+    });
+  }
+
+  function removeFallbackHeaderRow(fallbackId, rowId) {
+    const row = document.getElementById(`fallback-header-${fallbackId}-${rowId}`);
+    if (row) row.remove();
+
+    const container = document.getElementById(`fallback-headers-container-${fallbackId}`);
+    const noHeadersMsg = document.getElementById(`fallback-no-headers-${fallbackId}`);
+    if (container && container.children.length === 0 && noHeadersMsg) {
+      noHeadersMsg.style.display = 'block';
+    }
+  }
+
+  function getFallbackHeaders(fallbackId) {
+    const headers = [];
+    const container = document.getElementById(`fallback-headers-container-${fallbackId}`);
+    if (!container) return null;
+
+    const rows = container.querySelectorAll('[id^="fallback-header-"]');
+    rows.forEach(row => {
+      const parts = row.id.split('-'); // fallback-header-{fallbackId}-{rowId}
+      const rowId = parts[parts.length - 1];
+      const action = document.getElementById(`fh-action-${fallbackId}-${rowId}`)?.value || 'set';
+      const name = document.getElementById(`fh-name-${fallbackId}-${rowId}`)?.value.trim() || '';
+      const value = document.getElementById(`fh-value-${fallbackId}-${rowId}`)?.value || '';
+      if (name) headers.push({ action, name, value });
+    });
+    return headers.length > 0 ? headers : null;
+  }
+
+  // ===== FALLBACK CONDITIONS FUNCTIONS =====
+  const fallbackConditionCounters = {};
+
+  function toggleFallbackConditions(fallbackId) {
+    const body = document.getElementById(`fallback-conditions-body-${fallbackId}`);
+    const chevron = document.getElementById(`fallback-conditions-chevron-${fallbackId}`);
+    if (body) {
+      const isHidden = body.style.display === 'none';
+      body.style.display = isHidden ? 'block' : 'none';
+      if (chevron) chevron.classList.toggle('rotated', isHidden);
+    }
+  }
+
+  function addFallbackConditionRow(fallbackId, data = {}) {
+    if (!fallbackConditionCounters[fallbackId]) fallbackConditionCounters[fallbackId] = 0;
+    fallbackConditionCounters[fallbackId]++;
+    const condId = fallbackConditionCounters[fallbackId];
+
+    const container = document.getElementById(`fallback-conditions-container-${fallbackId}`);
+    const noConditionsMsg = document.getElementById(`fallback-no-conditions-${fallbackId}`);
+    if (noConditionsMsg) noConditionsMsg.style.display = 'none';
+
+    const card = document.createElement('div');
+    card.className = 'fallback-condition-card';
+    card.id = `fc-${fallbackId}-${condId}`;
+    card.dataset.order = condId;
+
+    card.innerHTML = `
+      <div class="fallback-condition-header">
+        <div class="fc-drag-handle" title="${t('actions.moveUp')}/${t('actions.moveDown')}">
+          <i class="fa fa-bars"></i>
+        </div>
+        <button class="btn-condition-toggle" type="button" id="fc-toggle-${fallbackId}-${condId}"
+                onclick="toggleFallbackConditionCollapse(${fallbackId}, ${condId})" title="${t('buttons.toggleCollapse')}">
+          <i class="fa fa-chevron-down"></i>
+        </button>
+        <input type="text" class="form-control-modern fc-name"
+               placeholder="${t('form.conditionName')}"
+               id="fc-name-${fallbackId}-${condId}"
+               value="${escapeHtml(data.nombre || '')}">
+        <label class="switch-modern" style="margin-left: auto;">
+          <input type="checkbox" id="fc-active-${fallbackId}-${condId}" ${data.activo !== 0 ? 'checked' : ''}>
+          <span class="slider"></span>
+        </label>
+        <button class="btn-icon btn-icon-danger" type="button" onclick="removeFallbackConditionRow(${fallbackId}, ${condId})" title="${t('buttons.delete')}">
+          <i class="fa fa-trash"></i>
+        </button>
+      </div>
+      <div class="fallback-condition-body fc-body-collapsible" id="fc-body-${fallbackId}-${condId}">
+        <div class="form-group-modern">
+          <label class="form-label-modern">${t('form.criteria')} <span style="color: var(--danger);">*</span></label>
+          <textarea class="form-control-modern"
+                    id="fc-criteria-${fallbackId}-${condId}"
+                    placeholder='header["X-Custom"] == "test" || body.userId == 123'
+                    rows="2">${escapeHtml(data.criteria || '')}</textarea>
+        </div>
+
+        <div class="fc-overrides">
+          <div class="override-row">
+            <div class="form-group-modern" style="flex: 0 0 80px;">
+              <label class="form-label-modern">${t('table.code')}</label>
+              <input type="text" class="form-control-modern"
+                     id="fc-code-${fallbackId}-${condId}"
+                     placeholder="${t('form.inherit')}"
+                     value="${escapeHtml(data.codigo || '')}">
+            </div>
+            <div class="form-group-modern" style="flex: 0 0 120px;">
+              <label class="form-label-modern">${t('table.type')}</label>
+              <select class="form-control-modern form-select-modern"
+                      id="fc-type-${fallbackId}-${condId}">
+                <option value="" ${!data.tiporespuesta ? 'selected' : ''}>${t('form.inherit')}</option>
+                <option value="json" ${data.tiporespuesta === 'json' ? 'selected' : ''}>JSON</option>
+                <option value="xml" ${data.tiporespuesta === 'xml' ? 'selected' : ''}>XML</option>
+                <option value="text" ${data.tiporespuesta === 'text' ? 'selected' : ''}>Text</option>
+                <option value="html" ${data.tiporespuesta === 'html' ? 'selected' : ''}>HTML</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group-modern">
+            <label class="form-label-modern">${t('form.response')}</label>
+            <textarea class="form-control-modern"
+                      id="fc-response-${fallbackId}-${condId}"
+                      placeholder="${t('form.placeholder.leaveEmptyInherit')}"
+                      rows="2">${escapeHtml(data.respuesta || '')}</textarea>
+          </div>
+
+          <!-- Custom Headers for this fallback condition -->
+          <div class="fc-headers-section">
+            <div class="fc-headers-header" onclick="toggleFallbackConditionHeaders(${fallbackId}, ${condId})">
+              <span><i class="fa fa-list-ul"></i> ${t('form.customHeaders')}</span>
+              <i class="fa fa-chevron-down fc-headers-chevron" id="fc-headers-chevron-${fallbackId}-${condId}"></i>
+            </div>
+            <div class="fc-headers-body" id="fc-headers-body-${fallbackId}-${condId}" style="display: none;">
+              <div id="fc-headers-container-${fallbackId}-${condId}"></div>
+              <div id="fc-no-headers-${fallbackId}-${condId}" class="empty-state-mini">
+                <small>${t('empty.noHeaders')}</small>
+              </div>
+              <button type="button" class="btn-modern btn-modern-outline btn-sm" onclick="addFallbackConditionHeaderRow(${fallbackId}, ${condId})">
+                <i class="fa fa-plus"></i> ${t('buttons.addHeader')}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    container.appendChild(card);
+
+    // Agregar al árbol de navegación con nombre por defecto y estado
+    const isActive = data.activo !== 0;
+    RouteNavigation.addFallbackConditionNavItem(fallbackId, condId, data.nombre || '', condId, isActive);
+
+    // Escuchar cambios en el nombre para actualizar el árbol
+    const nameInput = document.getElementById(`fc-name-${fallbackId}-${condId}`);
+    if (nameInput) {
+      nameInput.addEventListener('input', (e) => {
+        const order = document.getElementById(`fc-${fallbackId}-${condId}`)?.dataset.order || condId;
+        RouteNavigation.updateFallbackConditionNavItemName(fallbackId, condId, e.target.value, order);
+      });
+    }
+
+    // Escuchar cambios en el estado activo para actualizar el icono
+    const activeSwitch = document.getElementById(`fc-active-${fallbackId}-${condId}`);
+    if (activeSwitch) {
+      activeSwitch.addEventListener('change', (e) => {
+        RouteNavigation.updateFallbackConditionNavItemStatus(fallbackId, condId, e.target.checked);
+      });
+    }
+
+    // Cargar headers si existen
+    if (data.customHeaders) {
+      let headers = data.customHeaders;
+      if (typeof headers === 'string') {
+        try { headers = JSON.parse(headers); } catch (e) { headers = []; }
+      }
+      if (Array.isArray(headers) && headers.length > 0) {
+        headers.forEach(h => addFallbackConditionHeaderRow(fallbackId, condId, h.name, h.value, h.action));
+        document.getElementById(`fc-headers-body-${fallbackId}-${condId}`).style.display = 'block';
+        const chevron = document.getElementById(`fc-headers-chevron-${fallbackId}-${condId}`);
+        if (chevron) chevron.classList.add('rotated');
+      }
+    }
+
+    // Inicializar sortable para las condiciones de este fallback
+    if (condId === 1 && typeof Sortable !== 'undefined') {
+      new Sortable(container, {
+        animation: 150,
+        handle: '.fc-drag-handle',
+        onEnd: function(evt) {
+          Array.from(container.children).forEach((c, i) => {
+            c.dataset.order = i + 1;
+            // Actualizar nombre en el árbol si no tiene nombre personalizado
+            const fcId = c.id.replace('fc-', '').split('-');
+            const fbId = fcId[0];
+            const cId = fcId[1];
+            const nameInput = document.getElementById(`fc-name-${fbId}-${cId}`);
+            if (nameInput && !nameInput.value.trim()) {
+              RouteNavigation.updateFallbackConditionNavItemName(fbId, cId, '', i + 1);
+            }
+          });
+        }
+      });
+    }
+  }
+
+  function removeFallbackConditionRow(fallbackId, condId) {
+    // Eliminar del árbol de navegación
+    RouteNavigation.removeFallbackConditionNavItem(fallbackId, condId);
+
+    const card = document.getElementById(`fc-${fallbackId}-${condId}`);
+    if (card) card.remove();
+
+    const container = document.getElementById(`fallback-conditions-container-${fallbackId}`);
+    const noConditionsMsg = document.getElementById(`fallback-no-conditions-${fallbackId}`);
+    if (container && container.children.length === 0 && noConditionsMsg) {
+      noConditionsMsg.style.display = 'block';
+    }
+
+    // Reordenar los nombres por defecto en el árbol
+    if (container) {
+      Array.from(container.children).forEach((c, i) => {
+        const fcId = c.id.replace('fc-', '').split('-');
+        const fbId = fcId[0];
+        const cId = fcId[1];
+        const nameInput = document.getElementById(`fc-name-${fbId}-${cId}`);
+        if (nameInput && !nameInput.value.trim()) {
+          RouteNavigation.updateFallbackConditionNavItemName(fbId, cId, '', i + 1);
+        }
+      });
+    }
+  }
+
+  function getFallbackConditions(fallbackId) {
+    const conditions = [];
+    const container = document.getElementById(`fallback-conditions-container-${fallbackId}`);
+    if (!container) return [];
+
+    const cards = Array.from(container.querySelectorAll('.fallback-condition-card'))
+      .sort((a, b) => (parseInt(a.dataset.order) || 0) - (parseInt(b.dataset.order) || 0));
+
+    cards.forEach((card, idx) => {
+      const parts = card.id.split('-'); // fc-{fallbackId}-{condId}
+      const condId = parts[parts.length - 1];
+      const criteria = document.getElementById(`fc-criteria-${fallbackId}-${condId}`)?.value.trim() || '';
+
+      if (!criteria) return; // Skip empty conditions
+
+      conditions.push({
+        orden: idx,
+        nombre: document.getElementById(`fc-name-${fallbackId}-${condId}`)?.value.trim() || null,
+        criteria: criteria,
+        codigo: document.getElementById(`fc-code-${fallbackId}-${condId}`)?.value.trim() || null,
+        tiporespuesta: document.getElementById(`fc-type-${fallbackId}-${condId}`)?.value || null,
+        respuesta: document.getElementById(`fc-response-${fallbackId}-${condId}`)?.value || null,
+        customHeaders: getFallbackConditionHeaders(fallbackId, condId),
+        activo: document.getElementById(`fc-active-${fallbackId}-${condId}`)?.checked ? 1 : 0
+      });
+    });
+
+    return conditions;
+  }
+
+  // ===== FALLBACK CONDITION COLLAPSE FUNCTIONS =====
+  function toggleFallbackConditionCollapse(fallbackId, condId) {
+    const body = document.getElementById(`fc-body-${fallbackId}-${condId}`);
+    const toggleBtn = document.getElementById(`fc-toggle-${fallbackId}-${condId}`);
+
+    if (!body) return;
+
+    const isCollapsed = body.classList.contains('collapsed');
+
+    if (isCollapsed) {
+      expandFallbackCondition(fallbackId, condId);
+    } else {
+      collapseFallbackCondition(fallbackId, condId);
+    }
+  }
+
+  function expandFallbackCondition(fallbackId, condId) {
+    const body = document.getElementById(`fc-body-${fallbackId}-${condId}`);
+    const toggleBtn = document.getElementById(`fc-toggle-${fallbackId}-${condId}`);
+
+    if (body) body.classList.remove('collapsed');
+    if (toggleBtn) toggleBtn.classList.remove('collapsed');
+  }
+
+  function collapseFallbackCondition(fallbackId, condId) {
+    const body = document.getElementById(`fc-body-${fallbackId}-${condId}`);
+    const toggleBtn = document.getElementById(`fc-toggle-${fallbackId}-${condId}`);
+
+    if (body) body.classList.add('collapsed');
+    if (toggleBtn) toggleBtn.classList.add('collapsed');
+  }
+
+  // ===== FALLBACK CONDITION HEADERS FUNCTIONS =====
+  const fcHeaderCounters = {};
+
+  function toggleFallbackConditionHeaders(fallbackId, condId) {
+    const body = document.getElementById(`fc-headers-body-${fallbackId}-${condId}`);
+    const chevron = document.getElementById(`fc-headers-chevron-${fallbackId}-${condId}`);
+    if (body) {
+      const isHidden = body.style.display === 'none';
+      body.style.display = isHidden ? 'block' : 'none';
+      if (chevron) chevron.classList.toggle('rotated', isHidden);
+    }
+  }
+
+  function addFallbackConditionHeaderRow(fallbackId, condId, name = '', value = '', action = 'set') {
+    const key = `${fallbackId}-${condId}`;
+    if (!fcHeaderCounters[key]) fcHeaderCounters[key] = 0;
+    fcHeaderCounters[key]++;
+    const rowId = fcHeaderCounters[key];
+
+    const container = document.getElementById(`fc-headers-container-${fallbackId}-${condId}`);
+    const noHeadersMsg = document.getElementById(`fc-no-headers-${fallbackId}-${condId}`);
+    if (noHeadersMsg) noHeadersMsg.style.display = 'none';
+
+    const row = document.createElement('div');
+    row.className = 'd-flex gap-2 mb-2 align-items-center';
+    row.id = `fch-${fallbackId}-${condId}-${rowId}`;
+    row.innerHTML = `
+      <select class="form-control-modern form-select-modern" style="width: 90px;" id="fch-action-${fallbackId}-${condId}-${rowId}">
+        <option value="set" ${action === 'set' ? 'selected' : ''}>Set</option>
+        <option value="remove" ${action === 'remove' ? 'selected' : ''}>Remove</option>
+      </select>
+      <input type="text" class="form-control-modern" placeholder="Header name" id="fch-name-${fallbackId}-${condId}-${rowId}" value="${escapeHtml(name)}" style="width: 140px;">
+      <input type="text" class="form-control-modern" placeholder="Value" id="fch-value-${fallbackId}-${condId}-${rowId}" value="${escapeHtml(value)}" style="flex: 1;">
+      <button class="btn-icon btn-icon-danger" type="button" onclick="removeFallbackConditionHeaderRow(${fallbackId}, ${condId}, ${rowId})">
+        <i class="fa fa-times"></i>
+      </button>
+    `;
+    container.appendChild(row);
+
+    // Update value visibility based on action
+    const actionSelect = document.getElementById(`fch-action-${fallbackId}-${condId}-${rowId}`);
+    const valueInput = document.getElementById(`fch-value-${fallbackId}-${condId}-${rowId}`);
+    if (action === 'remove') valueInput.style.display = 'none';
+    actionSelect.addEventListener('change', function() {
+      valueInput.style.display = this.value === 'remove' ? 'none' : 'block';
+      if (this.value === 'remove') valueInput.value = '';
+    });
+  }
+
+  function removeFallbackConditionHeaderRow(fallbackId, condId, rowId) {
+    const row = document.getElementById(`fch-${fallbackId}-${condId}-${rowId}`);
+    if (row) row.remove();
+
+    const container = document.getElementById(`fc-headers-container-${fallbackId}-${condId}`);
+    const noHeadersMsg = document.getElementById(`fc-no-headers-${fallbackId}-${condId}`);
+    if (container && container.children.length === 0 && noHeadersMsg) {
+      noHeadersMsg.style.display = 'block';
+    }
+  }
+
+  function getFallbackConditionHeaders(fallbackId, condId) {
+    const headers = [];
+    const container = document.getElementById(`fc-headers-container-${fallbackId}-${condId}`);
+    if (!container) return null;
+
+    const rows = container.querySelectorAll(`[id^="fch-${fallbackId}-${condId}-"]`);
+    rows.forEach(row => {
+      const parts = row.id.split('-'); // fch-{fallbackId}-{condId}-{rowId}
+      const rowId = parts[parts.length - 1];
+      const action = document.getElementById(`fch-action-${fallbackId}-${condId}-${rowId}`)?.value || 'set';
+      const name = document.getElementById(`fch-name-${fallbackId}-${condId}-${rowId}`)?.value.trim() || '';
+      const value = document.getElementById(`fch-value-${fallbackId}-${condId}-${rowId}`)?.value || '';
+      if (name) headers.push({ action, name, value });
+    });
+    return headers.length > 0 ? headers : null;
   }
 
   function escapeHtml(text) {
@@ -1831,10 +3209,22 @@
 
   // ===== MODAL FUNCTIONS =====
   function openModal(type = 'create', objId) {
+    // Inicializar navegación del modal
+    RouteNavigation.init();
+
     // Limpiar condiciones siempre al abrir
     clearConditions();
     // Colapsar sección de condiciones
-    document.querySelector('#divConditions .collapsible-body').style.display = 'none';
+    document.querySelector('#divConditions .collapsible-body').style.display = 'block';
+
+    // Resetear scroll del panel de contenido
+    const contentPanel = document.getElementById('routeContentPanel');
+    if (contentPanel) contentPanel.scrollTop = 0;
+
+    // Marcar item principal como activo
+    document.querySelectorAll('.route-nav-item').forEach(item => item.classList.remove('active'));
+    const mainNavItem = document.querySelector('.route-nav-main');
+    if (mainNavItem) mainNavItem.classList.add('active');
 
     if (type === 'create') {
       checkRespuesta();
@@ -2293,6 +3683,9 @@
     document.getElementById("summary").value = '';
     document.getElementById("description").value = '';
     document.getElementById("requestBodyExample").value = '';
+    // Limpiar proxy timeout y fallbacks
+    document.getElementById("proxyTimeout").value = '30000';
+    clearFallbacks();
   }
 
   function valuesForModal(obj) {
@@ -2302,6 +3695,8 @@
     if (obj.tiporespuesta === 'proxy') {
       document.getElementById("destinoProxy").value = obj.respuesta || '';
       document.getElementById("respuesta").value = '';
+      // Proxy timeout
+      document.getElementById("proxyTimeout").value = obj.proxy_timeout || 30000;
     } else {
       document.getElementById("respuesta").value = obj.respuesta || '';
       document.getElementById("destinoProxy").value = '';
@@ -2327,6 +3722,11 @@
     document.getElementById("summary").value = obj.summary || '';
     document.getElementById("description").value = obj.description || '';
     document.getElementById("requestBodyExample").value = obj.requestBodyExample || '';
+    // Fallbacks - limpiar y cargar si es proxy
+    clearFallbacks();
+    if (obj.tiporespuesta === 'proxy' && obj.id) {
+      loadFallbacksForRoute(obj.id);
+    }
   }
 
   async function guardar() {
@@ -2386,6 +3786,12 @@
     if (description) formData.append('description', description);
     if (requestBodyExample) formData.append('requestBodyExample', requestBodyExample);
 
+    // Proxy timeout
+    if (tiporespuesta === 'proxy') {
+      const proxyTimeout = document.getElementById("proxyTimeout").value || 30000;
+      formData.append('proxyTimeout', proxyTimeout);
+    }
+
     // Añadir archivo si está seleccionado
     if (tiporespuesta === 'file' && selectedFile) {
       formData.append('file', selectedFile);
@@ -2411,6 +3817,11 @@
           const err = await condResponse.json().catch(() => ({}));
           showToast(err.error || t('errors.savingConditions'), 'error');
         }
+      }
+
+      // Guardar fallbacks si es proxy y hay alguno
+      if (tiporespuesta === 'proxy' && result.id) {
+        await saveFallbacksForRoute(result.id);
       }
 
       tabla.ajax.reload();
@@ -2476,6 +3887,12 @@
     if (description) formData.append('description', description);
     if (requestBodyExample) formData.append('requestBodyExample', requestBodyExample);
 
+    // Proxy timeout
+    if (tiporespuesta === 'proxy') {
+      const proxyTimeout = document.getElementById("proxyTimeout").value || 30000;
+      formData.append('proxyTimeout', proxyTimeout);
+    }
+
     // Manejo de archivo
     if (tiporespuesta === 'file') {
       if (selectedFile) {
@@ -2510,6 +3927,11 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ conditions: [] })
         });
+      }
+
+      // Guardar/limpiar fallbacks si es proxy
+      if (tiporespuesta === 'proxy') {
+        await saveFallbacksForRoute(id);
       }
 
       tabla.ajax.reload();

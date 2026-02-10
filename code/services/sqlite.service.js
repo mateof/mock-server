@@ -114,17 +114,23 @@ async function getRuta(ruta, tipo) {
 async function getProxys() {
     console.log(`[DB] Obteniendo configuraciones de proxy...`);
     let sql = `SELECT * FROM rutas WHERE tiporespuesta = 'proxy' AND (activo IS NULL OR activo = 1)`;
-    const result = await new Promise((resolve, reject) => {
+    const proxies = await new Promise((resolve, reject) => {
         _db.all(sql, [], (err, result) => {
-        if (err) {
-          console.error(`[DB] Error obteniendo proxys: ${err.message}`);
-          reject(err);
-        }
-        resolve(result);
-      });
+            if (err) {
+                console.error(`[DB] Error obteniendo proxys: ${err.message}`);
+                reject(err);
+            }
+            resolve(result || []);
+        });
     });
-    console.log(`[DB] Proxys encontrados: ${result ? result.length : 0}`);
-    return result;
+
+    // Load fallbacks for each proxy
+    for (const proxy of proxies) {
+        proxy.fallbacks = await getProxyFallbacks(proxy.id);
+    }
+
+    console.log(`[DB] Proxys encontrados: ${proxies.length}`);
+    return proxies;
 }
 
 async function createTables(newdb) {
@@ -182,6 +188,7 @@ async function createTables(newdb) {
     await addColumn(newdb, 'summary', 'TEXT');
     await addColumn(newdb, 'description', 'TEXT');
     await addColumn(newdb, 'requestBodyExample', 'TEXT');
+    await addColumn(newdb, 'proxy_timeout', 'INTEGER DEFAULT 30000');
 
     // Crear índices para optimizar búsquedas de rutas
     await new Promise((resolve) => {
@@ -229,6 +236,53 @@ async function createTables(newdb) {
             CREATE INDEX IF NOT EXISTS idx_conditions_route_orden ON conditional_responses(route_id, orden);
         `, (err) => {
             if (!err) console.log('[DB] Tabla conditional_responses verificada');
+            resolve();
+        });
+    });
+
+    // Crear tabla de proxy fallbacks
+    await new Promise((resolve) => {
+        newdb.exec(`
+            CREATE TABLE IF NOT EXISTS proxy_fallbacks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                route_id INTEGER NOT NULL,
+                orden INTEGER DEFAULT 0,
+                nombre TEXT,
+                path_pattern TEXT NOT NULL,
+                error_types TEXT NOT NULL,
+                codigo TEXT DEFAULT '200',
+                tiporespuesta TEXT DEFAULT 'json',
+                respuesta TEXT,
+                customHeaders TEXT,
+                activo INTEGER DEFAULT 1,
+                FOREIGN KEY (route_id) REFERENCES rutas(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_fallbacks_route_orden ON proxy_fallbacks(route_id, orden);
+        `, (err) => {
+            if (!err) console.log('[DB] Tabla proxy_fallbacks verificada');
+            resolve();
+        });
+    });
+
+    // Crear tabla de condiciones para fallbacks
+    await new Promise((resolve) => {
+        newdb.exec(`
+            CREATE TABLE IF NOT EXISTS proxy_fallback_conditions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                fallback_id INTEGER NOT NULL,
+                orden INTEGER DEFAULT 0,
+                nombre TEXT,
+                criteria TEXT NOT NULL,
+                codigo TEXT,
+                tiporespuesta TEXT,
+                respuesta TEXT,
+                customHeaders TEXT,
+                activo INTEGER DEFAULT 1,
+                FOREIGN KEY (fallback_id) REFERENCES proxy_fallbacks(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_fallback_conditions_orden ON proxy_fallback_conditions(fallback_id, orden);
+        `, (err) => {
+            if (!err) console.log('[DB] Tabla proxy_fallback_conditions verificada');
             resolve();
         });
     });
@@ -299,12 +353,15 @@ async function saveConditionalResponses(routeId, conditions) {
     // Insertar nuevas condiciones
     for (let i = 0; i < conditions.length; i++) {
         const c = conditions[i];
+        // Stringify customHeaders if it's an array
+        const customHeaders = c.customHeaders ?
+            (typeof c.customHeaders === 'string' ? c.customHeaders : JSON.stringify(c.customHeaders)) : null;
         await new Promise((resolve, reject) => {
             _db.run(`INSERT INTO conditional_responses
                      (route_id, orden, nombre, criteria, codigo, tiporespuesta, respuesta, customHeaders, activo)
                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [routeId, i, c.nombre || null, c.criteria, c.codigo || null, c.tiporespuesta || null,
-                 c.respuesta || null, c.customHeaders || null, c.activo !== false ? 1 : 0],
+                 c.respuesta || null, customHeaders, c.activo !== false ? 1 : 0],
                 (err) => {
                     if (err) reject(err);
                     else resolve();
@@ -435,6 +492,161 @@ async function deleteTag(id) {
     });
 }
 
+// ===== PROXY FALLBACKS FUNCTIONS =====
+
+// Get active proxy fallbacks for a route (ordered)
+async function getProxyFallbacks(routeId) {
+    const sql = `SELECT * FROM proxy_fallbacks
+                 WHERE route_id = ? AND (activo = 1 OR activo IS NULL)
+                 ORDER BY orden ASC`;
+    return new Promise((resolve, reject) => {
+        _db.all(sql, [routeId], (err, rows) => {
+            if (err) {
+                console.error(`[DB] Error obteniendo fallbacks: ${err.message}`);
+                reject(err);
+            } else {
+                resolve(rows || []);
+            }
+        });
+    });
+}
+
+// Get all proxy fallbacks for a route (including inactive, for edit form)
+async function getAllProxyFallbacks(routeId) {
+    const sql = `SELECT * FROM proxy_fallbacks WHERE route_id = ? ORDER BY orden ASC`;
+    return new Promise((resolve, reject) => {
+        _db.all(sql, [routeId], (err, rows) => {
+            if (err) {
+                console.error(`[DB] Error obteniendo fallbacks: ${err.message}`);
+                reject(err);
+            } else {
+                resolve(rows || []);
+            }
+        });
+    });
+}
+
+// Save proxy fallbacks (replaces all existing)
+async function saveProxyFallbacks(routeId, fallbacks) {
+    // Delete existing fallbacks
+    await new Promise((resolve, reject) => {
+        _db.run('DELETE FROM proxy_fallbacks WHERE route_id = ?', [routeId], (err) => {
+            if (err) reject(err);
+            else resolve();
+        });
+    });
+
+    // Insert new fallbacks
+    for (let i = 0; i < fallbacks.length; i++) {
+        const f = fallbacks[i];
+        // Stringify customHeaders if it's an array
+        const customHeaders = f.customHeaders ?
+            (typeof f.customHeaders === 'string' ? f.customHeaders : JSON.stringify(f.customHeaders)) : null;
+        await new Promise((resolve, reject) => {
+            _db.run(`INSERT INTO proxy_fallbacks
+                     (route_id, orden, nombre, path_pattern, error_types, codigo, tiporespuesta, respuesta, customHeaders, activo)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [routeId, i, f.nombre || null, f.path_pattern,
+                 typeof f.error_types === 'string' ? f.error_types : JSON.stringify(f.error_types),
+                 f.codigo || '200', f.tiporespuesta || 'json',
+                 f.respuesta || null, customHeaders, f.activo !== false ? 1 : 0],
+                (err) => {
+                    if (err) reject(err);
+                    else resolve();
+                });
+        });
+    }
+
+    console.log(`[DB] Guardados ${fallbacks.length} fallbacks para ruta ${routeId}`);
+}
+
+// Delete fallbacks for a route
+async function deleteProxyFallbacks(routeId) {
+    return new Promise((resolve, reject) => {
+        _db.run('DELETE FROM proxy_fallbacks WHERE route_id = ?', [routeId], (err) => {
+            if (err) reject(err);
+            else resolve();
+        });
+    });
+}
+
+// ===== PROXY FALLBACK CONDITIONS =====
+
+// Get active conditions for a fallback
+async function getFallbackConditions(fallbackId) {
+    const sql = `SELECT * FROM proxy_fallback_conditions
+                 WHERE fallback_id = ? AND (activo = 1 OR activo IS NULL)
+                 ORDER BY orden ASC`;
+    return new Promise((resolve, reject) => {
+        _db.all(sql, [fallbackId], (err, rows) => {
+            if (err) {
+                console.error(`[DB] Error obteniendo condiciones de fallback: ${err.message}`);
+                reject(err);
+            } else {
+                resolve(rows || []);
+            }
+        });
+    });
+}
+
+// Get all conditions for a fallback (including inactive, for edit form)
+async function getAllFallbackConditions(fallbackId) {
+    const sql = `SELECT * FROM proxy_fallback_conditions WHERE fallback_id = ? ORDER BY orden ASC`;
+    return new Promise((resolve, reject) => {
+        _db.all(sql, [fallbackId], (err, rows) => {
+            if (err) {
+                console.error(`[DB] Error obteniendo condiciones de fallback: ${err.message}`);
+                reject(err);
+            } else {
+                resolve(rows || []);
+            }
+        });
+    });
+}
+
+// Save fallback conditions (replaces all existing)
+async function saveFallbackConditions(fallbackId, conditions) {
+    // Delete existing conditions
+    await new Promise((resolve, reject) => {
+        _db.run('DELETE FROM proxy_fallback_conditions WHERE fallback_id = ?', [fallbackId], (err) => {
+            if (err) reject(err);
+            else resolve();
+        });
+    });
+
+    // Insert new conditions
+    for (let i = 0; i < conditions.length; i++) {
+        const c = conditions[i];
+        // Stringify customHeaders if it's an array
+        const customHeaders = c.customHeaders ?
+            (typeof c.customHeaders === 'string' ? c.customHeaders : JSON.stringify(c.customHeaders)) : null;
+        await new Promise((resolve, reject) => {
+            _db.run(`INSERT INTO proxy_fallback_conditions
+                     (fallback_id, orden, nombre, criteria, codigo, tiporespuesta, respuesta, customHeaders, activo)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [fallbackId, i, c.nombre || null, c.criteria,
+                 c.codigo || null, c.tiporespuesta || null,
+                 c.respuesta || null, customHeaders, c.activo !== false ? 1 : 0],
+                (err) => {
+                    if (err) reject(err);
+                    else resolve();
+                });
+        });
+    }
+
+    console.log(`[DB] Guardadas ${conditions.length} condiciones para fallback ${fallbackId}`);
+}
+
+// Delete conditions for a fallback
+async function deleteFallbackConditions(fallbackId) {
+    return new Promise((resolve, reject) => {
+        _db.run('DELETE FROM proxy_fallback_conditions WHERE fallback_id = ?', [fallbackId], (err) => {
+            if (err) reject(err);
+            else resolve();
+        });
+    });
+}
+
 exports.initSql = initSql;
 exports.getDatabase = getDatabase;
 exports.getRuta = getRuta;
@@ -446,3 +658,11 @@ exports.getAllTags = getAllTags;
 exports.getOrCreateTag = getOrCreateTag;
 exports.updateTagColor = updateTagColor;
 exports.deleteTag = deleteTag;
+exports.getProxyFallbacks = getProxyFallbacks;
+exports.getAllProxyFallbacks = getAllProxyFallbacks;
+exports.saveProxyFallbacks = saveProxyFallbacks;
+exports.deleteProxyFallbacks = deleteProxyFallbacks;
+exports.getFallbackConditions = getFallbackConditions;
+exports.getAllFallbackConditions = getAllFallbackConditions;
+exports.saveFallbackConditions = saveFallbackConditions;
+exports.deleteFallbackConditions = deleteFallbackConditions;
