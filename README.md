@@ -2,6 +2,9 @@
 
 A powerful HTTP mocking and proxying application built with Express.js and Node.js. It provides a web-based interface for configuring dynamic mock routes, managing HTTP requests, and proxying traffic to backend servers.
 
+<img width="2974" height="1459" alt="image" src="https://github.com/user-attachments/assets/f40d6512-2237-4898-9741-1d1b9c335bce" />
+
+
 ## Features
 
 ### Route Management
