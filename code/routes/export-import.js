@@ -72,6 +72,18 @@ function routesToXml(data) {
                     xml += '      </condition>\n';
                 });
                 xml += '    </conditions>\n';
+            } else if (key === 'graphqlOperations' && Array.isArray(value) && value.length > 0) {
+                xml += '    <graphqlOperations>\n';
+                value.forEach(op => {
+                    xml += '      <operation>\n';
+                    Object.entries(op).forEach(([ok, ov]) => {
+                        if (ov !== null && ov !== undefined) {
+                            xml += `        <${ok}>${escapeXml(ov)}</${ok}>\n`;
+                        }
+                    });
+                    xml += '      </operation>\n';
+                });
+                xml += '    </graphqlOperations>\n';
             } else if (key === 'fallbacks' && Array.isArray(value) && value.length > 0) {
                 xml += '    <fallbacks>\n';
                 value.forEach(fb => {
@@ -192,6 +204,32 @@ function xmlToRoutes(xmlContent) {
                     }
                 });
                 return cond;
+            });
+        }
+
+        // Parse graphqlOperations
+        const gqlOpsMatch = routeXml.match(/<graphqlOperations>([\s\S]*?)<\/graphqlOperations>/);
+        if (gqlOpsMatch) {
+            const opXmls = getTagContent(gqlOpsMatch[1], 'operation');
+            route.graphqlOperations = opXmls.map(opXml => {
+                const op = {};
+                const opFields = ['id', 'orden', 'operationType', 'operationName', 'respuesta', 'activo', 'useProxy'];
+                opFields.forEach(field => {
+                    const match = opXml.match(new RegExp(`<${field}>([\\s\\S]*?)<\\/${field}>`));
+                    if (match) {
+                        let value = match[1].trim()
+                            .replace(/&lt;/g, '<')
+                            .replace(/&gt;/g, '>')
+                            .replace(/&quot;/g, '"')
+                            .replace(/&apos;/g, "'")
+                            .replace(/&amp;/g, '&');
+                        if (['orden', 'activo'].includes(field)) {
+                            value = parseInt(value) || 0;
+                        }
+                        op[field] = value;
+                    }
+                });
+                return op;
             });
         }
 
@@ -348,6 +386,17 @@ router.get('/export', async (req, res) => {
                 }
 
                 route.fallbacks = fallbacks;
+            }
+
+            // Get GraphQL operations for graphql routes
+            if (route.tiporespuesta === 'graphql') {
+                const graphqlOps = await new Promise((resolve, reject) => {
+                    db.all('SELECT * FROM graphql_operations WHERE route_id = ? ORDER BY orden ASC', [route.id], (err, rows) => {
+                        if (err) reject(err);
+                        else resolve(rows || []);
+                    });
+                });
+                route.graphqlOperations = graphqlOps;
             }
         }
 
@@ -550,11 +599,13 @@ router.post('/import', upload.single('file'), async (req, res) => {
                     await new Promise((resolve, reject) => {
                         db.run(`UPDATE rutas SET codigo = ?, respuesta = ?, tiporespuesta = ?, esperaActiva = ?,
                             isRegex = ?, customHeaders = ?, activo = ?, fileName = ?, filePath = ?,
-                            fileMimeType = ?, tags = ?, operationId = ?, summary = ?, description = ?, requestBodyExample = ?
+                            fileMimeType = ?, tags = ?, operationId = ?, summary = ?, description = ?, requestBodyExample = ?,
+                            graphql_schema = ?, graphql_proxy_url = ?
                             WHERE id = ?`,
                             [route.codigo, route.respuesta, route.tiporespuesta, route.esperaActiva || 0,
                             route.isRegex || 0, route.customHeaders, route.activo ?? 1, null, null,
-                            null, route.tags, route.operationId, route.summary, route.description, route.requestBodyExample, existing.id],
+                            null, route.tags, route.operationId, route.summary, route.description, route.requestBodyExample,
+                            route.graphql_schema || null, route.graphql_proxy_url || null, existing.id],
                             function(err) {
                                 if (err) reject(err);
                                 else resolve();
@@ -585,11 +636,12 @@ router.post('/import', upload.single('file'), async (req, res) => {
                     const newRuta = route.ruta + '_imported_' + Date.now();
                     await new Promise((resolve, reject) => {
                         db.run(`INSERT INTO rutas (tipo, ruta, codigo, tiporespuesta, respuesta, esperaActiva,
-                            isRegex, customHeaders, activo, orden, tags, operationId, summary, description, requestBodyExample)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                            isRegex, customHeaders, activo, orden, tags, operationId, summary, description, requestBodyExample, graphql_schema, graphql_proxy_url)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                             [route.tipo, newRuta, route.codigo, route.tiporespuesta, route.respuesta,
                             route.esperaActiva || 0, route.isRegex || 0, route.customHeaders, route.activo ?? 1,
-                            maxOrder, route.tags, route.operationId, route.summary, route.description, route.requestBodyExample],
+                            maxOrder, route.tags, route.operationId, route.summary, route.description, route.requestBodyExample,
+                            route.graphql_schema || null, route.graphql_proxy_url || null],
                             function(err) {
                                 if (err) reject(err);
                                 else {
@@ -605,11 +657,12 @@ router.post('/import', upload.single('file'), async (req, res) => {
                 maxOrder++;
                 await new Promise((resolve, reject) => {
                     db.run(`INSERT INTO rutas (tipo, ruta, codigo, tiporespuesta, respuesta, esperaActiva,
-                        isRegex, customHeaders, activo, orden, tags, operationId, summary, description, requestBodyExample)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        isRegex, customHeaders, activo, orden, tags, operationId, summary, description, requestBodyExample, graphql_schema, graphql_proxy_url)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                         [route.tipo, route.ruta, route.codigo, route.tiporespuesta, route.respuesta,
                         route.esperaActiva || 0, route.isRegex || 0, route.customHeaders, route.activo ?? 1,
-                        maxOrder, route.tags, route.operationId, route.summary, route.description, route.requestBodyExample],
+                        maxOrder, route.tags, route.operationId, route.summary, route.description, route.requestBodyExample,
+                        route.graphql_schema || null, route.graphql_proxy_url || null],
                         function(err) {
                             if (err) reject(err);
                             else {
@@ -675,6 +728,24 @@ router.post('/import', upload.single('file'), async (req, res) => {
                             results.fallbackConditions.imported++;
                         }
                     }
+                }
+            }
+
+            // Import graphqlOperations for graphql routes
+            if (route.graphqlOperations && route.graphqlOperations.length > 0 && newRouteId) {
+                for (const op of route.graphqlOperations) {
+                    await new Promise((resolve, reject) => {
+                        db.run(`INSERT INTO graphql_operations (route_id, orden, operationType, operationName, respuesta, activo, useProxy)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                            [newRouteId, op.orden || 0, op.operationType || 'query', op.operationName,
+                            op.respuesta, op.activo ?? 1, op.useProxy ? 1 : 0],
+                            function(err) {
+                                if (err) reject(err);
+                                else resolve();
+                            });
+                    });
+                    if (!results.graphqlOperations) results.graphqlOperations = { imported: 0 };
+                    results.graphqlOperations.imported++;
                 }
             }
         }

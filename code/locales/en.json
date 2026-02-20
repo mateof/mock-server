@@ -99,7 +99,10 @@
       "metadataHelp": "Additional information about the route. These fields are automatically imported from OpenAPI.",
       "requestBodyHelp": "Example request body. Used in Test Request and cURL example.",
       "proxyTimeoutHelp": "Maximum time to wait for the proxy response before triggering fallback (1000-300000 ms)",
-      "fallbacksHelp": "Define mock responses to return when the proxy fails due to timeout, connection errors, or HTTP 5xx responses."
+      "fallbacksHelp": "Define mock responses to return when the proxy fails due to timeout, connection errors, or HTTP 5xx responses.",
+      "graphqlHelp": "Define mock responses for GraphQL queries and mutations. Each operation is matched by its type and name from the incoming GraphQL request.",
+      "graphqlSchemaHelp": "Enter the URL of a GraphQL endpoint. An introspection query will be sent to extract the schema and automatically generate mock responses.",
+      "graphqlProxyHelp": "URL of the remote GraphQL endpoint. Operations set to 'Proxy' mode will forward the query to this URL instead of returning mock data."
     },
     "proxyTimeout": "Request Timeout",
     "proxyFallbacks": "Fallback Responses",
@@ -115,6 +118,16 @@
     "operationId": "Operation ID",
     "summary": "Summary",
     "description": "Description",
+    "graphqlOperations": "GraphQL Operations",
+    "operationName": "Operation Name",
+    "importSchema": "Import Schema",
+    "importSchemaBtn": "Import",
+    "graphqlSchemaUrl": "GraphQL Endpoint URL",
+    "graphqlSchemaUrlRequired": "GraphQL endpoint URL is required",
+    "graphqlProxyUrl": "GraphQL Proxy URL",
+    "graphqlProxyInfo": "This operation will be forwarded to the remote GraphQL endpoint (proxy).",
+    "importingSchema": "Fetching schema from remote endpoint...",
+    "schemaImported": "Schema imported: {{count}} operations generated",
     "conditionalResponses": "Conditional Responses",
     "navigationTree": "Navigation",
     "mainResponse": "Main Response",
@@ -142,6 +155,7 @@
     "page": "Page (render)",
     "file": "File",
     "proxy": "Proxy",
+    "graphql": "GraphQL",
     "empty": "No Body"
   },
   "buttons": {
@@ -260,13 +274,16 @@
     "savingConditions": "Error saving conditions",
     "movingRoute": "Error moving route",
     "updatingOrder": "Error updating order",
-    "creatingTag": "Error creating tag"
+    "creatingTag": "Error creating tag",
+    "savingGraphQLOperations": "Error saving GraphQL operations",
+    "importingGraphQLSchema": "Error importing GraphQL schema"
   },
   "empty": {
     "noHeaders": "No headers configured",
     "noConditions": "No conditions configured. Default response will always be used.",
     "noTags": "No tags. Create a new one.",
-    "noFallbacks": "No fallbacks configured. Default error response will be returned on proxy failures."
+    "noFallbacks": "No fallbacks configured. Default error response will be returned on proxy failures.",
+    "noGraphQLOperations": "No GraphQL operations configured. Click '+' to add one."
   },
   "errorTypes": {
     "timeout": "Timeout",
@@ -390,6 +407,7 @@
   },
   "requestTester": {
     "title": "Test Request",
+    "graphiqlTitle": "GraphiQL IDE",
     "send": "Send",
     "sending": "Sending...",
     "queryParams": "Params",

@@ -99,7 +99,10 @@
       "metadataHelp": "Información adicional sobre a ruta. Estes campos impórtanse automaticamente desde OpenAPI.",
       "requestBodyHelp": "Exemplo de body para a petición. Usarase no Test Request e cURL example.",
       "proxyTimeoutHelp": "Tempo máximo de espera para a resposta do proxy antes de activar o fallback (1000-300000 ms)",
-      "fallbacksHelp": "Define respostas mock que se devolverán cando o proxy falle por timeout, erros de conexión ou respostas HTTP 5xx."
+      "fallbacksHelp": "Define respostas mock que se devolverán cando o proxy falle por timeout, erros de conexión ou respostas HTTP 5xx.",
+      "graphqlHelp": "Define respostas mock para queries e mutations GraphQL. Cada operación empátase polo seu tipo e nome desde a petición GraphQL entrante.",
+      "graphqlSchemaHelp": "Introduce a URL dun endpoint GraphQL. Enviarase unha consulta de introspección para extraer o schema e xerar respostas mock automaticamente.",
+      "graphqlProxyHelp": "URL do endpoint GraphQL remoto. As operacións en modo 'Proxy' reenviarán a query a esta URL en lugar de devolver datos mock."
     },
     "proxyTimeout": "Timeout de Petición",
     "proxyFallbacks": "Respostas de Fallback",
@@ -115,6 +118,16 @@
     "operationId": "Operation ID",
     "summary": "Resumo",
     "description": "Descrición",
+    "graphqlOperations": "Operacións GraphQL",
+    "operationName": "Nome da Operación",
+    "importSchema": "Importar Schema",
+    "importSchemaBtn": "Importar",
+    "graphqlSchemaUrl": "URL do endpoint GraphQL",
+    "graphqlSchemaUrlRequired": "A URL do endpoint GraphQL é obrigatoria",
+    "graphqlProxyUrl": "URL Proxy GraphQL",
+    "graphqlProxyInfo": "Esta operación reenviarase ao endpoint GraphQL remoto (proxy).",
+    "importingSchema": "Obtendo schema do endpoint remoto...",
+    "schemaImported": "Schema importado: {{count}} operacións xeradas",
     "conditionalResponses": "Respostas Condicionais",
     "navigationTree": "Navegación",
     "mainResponse": "Resposta Principal",
@@ -142,6 +155,7 @@
     "page": "Páxina (render)",
     "file": "Arquivo",
     "proxy": "Proxy",
+    "graphql": "GraphQL",
     "empty": "Sen Body"
   },
   "buttons": {
@@ -260,13 +274,16 @@
     "savingConditions": "Erro gardando condicións",
     "movingRoute": "Erro movendo ruta",
     "updatingOrder": "Erro actualizando orde",
-    "creatingTag": "Erro creando tag"
+    "creatingTag": "Erro creando tag",
+    "savingGraphQLOperations": "Erro gardando operacións GraphQL",
+    "importingGraphQLSchema": "Erro importando schema GraphQL"
   },
   "empty": {
     "noHeaders": "Non hai headers configurados",
     "noConditions": "Non hai condicións. Usarase sempre a resposta por defecto.",
     "noTags": "Non hai tags. Crea un novo.",
-    "noFallbacks": "Non hai fallbacks configurados. Devolverase a resposta de erro por defecto cando falle o proxy."
+    "noFallbacks": "Non hai fallbacks configurados. Devolverase a resposta de erro por defecto cando falle o proxy.",
+    "noGraphQLOperations": "Non hai operacións GraphQL configuradas. Fai clic en '+' para engadir unha."
   },
   "errorTypes": {
     "timeout": "Timeout",
@@ -390,6 +407,7 @@
   },
   "requestTester": {
     "title": "Probar Petición",
+    "graphiqlTitle": "GraphiQL IDE",
     "send": "Enviar",
     "sending": "Enviando...",
     "queryParams": "Params",

@@ -25,6 +25,7 @@ A powerful HTTP mocking and proxying application built with Express.js and Node.
 | **Page** | EJS template rendering |
 | **File** | Upload and serve files (up to 50MB) |
 | **Empty** | Empty 204 responses |
+| **GraphQL** | GraphQL endpoint with per-operation mock/proxy support |
 | **Proxy** | Forward requests to backend servers |
 | **Redirect** | HTTP 301 redirects |
 
@@ -46,6 +47,15 @@ A powerful HTTP mocking and proxying application built with Express.js and Node.
   - Color-coded by type
   - Detailed proxy logs with collapsible request/response bodies
   - Export logs to file
+
+- **GraphQL Mocking** - Full GraphQL endpoint simulation
+  - Import schema from any GraphQL endpoint via introspection
+  - Auto-generate mock operations with placeholder values
+  - Per-operation proxy/mock hybrid mode
+  - Selection set filtering (return only requested fields)
+  - Multi-root-field query support with combined mock/proxy results
+  - Built-in GraphiQL IDE with autocomplete and documentation
+  - See [GraphQL Documentation](docs/graphql.md) for details
 
 - **Proxy Configuration** - Forward requests to backend services
   - Prefix or regex-based route matching
@@ -189,6 +199,18 @@ volumes:
 | PUT | `/api/reorder` | Batch reorder routes |
 | POST | `/api/normalize-order` | Reset order to sequential values |
 
+### GraphQL
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/graphql-operations/:routeId` | Get GraphQL operations for a route |
+| PUT | `/api/graphql-operations/:routeId` | Save GraphQL operations |
+| POST | `/api/graphql-schema/import` | Import schema from remote endpoint |
+| GET | `/api/graphql-schema/:routeId` | Get stored introspection schema |
+| PUT | `/api/graphql-schema/:routeId` | Save/update introspection schema |
+| GET | `/api/graphql-proxy-url/:routeId` | Get proxy URL for a GraphQL route |
+| PUT | `/api/graphql-proxy-url/:routeId` | Save/update proxy URL |
+
 ### Utilities
 
 | Method | Endpoint | Description |
@@ -238,6 +260,20 @@ volumes:
 3. Request will be blocked and appear in pending list
 4. Click "Pendientes" to see waiting requests
 5. Click trigger button to release with default or custom response
+
+### Creating a GraphQL Mock
+
+1. Click "Nueva Ruta" (New Route)
+2. Select HTTP method: POST
+3. Enter route path: `/graphql`
+4. Select response type: GraphQL
+5. Click **Import Schema** and enter a GraphQL endpoint URL (e.g., `https://rickandmortyapi.com/graphql`)
+6. Operations are auto-generated with mock values — edit responses as needed
+7. Optionally set individual operations to **Proxy** mode to forward to the real API
+8. Save
+9. Click the test button (paper plane icon) to open GraphiQL IDE and test queries
+
+For a detailed walkthrough, see [GraphQL Documentation](docs/graphql.md).
 
 ### Conditional Responses
 

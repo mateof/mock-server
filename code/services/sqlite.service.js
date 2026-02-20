@@ -189,6 +189,8 @@ async function createTables(newdb) {
     await addColumn(newdb, 'description', 'TEXT');
     await addColumn(newdb, 'requestBodyExample', 'TEXT');
     await addColumn(newdb, 'proxy_timeout', 'INTEGER DEFAULT 30000');
+    await addColumn(newdb, 'graphql_schema', 'TEXT');
+    await addColumn(newdb, 'graphql_proxy_url', 'TEXT');
 
     // Crear índices para optimizar búsquedas de rutas
     await new Promise((resolve) => {
@@ -319,6 +321,41 @@ async function createTables(newdb) {
             resolve();
         });
     });
+
+    // Crear tabla de operaciones GraphQL
+    await new Promise((resolve) => {
+        newdb.exec(`
+            CREATE TABLE IF NOT EXISTS graphql_operations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                route_id INTEGER NOT NULL,
+                orden INTEGER DEFAULT 0,
+                operationType TEXT NOT NULL DEFAULT 'query',
+                operationName TEXT NOT NULL,
+                respuesta TEXT,
+                activo INTEGER DEFAULT 1,
+                FOREIGN KEY (route_id) REFERENCES rutas(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_graphql_ops_route_orden ON graphql_operations(route_id, orden);
+        `, (err) => {
+            if (!err) console.log('[DB] Tabla graphql_operations verificada');
+            resolve();
+        });
+    });
+
+    // Añadir columna useProxy a graphql_operations (para BD existentes)
+    const addGqlColumn = (db, column, definition) => {
+        return new Promise((resolve) => {
+            db.run(`ALTER TABLE graphql_operations ADD COLUMN ${column} ${definition}`, (err) => {
+                if (err && err.message.includes('duplicate column')) {
+                    console.log(`[DB] Columna graphql_operations.${column}: ya existe`);
+                } else if (!err) {
+                    console.log(`[DB] Columna graphql_operations.${column}: añadida`);
+                }
+                resolve();
+            });
+        });
+    };
+    await addGqlColumn(newdb, 'useProxy', 'INTEGER DEFAULT 0');
 
     console.log('[DB] Inicialización de tablas completada');
 }
@@ -647,6 +684,82 @@ async function deleteFallbackConditions(fallbackId) {
     });
 }
 
+// ===== GRAPHQL OPERATIONS FUNCTIONS =====
+
+// Obtener operaciones GraphQL activas para una ruta (ordenadas)
+async function getGraphQLOperations(routeId) {
+    const sql = `SELECT * FROM graphql_operations
+                 WHERE route_id = ? AND (activo = 1 OR activo IS NULL)
+                 ORDER BY orden ASC`;
+    return new Promise((resolve, reject) => {
+        _db.all(sql, [routeId], (err, rows) => {
+            if (err) {
+                console.error(`[DB] Error obteniendo operaciones GraphQL: ${err.message}`);
+                reject(err);
+            } else {
+                resolve(rows || []);
+            }
+        });
+    });
+}
+
+// Obtener todas las operaciones GraphQL (incluidas inactivas, para edición)
+async function getAllGraphQLOperations(routeId) {
+    const sql = `SELECT * FROM graphql_operations
+                 WHERE route_id = ?
+                 ORDER BY orden ASC`;
+    return new Promise((resolve, reject) => {
+        _db.all(sql, [routeId], (err, rows) => {
+            if (err) {
+                console.error(`[DB] Error obteniendo todas las operaciones GraphQL: ${err.message}`);
+                reject(err);
+            } else {
+                resolve(rows || []);
+            }
+        });
+    });
+}
+
+// Guardar operaciones GraphQL (reemplaza todas las existentes)
+async function saveGraphQLOperations(routeId, operations) {
+    // Eliminar existentes
+    await new Promise((resolve, reject) => {
+        _db.run('DELETE FROM graphql_operations WHERE route_id = ?', [routeId], (err) => {
+            if (err) reject(err);
+            else resolve();
+        });
+    });
+
+    // Insertar nuevas
+    for (let i = 0; i < operations.length; i++) {
+        const op = operations[i];
+        await new Promise((resolve, reject) => {
+            _db.run(`INSERT INTO graphql_operations
+                     (route_id, orden, operationType, operationName, respuesta, activo, useProxy)
+                     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                [routeId, i, op.operationType || 'query', op.operationName,
+                 op.respuesta || null, op.activo !== false && op.activo !== 0 ? 1 : 0,
+                 op.useProxy ? 1 : 0],
+                (err) => {
+                    if (err) reject(err);
+                    else resolve();
+                });
+        });
+    }
+
+    console.log(`[DB] Guardadas ${operations.length} operaciones GraphQL para ruta ${routeId}`);
+}
+
+// Eliminar operaciones GraphQL de una ruta
+async function deleteGraphQLOperations(routeId) {
+    return new Promise((resolve, reject) => {
+        _db.run('DELETE FROM graphql_operations WHERE route_id = ?', [routeId], (err) => {
+            if (err) reject(err);
+            else resolve();
+        });
+    });
+}
+
 exports.initSql = initSql;
 exports.getDatabase = getDatabase;
 exports.getRuta = getRuta;
@@ -666,3 +779,7 @@ exports.getFallbackConditions = getFallbackConditions;
 exports.getAllFallbackConditions = getAllFallbackConditions;
 exports.saveFallbackConditions = saveFallbackConditions;
 exports.deleteFallbackConditions = deleteFallbackConditions;
+exports.getGraphQLOperations = getGraphQLOperations;
+exports.getAllGraphQLOperations = getAllGraphQLOperations;
+exports.saveGraphQLOperations = saveGraphQLOperations;
+exports.deleteGraphQLOperations = deleteGraphQLOperations;
