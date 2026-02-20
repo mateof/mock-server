@@ -8,6 +8,7 @@ const path = require('path');
 const fs = require('fs');
 const openapiService = require('../services/openapi.service');
 const criteriaService = require('../services/criteria-evaluator.service');
+const graphqlService = require('../services/graphql.service');
 
 // Configuración de multer para subida de archivos
 const UPLOADS_DIR = path.join(__dirname, '..', 'data', 'uploads');
@@ -208,6 +209,24 @@ router.post('/duplicate/:id', async function(req, res) {
         });
 
         console.log(`Ruta duplicada: ${original.ruta} -> ${newRoute} (nuevo id: ${result.lastID})`);
+
+        // Duplicar operaciones GraphQL y schema si es tipo graphql
+        if (original.tiporespuesta === 'graphql') {
+            const gqlOps = await sqliteService.getAllGraphQLOperations(id);
+            if (gqlOps && gqlOps.length > 0) {
+                await sqliteService.saveGraphQLOperations(result.lastID, gqlOps);
+                console.log(`[API] Duplicadas ${gqlOps.length} operaciones GraphQL`);
+            }
+            if (original.graphql_schema || original.graphql_proxy_url) {
+                const db = sqliteService.getDatabase();
+                await new Promise((resolve, reject) => {
+                    db.run('UPDATE rutas SET graphql_schema = ?, graphql_proxy_url = ? WHERE id = ?',
+                        [original.graphql_schema, original.graphql_proxy_url, result.lastID],
+                        (err) => { if (err) reject(err); else resolve(); }
+                    );
+                });
+            }
+        }
 
         if (isProxy) {
             await pm.reloadProxyConfigs();
@@ -678,6 +697,182 @@ router.put('/fallback-conditions/:fallbackId', async function(req, res) {
         res.json({ success: true });
     } catch (err) {
         console.error(`[API] Error guardando condiciones de fallback: ${err.message}`);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// ===== GRAPHQL OPERATIONS API =====
+
+/* Obtener operaciones GraphQL de una ruta */
+router.get('/graphql-operations/:routeId', async function(req, res) {
+    try {
+        const operations = await sqliteService.getAllGraphQLOperations(req.params.routeId);
+        res.json({ success: true, operations });
+    } catch (err) {
+        console.error(`[API] Error obteniendo operaciones GraphQL: ${err.message}`);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+/* Guardar operaciones GraphQL de una ruta */
+router.put('/graphql-operations/:routeId', async function(req, res) {
+    const { operations } = req.body;
+
+    if (!Array.isArray(operations)) {
+        return res.status(400).json({ success: false, error: 'operations debe ser un array' });
+    }
+
+    // Validar cada operación
+    for (let i = 0; i < operations.length; i++) {
+        const op = operations[i];
+
+        if (!op.operationName || !op.operationName.trim()) {
+            return res.status(400).json({
+                success: false,
+                error: `La operación ${i + 1} debe tener un nombre`
+            });
+        }
+
+        if (!['query', 'mutation'].includes(op.operationType)) {
+            return res.status(400).json({
+                success: false,
+                error: `Operación "${op.operationName}": tipo inválido "${op.operationType}"`
+            });
+        }
+
+        // Validar que la respuesta sea JSON válido (solo si no es proxy)
+        if (!op.useProxy && op.respuesta && op.respuesta.trim()) {
+            try {
+                JSON.parse(op.respuesta);
+            } catch (e) {
+                return res.status(400).json({
+                    success: false,
+                    error: `Operación "${op.operationName}": JSON de respuesta inválido`
+                });
+            }
+        }
+    }
+
+    try {
+        await sqliteService.saveGraphQLOperations(req.params.routeId, operations);
+        res.json({ success: true });
+    } catch (err) {
+        console.error(`[API] Error guardando operaciones GraphQL: ${err.message}`);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// ===== GRAPHQL SCHEMA API =====
+
+/* Importar schema GraphQL desde URL remota */
+router.post('/graphql-schema/import', async function(req, res) {
+    const { url, routeId } = req.body;
+
+    if (!url || !url.trim()) {
+        return res.status(400).json({ success: false, error: 'URL is required' });
+    }
+
+    try {
+        console.log(`[API] Importing GraphQL schema from: ${url}`);
+
+        const introspectionResult = await graphqlService.fetchIntrospectionFromUrl(url);
+        const { operations } = graphqlService.generateMockFromIntrospection(introspectionResult);
+        console.log(`[API] Generated ${operations.length} mock operations from schema`);
+
+        // Si se proporciona routeId, guardar directamente en BD
+        if (routeId) {
+            await sqliteService.saveGraphQLOperations(routeId, operations);
+
+            const db = sqliteService.getDatabase();
+            await new Promise((resolve, reject) => {
+                db.run('UPDATE rutas SET graphql_schema = ?, graphql_proxy_url = ? WHERE id = ?',
+                    [JSON.stringify(introspectionResult), url, routeId],
+                    (err) => { if (err) reject(err); else resolve(); }
+                );
+            });
+            console.log(`[API] Schema, proxy URL and operations saved to route ${routeId}`);
+        }
+
+        res.json({
+            success: true,
+            schema: introspectionResult,
+            operations,
+            operationCount: operations.length
+        });
+    } catch (err) {
+        console.error(`[API] Error importing GraphQL schema: ${err.message}`);
+        res.status(400).json({ success: false, error: err.message });
+    }
+});
+
+/* Obtener schema GraphQL almacenado de una ruta */
+router.get('/graphql-schema/:routeId', async function(req, res) {
+    try {
+        const db = sqliteService.getDatabase();
+        const row = await new Promise((resolve, reject) => {
+            db.get('SELECT graphql_schema FROM rutas WHERE id = ?', [req.params.routeId], (err, row) => {
+                if (err) reject(err); else resolve(row);
+            });
+        });
+
+        if (!row || !row.graphql_schema) {
+            return res.json({ success: true, schema: null });
+        }
+
+        res.json({ success: true, schema: JSON.parse(row.graphql_schema) });
+    } catch (err) {
+        console.error(`[API] Error getting GraphQL schema: ${err.message}`);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+/* Guardar/actualizar schema GraphQL de una ruta */
+router.put('/graphql-schema/:routeId', async function(req, res) {
+    const { schema } = req.body;
+    try {
+        const db = sqliteService.getDatabase();
+        await new Promise((resolve, reject) => {
+            db.run('UPDATE rutas SET graphql_schema = ? WHERE id = ?',
+                [schema ? JSON.stringify(schema) : null, req.params.routeId],
+                (err) => { if (err) reject(err); else resolve(); }
+            );
+        });
+        res.json({ success: true });
+    } catch (err) {
+        console.error(`[API] Error saving GraphQL schema: ${err.message}`);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+/* Obtener/guardar proxy URL de una ruta GraphQL */
+router.get('/graphql-proxy-url/:routeId', async function(req, res) {
+    try {
+        const db = sqliteService.getDatabase();
+        const row = await new Promise((resolve, reject) => {
+            db.get('SELECT graphql_proxy_url FROM rutas WHERE id = ?', [req.params.routeId], (err, row) => {
+                if (err) reject(err); else resolve(row);
+            });
+        });
+        res.json({ success: true, proxyUrl: row?.graphql_proxy_url || null });
+    } catch (err) {
+        console.error(`[API] Error getting GraphQL proxy URL: ${err.message}`);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+router.put('/graphql-proxy-url/:routeId', async function(req, res) {
+    const { proxyUrl } = req.body;
+    try {
+        const db = sqliteService.getDatabase();
+        await new Promise((resolve, reject) => {
+            db.run('UPDATE rutas SET graphql_proxy_url = ? WHERE id = ?',
+                [proxyUrl || null, req.params.routeId],
+                (err) => { if (err) reject(err); else resolve(); }
+            );
+        });
+        res.json({ success: true });
+    } catch (err) {
+        console.error(`[API] Error saving GraphQL proxy URL: ${err.message}`);
         res.status(500).json({ success: false, error: err.message });
     }
 });

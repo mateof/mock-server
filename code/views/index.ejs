@@ -81,6 +81,7 @@
             <option value="page">Page</option>
             <option value="file">Archivo</option>
             <option value="proxy">Proxy</option>
+            <option value="graphql">GraphQL</option>
             <option value="empty">Empty</option>
           </select>
         </div>
@@ -204,6 +205,7 @@
 <%- include('modals/duplicate') %>
 <%- include('modals/criteria-help') %>
 <%- include('modals/request-tester') %>
+<%- include('modals/graphiql-tester') %>
 <%- include('modals/tag-manager') %>
 <%- include('modals/export-import') %>
 
@@ -720,7 +722,7 @@
         return html;
       }},
       { data: null, render: function (data) {
-        const icons = { json: 'fa-code', xml: 'fa-file-code-o', soap: 'fa-envelope-o', text: 'fa-align-left', html: 'fa-html5', page: 'fa-file-text-o', file: 'fa-file-o', proxy: 'fa-exchange', empty: 'fa-circle-o' };
+        const icons = { json: 'fa-code', xml: 'fa-file-code-o', soap: 'fa-envelope-o', text: 'fa-align-left', html: 'fa-html5', page: 'fa-file-text-o', file: 'fa-file-o', proxy: 'fa-exchange', graphql: 'fa-share-alt', empty: 'fa-circle-o' };
         return `<span class="response-type type-${data.tiporespuesta}"><i class="fa ${icons[data.tiporespuesta] || 'fa-question'}"></i> ${data.tiporespuesta}</span>`;
       }},
       { data: null, render: function (data) {
@@ -997,18 +999,47 @@
     text: 'Hello World',
     page: '<h1>Hello World</h1>\n<p>This is a rendered page.</p>',
     empty: '',
-    proxy: ''
+    proxy: '',
+    graphql: ''
   };
 
   function checkRespuesta() {
     const tipoResp = document.getElementById("tiporespuesta").value;
     showElements(['#divtresp', '#divtipo', '#divruta', '#divcodresp', '#divresp', '#divEsperaActiva', '#divMetadata', '#divHeaders', '#divConditions']);
-    hideElements(['#divDestino', '#divFile', '#divProxyTimeout', '#divFallbacks']);
+    hideElements(['#divDestino', '#divFile', '#divProxyTimeout', '#divFallbacks', '#divGraphQL']);
+
+    // Nav panel: show conditions/fallbacks/graphql dividers based on type
+    document.getElementById('navDividerConditions').style.display = '';
+    document.getElementById('routeNavConditions').style.display = '';
+    document.getElementById('navDividerFallbacks').style.display = 'none';
+    document.getElementById('routeNavFallbacks').style.display = 'none';
+    document.getElementById('navDividerGraphQL').style.display = 'none';
+    document.getElementById('routeNavGraphQL').style.display = 'none';
 
     if (tipoResp === 'proxy') {
       // For proxy: hide response fields, metadata, headers, conditions (those are per-fallback)
       hideElements(['#divtipo', '#divcodresp', '#divEsperaActiva', '#divresp', '#divFile', '#divMetadata', '#divHeaders', '#divConditions']);
       showElements(['#divDestino', '#divProxyTimeout', '#divFallbacks']);
+      document.getElementById('navDividerConditions').style.display = 'none';
+      document.getElementById('routeNavConditions').style.display = 'none';
+      document.getElementById('navDividerFallbacks').style.display = '';
+      document.getElementById('routeNavFallbacks').style.display = '';
+    } else if (tipoResp === 'graphql') {
+      // For graphql: hide response textarea, code, wait, conditions; show graphql operations
+      hideElements(['#divcodresp', '#divresp', '#divFile', '#divEsperaActiva', '#divConditions']);
+      showElements(['#divGraphQL']);
+      // Auto-set POST method and code 200
+      document.getElementById('tipoSelect').value = '1'; // POST
+      document.getElementById('crespuestaInput').value = '200';
+      updateCodeDescription();
+      // Nav panel: hide conditions, show graphql
+      document.getElementById('navDividerConditions').style.display = 'none';
+      document.getElementById('routeNavConditions').style.display = 'none';
+      document.getElementById('navDividerGraphQL').style.display = '';
+      document.getElementById('routeNavGraphQL').style.display = '';
+      // Auto-expand graphql section
+      const gqlBody = document.getElementById('graphqlCollapsibleBody');
+      if (gqlBody) gqlBody.style.display = 'block';
     } else if (tipoResp === 'file') {
       hideElements(['#divresp']);
       showElements(['#divFile']);
@@ -2011,6 +2042,64 @@
           conditionsContainer.appendChild(conditionCard);
         }
       });
+    },
+
+    // ===== GRAPHQL OPERATIONS =====
+    addGraphQLOpNavItem(opId, name, isActive = true) {
+      const container = document.getElementById('routeNavGraphQL');
+      if (!container) return;
+
+      const item = document.createElement('div');
+      item.className = 'route-nav-item';
+      item.id = `nav-graphql-op-${opId}`;
+      item.dataset.graphqlOpId = opId;
+      item.dataset.target = `graphql-op-${opId}`;
+
+      item.innerHTML = `
+        <label class="switch-mini" onclick="event.stopPropagation()">
+          <input type="checkbox" id="nav-switch-graphql-op-${opId}" ${isActive ? 'checked' : ''}>
+          <span class="slider-mini"></span>
+        </label>
+        <span class="nav-item-name">${this.escapeHtml(name) || 'Operation ' + opId}</span>
+      `;
+
+      item.addEventListener('click', (e) => {
+        if (!e.target.closest('.switch-mini')) {
+          this.navigateTo(`graphql-op-${opId}`);
+        }
+      });
+
+      const navSwitch = item.querySelector(`#nav-switch-graphql-op-${opId}`);
+      if (navSwitch) {
+        navSwitch.addEventListener('change', (e) => {
+          const cardSwitch = document.getElementById(`graphql-op-active-${opId}`);
+          if (cardSwitch) {
+            cardSwitch.checked = e.target.checked;
+          }
+        });
+      }
+
+      container.appendChild(item);
+    },
+
+    updateGraphQLOpNavItemName(opId, name) {
+      const navItem = document.getElementById(`nav-graphql-op-${opId}`);
+      if (navItem) {
+        const nameSpan = navItem.querySelector('.nav-item-name');
+        if (nameSpan) {
+          nameSpan.textContent = name || 'Operation ' + opId;
+        }
+      }
+    },
+
+    removeGraphQLOpNavItem(opId) {
+      const navItem = document.getElementById(`nav-graphql-op-${opId}`);
+      if (navItem) navItem.remove();
+    },
+
+    clearGraphQLOpNavItems() {
+      const container = document.getElementById('routeNavGraphQL');
+      if (container) container.innerHTML = '';
     },
 
     escapeHtml(text) {
@@ -3207,13 +3296,415 @@
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   }
 
+  // ===== GRAPHQL OPERATIONS FUNCTIONS =====
+  let graphqlOpCounter = 0;
+
+  function toggleGraphQLSection() {
+    const body = document.getElementById('graphqlCollapsibleBody');
+    if (body) body.style.display = body.style.display === 'none' ? 'block' : 'none';
+  }
+
+  function addGraphQLOperationRow(data = {}) {
+    graphqlOpCounter++;
+    const container = document.getElementById('graphqlOperationsContainer');
+    const noMsg = document.getElementById('noGraphQLOpsMsg');
+    if (noMsg) noMsg.style.display = 'none';
+
+    const isActive = data.activo !== false && data.activo !== 0;
+    const opId = graphqlOpCounter;
+
+    const card = document.createElement('div');
+    card.className = 'condition-card';
+    card.id = `graphql-op-${opId}`;
+    card.dataset.order = opId;
+
+    const escapedName = escapeHtml(data.operationName || '');
+    const escapedResponse = escapeHtml(data.respuesta || '');
+
+    const isProxy = data.useProxy === true || data.useProxy === 1;
+
+    card.innerHTML = `
+      <div class="condition-header" onclick="toggleGraphQLOpCollapse(${opId})">
+        <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;">
+          <select class="form-control-modern" id="graphql-op-type-${opId}"
+                  style="width: 120px; flex-shrink: 0;" onclick="event.stopPropagation()">
+            <option value="query" ${data.operationType !== 'mutation' ? 'selected' : ''}>Query</option>
+            <option value="mutation" ${data.operationType === 'mutation' ? 'selected' : ''}>Mutation</option>
+          </select>
+          <input type="text" class="form-control-modern condition-name"
+                 placeholder="${t('form.operationName')}"
+                 id="graphql-op-name-${opId}"
+                 value="${escapedName}"
+                 onclick="event.stopPropagation()"
+                 oninput="RouteNavigation.updateGraphQLOpNavItemName(${opId}, this.value)">
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <select class="form-control-modern" id="graphql-op-mode-${opId}"
+                  style="width: 100px; flex-shrink: 0;" onclick="event.stopPropagation()"
+                  onchange="toggleGraphQLOpMode(${opId})">
+            <option value="mock" ${!isProxy ? 'selected' : ''}>Mock</option>
+            <option value="proxy" ${isProxy ? 'selected' : ''}>Proxy</option>
+          </select>
+          <label class="switch-modern" onclick="event.stopPropagation()">
+            <input type="checkbox" id="graphql-op-active-${opId}" ${isActive ? 'checked' : ''}
+                   onchange="RouteNavigation.updateGraphQLOpNavItemName(${opId}, document.getElementById('graphql-op-name-${opId}').value)">
+            <span class="slider"></span>
+          </label>
+          <button class="btn-icon btn-icon-danger" type="button"
+                  onclick="event.stopPropagation(); removeGraphQLOperationRow(${opId})">
+            <i class="fa fa-trash"></i>
+          </button>
+        </div>
+      </div>
+      <div class="condition-body" id="graphql-op-body-${opId}">
+        <div class="form-group-modern" id="graphql-op-response-group-${opId}" style="${isProxy ? 'display:none;' : ''}">
+          <div class="form-label-row">
+            <label class="form-label-modern">${t('form.response')} (JSON)</label>
+            <button type="button" class="btn-modern btn-modern-secondary btn-sm"
+                    onclick="formatGraphQLOpResponse(${opId})">
+              <i class="fa fa-align-left"></i> ${t('buttons.format')}
+            </button>
+          </div>
+          <textarea class="form-control-modern"
+                    id="graphql-op-response-${opId}"
+                    rows="5"
+                    placeholder='{ "user": { "id": 1, "name": "John", "email": "john@example.com" } }'
+          >${escapedResponse}</textarea>
+        </div>
+        <div id="graphql-op-proxy-info-${opId}" style="${isProxy ? '' : 'display:none;'} padding: 0.5rem 0;">
+          <small style="color: var(--text-muted);">
+            <i class="fa fa-exchange"></i> ${t('form.graphqlProxyInfo')}
+          </small>
+        </div>
+      </div>
+    `;
+
+    container.appendChild(card);
+    RouteNavigation.addGraphQLOpNavItem(opId, data.operationName || '', isActive);
+  }
+
+  function toggleGraphQLOpCollapse(opId) {
+    const body = document.getElementById(`graphql-op-body-${opId}`);
+    if (body) body.style.display = body.style.display === 'none' ? 'block' : 'none';
+  }
+
+  function toggleGraphQLOpMode(opId) {
+    const mode = document.getElementById(`graphql-op-mode-${opId}`).value;
+    const responseGroup = document.getElementById(`graphql-op-response-group-${opId}`);
+    const proxyInfo = document.getElementById(`graphql-op-proxy-info-${opId}`);
+
+    if (mode === 'proxy') {
+      if (responseGroup) responseGroup.style.display = 'none';
+      if (proxyInfo) proxyInfo.style.display = '';
+    } else {
+      if (responseGroup) responseGroup.style.display = '';
+      if (proxyInfo) proxyInfo.style.display = 'none';
+    }
+    updateGraphQLProxyUrlVisibility();
+  }
+
+  function updateGraphQLProxyUrlVisibility() {
+    const container = document.getElementById('graphqlProxyUrlContainer');
+    if (!container) return;
+    const opsContainer = document.getElementById('graphqlOperationsContainer');
+    if (!opsContainer) return;
+    const hasProxy = Array.from(opsContainer.querySelectorAll('.condition-card')).some(card => {
+      const id = card.id.replace('graphql-op-', '');
+      const modeEl = document.getElementById(`graphql-op-mode-${id}`);
+      return modeEl && modeEl.value === 'proxy';
+    });
+    container.style.display = hasProxy ? 'block' : 'none';
+  }
+
+  function removeGraphQLOperationRow(id) {
+    const card = document.getElementById(`graphql-op-${id}`);
+    if (card) card.remove();
+    RouteNavigation.removeGraphQLOpNavItem(id);
+    const container = document.getElementById('graphqlOperationsContainer');
+    if (container && container.children.length === 0) {
+      const noMsg = document.getElementById('noGraphQLOpsMsg');
+      if (noMsg) noMsg.style.display = 'block';
+    }
+  }
+
+  function getGraphQLOperations() {
+    const operations = [];
+    const container = document.getElementById('graphqlOperationsContainer');
+    if (!container) return operations;
+
+    const cards = Array.from(container.querySelectorAll('.condition-card'));
+    cards.forEach((card, idx) => {
+      const id = card.id.replace('graphql-op-', '');
+      const nameEl = document.getElementById(`graphql-op-name-${id}`);
+      const operationName = nameEl ? nameEl.value.trim() : '';
+      if (!operationName) return;
+
+      const modeEl = document.getElementById(`graphql-op-mode-${id}`);
+      const useProxy = modeEl && modeEl.value === 'proxy';
+      operations.push({
+        orden: idx,
+        operationType: document.getElementById(`graphql-op-type-${id}`).value,
+        operationName: operationName,
+        respuesta: useProxy ? null : (document.getElementById(`graphql-op-response-${id}`).value || null),
+        activo: document.getElementById(`graphql-op-active-${id}`).checked,
+        useProxy: useProxy
+      });
+    });
+    return operations;
+  }
+
+  function clearGraphQLOperations() {
+    const container = document.getElementById('graphqlOperationsContainer');
+    if (container) container.innerHTML = '';
+    const noMsg = document.getElementById('noGraphQLOpsMsg');
+    if (noMsg) noMsg.style.display = 'block';
+    graphqlOpCounter = 0;
+    RouteNavigation.clearGraphQLOpNavItems();
+  }
+
+  async function loadGraphQLOperationsForRoute(routeId) {
+    try {
+      const response = await fetch(`/api/graphql-operations/${routeId}`);
+      const data = await response.json();
+      if (data.success && data.operations) {
+        clearGraphQLOperations();
+        data.operations.forEach(op => addGraphQLOperationRow(op));
+        if (data.operations.length > 0) {
+          const gqlBody = document.getElementById('graphqlCollapsibleBody');
+          if (gqlBody) gqlBody.style.display = 'block';
+        }
+      }
+    } catch (e) {
+      console.error('Error loading GraphQL operations:', e);
+    }
+  }
+
+  async function saveGraphQLOperationsForRoute(routeId) {
+    const operations = getGraphQLOperations();
+    try {
+      const response = await fetch(`/api/graphql-operations/${routeId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operations })
+      });
+      const data = await response.json();
+      if (!data.success) {
+        showToast(data.error || t('errors.savingGraphQLOperations'), 'error');
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.error('Error saving GraphQL operations:', e);
+      return false;
+    }
+  }
+
+  function formatGraphQLOpResponse(id) {
+    const textarea = document.getElementById(`graphql-op-response-${id}`);
+    if (!textarea || !textarea.value.trim()) return;
+    try {
+      const parsed = JSON.parse(textarea.value);
+      textarea.value = JSON.stringify(parsed, null, 2);
+    } catch (e) {
+      showToast('JSON ' + t('validation.jsonInvalid') + ': ' + e.message, 'error');
+    }
+  }
+
+  // ===== GRAPHQL SCHEMA IMPORT =====
+  let currentGraphQLSchema = null;
+
+  function openGraphQLSchemaImport() {
+    const form = document.getElementById('graphqlSchemaImportForm');
+    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+  }
+
+  async function importGraphQLSchema() {
+    const url = document.getElementById('graphqlSchemaUrl').value.trim();
+    if (!url) {
+      showToast(t('form.graphqlSchemaUrlRequired'), 'error');
+      return;
+    }
+
+    const btn = document.getElementById('btnImportSchema');
+    const progress = document.getElementById('schemaImportProgress');
+    const statusEl = document.getElementById('schemaImportStatus');
+
+    btn.disabled = true;
+    progress.style.display = 'block';
+    statusEl.textContent = t('form.importingSchema');
+
+    try {
+      const routeId = document.getElementById('idmodal').textContent || null;
+
+      const response = await fetch('/api/graphql-schema/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, routeId: routeId && routeId.trim() ? routeId.trim() : undefined })
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Unknown error');
+      }
+
+      currentGraphQLSchema = data.schema;
+
+      // Auto-rellenar proxy URL con la URL del endpoint importado
+      const proxyUrlInput = document.getElementById('graphqlProxyUrl');
+      if (proxyUrlInput) proxyUrlInput.value = url;
+
+      // Limpiar operaciones existentes y cargar las generadas
+      clearGraphQLOperations();
+      data.operations.forEach(op => addGraphQLOperationRow(op));
+      updateGraphQLProxyUrlVisibility();
+
+      // Auto-expandir sección GraphQL
+      const gqlBody = document.getElementById('graphqlCollapsibleBody');
+      if (gqlBody) gqlBody.style.display = 'block';
+
+      // Ocultar formulario de import
+      document.getElementById('graphqlSchemaImportForm').style.display = 'none';
+
+      showToast(
+        t('form.schemaImported').replace('{{count}}', data.operationCount),
+        'success'
+      );
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      btn.disabled = false;
+      progress.style.display = 'none';
+    }
+  }
+
+  async function loadGraphQLSchemaForRoute(routeId) {
+    try {
+      const response = await fetch(`/api/graphql-schema/${routeId}`);
+      const data = await response.json();
+      if (data.success && data.schema) {
+        currentGraphQLSchema = data.schema;
+      } else {
+        currentGraphQLSchema = null;
+      }
+    } catch (e) {
+      console.error('Error loading GraphQL schema:', e);
+      currentGraphQLSchema = null;
+    }
+  }
+
+  async function saveGraphQLSchemaForRoute(routeId) {
+    if (!currentGraphQLSchema) return;
+    try {
+      await fetch(`/api/graphql-schema/${routeId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ schema: currentGraphQLSchema })
+      });
+    } catch (e) {
+      console.error('Error saving GraphQL schema:', e);
+    }
+  }
+
+  async function loadGraphQLProxyUrlForRoute(routeId) {
+    try {
+      const response = await fetch(`/api/graphql-proxy-url/${routeId}`);
+      const data = await response.json();
+      const proxyUrlInput = document.getElementById('graphqlProxyUrl');
+      if (proxyUrlInput) {
+        proxyUrlInput.value = data.success && data.proxyUrl ? data.proxyUrl : '';
+      }
+    } catch (e) {
+      console.error('Error loading GraphQL proxy URL:', e);
+    }
+  }
+
+  async function saveGraphQLProxyUrlForRoute(routeId) {
+    const proxyUrlInput = document.getElementById('graphqlProxyUrl');
+    const proxyUrl = proxyUrlInput ? proxyUrlInput.value.trim() : '';
+    try {
+      await fetch(`/api/graphql-proxy-url/${routeId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ proxyUrl: proxyUrl || null })
+      });
+    } catch (e) {
+      console.error('Error saving GraphQL proxy URL:', e);
+    }
+  }
+
+  // ===== GRAPHIQL TESTER =====
+  function openGraphiQLTester(routeObj) {
+    const baseUrl = window.location.origin;
+    let route = routeObj.ruta;
+    if (routeObj.isRegex) {
+      route = regexToSampleUrl(route);
+    }
+    const graphqlUrl = baseUrl + route;
+
+    // Mostrar endpoint en el header
+    document.getElementById('graphiqlEndpointUrl').textContent = graphqlUrl;
+
+    const container = document.getElementById('graphiqlContainer');
+    container.innerHTML = '';
+
+    const graphQLFetcher = (graphQLParams) => {
+      return fetch(graphqlUrl, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(graphQLParams),
+      }).then(response => response.json());
+    };
+
+    const modal = new bootstrap.Modal(document.getElementById('graphiqlTesterModal'));
+    modal.show();
+
+    // Renderizar GraphiQL cuando el modal esté visible (necesita dimensiones)
+    document.getElementById('graphiqlTesterModal').addEventListener('shown.bs.modal', function onShown() {
+      document.getElementById('graphiqlTesterModal').removeEventListener('shown.bs.modal', onShown);
+
+      const root = ReactDOM.createRoot(container);
+      root.render(
+        React.createElement(GraphiQL, {
+          fetcher: graphQLFetcher,
+          defaultQuery: `# GraphiQL IDE\n#\n# Endpoint: ${graphqlUrl}\n#\nquery {\n  \n}\n`
+        })
+      );
+
+      container._reactRoot = root;
+    }, { once: true });
+
+    // Cleanup al cerrar
+    document.getElementById('graphiqlTesterModal').addEventListener('hidden.bs.modal', function onHidden() {
+      document.getElementById('graphiqlTesterModal').removeEventListener('hidden.bs.modal', onHidden);
+      if (container._reactRoot) {
+        container._reactRoot.unmount();
+        container._reactRoot = null;
+      }
+      container.innerHTML = '';
+    }, { once: true });
+  }
+
   // ===== MODAL FUNCTIONS =====
   function openModal(type = 'create', objId) {
     // Inicializar navegación del modal
     RouteNavigation.init();
 
-    // Limpiar condiciones siempre al abrir
+    // Limpiar condiciones, operaciones GraphQL y schema siempre al abrir
     clearConditions();
+    clearGraphQLOperations();
+    currentGraphQLSchema = null;
+    // Resetear proxy URL
+    const proxyUrlInput = document.getElementById('graphqlProxyUrl');
+    if (proxyUrlInput) proxyUrlInput.value = '';
+    const proxyUrlContainer = document.getElementById('graphqlProxyUrlContainer');
+    if (proxyUrlContainer) proxyUrlContainer.style.display = 'none';
+    // Ocultar formulario de import schema
+    const schemaImportForm = document.getElementById('graphqlSchemaImportForm');
+    if (schemaImportForm) schemaImportForm.style.display = 'none';
     // Colapsar sección de condiciones
     document.querySelector('#divConditions .collapsible-body').style.display = 'block';
 
@@ -3242,6 +3733,12 @@
       checkRespuesta();
       // Cargar condiciones existentes
       loadConditionsForRoute(objId);
+      // Cargar operaciones GraphQL si es tipo graphql
+      if (obj && obj.tiporespuesta === 'graphql') {
+        loadGraphQLOperationsForRoute(objId).then(() => updateGraphQLProxyUrlVisibility());
+        loadGraphQLSchemaForRoute(objId);
+        loadGraphQLProxyUrlForRoute(objId);
+      }
       $("#titleModal").html('<i class="fa fa-pencil me-2"></i>Editar Ruta');
       $("#routesModal").modal('show');
     }
@@ -3824,6 +4321,13 @@
         await saveFallbacksForRoute(result.id);
       }
 
+      // Guardar operaciones GraphQL y schema si es tipo graphql
+      if (tiporespuesta === 'graphql' && result.id) {
+        await saveGraphQLOperationsForRoute(result.id);
+        await saveGraphQLSchemaForRoute(result.id);
+        await saveGraphQLProxyUrlForRoute(result.id);
+      }
+
       tabla.ajax.reload();
       $("#routesModal").modal('hide');
     }
@@ -3932,6 +4436,13 @@
       // Guardar/limpiar fallbacks si es proxy
       if (tiporespuesta === 'proxy') {
         await saveFallbacksForRoute(id);
+      }
+
+      // Guardar/limpiar operaciones GraphQL y schema
+      if (tiporespuesta === 'graphql') {
+        await saveGraphQLOperationsForRoute(id);
+        await saveGraphQLSchemaForRoute(id);
+        await saveGraphQLProxyUrlForRoute(id);
       }
 
       tabla.ajax.reload();
@@ -4884,6 +5395,12 @@
   function openRequestTester(id) {
     const obj = Array.from(tabla.rows().data()).find(el => el.id === id);
     if (!obj) return;
+
+    // Si es ruta GraphQL, abrir GraphiQL en lugar del tester normal
+    if (obj.tiporespuesta === 'graphql') {
+      openGraphiQLTester(obj);
+      return;
+    }
 
     // Reset form
     clearTesterForm();
