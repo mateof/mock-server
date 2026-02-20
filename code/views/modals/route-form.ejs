@@ -42,6 +42,16 @@
               <div class="route-nav-fallbacks" id="routeNavFallbacks" style="display: none;">
                 <!-- Items dinamicos insertados por JS -->
               </div>
+
+              <!-- Separador para GraphQL Operations (oculto por defecto) -->
+              <div class="route-nav-divider" id="navDividerGraphQL" style="display: none;">
+                <span><%= __('form.graphqlOperations') %></span>
+              </div>
+
+              <!-- Contenedor para operaciones GraphQL -->
+              <div class="route-nav-graphql" id="routeNavGraphQL" style="display: none;">
+                <!-- Items dinamicos insertados por JS -->
+              </div>
             </div>
           </aside>
 
@@ -61,6 +71,7 @@
                   <option value="page"><%= __('responseTypes.page') %></option>
                   <option value="file"><%= __('responseTypes.file') %></option>
                   <option value="proxy"><%= __('responseTypes.proxy') %></option>
+                  <option value="graphql"><%= __('responseTypes.graphql') %></option>
                   <option value="empty"><%= __('responseTypes.empty') %></option>
                 </select>
               </div>
@@ -229,6 +240,74 @@
                 <small style="color: var(--text-muted); margin-top: 0.5rem; display: block;">
                   <%= __('form.help.fileHelp') %>
                 </small>
+              </div>
+
+              <!-- GraphQL Operations -->
+              <div class="collapsible-section" id="divGraphQL" style="display: none; margin-top: 1.25rem;">
+                <div class="collapsible-header" onclick="toggleGraphQLSection()">
+                  <h4><i class="fa fa-share-alt"></i> <%= __('form.graphqlOperations') %></h4>
+                  <div class="d-flex gap-2" onclick="event.stopPropagation();">
+                    <button type="button" class="btn-modern btn-modern-info" onclick="openGraphQLSchemaImport()">
+                      <i class="fa fa-download"></i> <%= __('form.importSchema') %>
+                    </button>
+                    <button type="button" class="btn-modern btn-modern-success" onclick="addGraphQLOperationRow()">
+                      <i class="fa fa-plus"></i> <%= __('buttons.add') %>
+                    </button>
+                  </div>
+                </div>
+                <div class="collapsible-body" id="graphqlCollapsibleBody">
+                  <small style="color: var(--text-muted); margin-bottom: 1rem; display: block;">
+                    <%= __('form.help.graphqlHelp') %>
+                  </small>
+
+                  <!-- Proxy URL (visible when at least one operation uses proxy) -->
+                  <div id="graphqlProxyUrlContainer" style="display: none; margin-bottom: 1rem;">
+                    <div class="alert-modern alert-modern-warning" style="padding: 1rem;">
+                      <div style="flex: 1;">
+                        <label class="form-label-modern" for="graphqlProxyUrl">
+                          <i class="fa fa-exchange"></i> <%= __('form.graphqlProxyUrl') %>
+                        </label>
+                        <input type="text" class="form-control-modern" id="graphqlProxyUrl"
+                               placeholder="https://rickandmortyapi.com/graphql">
+                        <small style="color: var(--text-muted); margin-top: 0.5rem; display: block;">
+                          <%= __('form.help.graphqlProxyHelp') %>
+                        </small>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Schema Import Form (hidden by default) -->
+                  <div id="graphqlSchemaImportForm" style="display: none; margin-bottom: 1rem;">
+                    <div class="alert-modern alert-modern-info" style="padding: 1rem;">
+                      <div style="flex: 1;">
+                        <label class="form-label-modern" for="graphqlSchemaUrl"><%= __('form.graphqlSchemaUrl') %></label>
+                        <div class="d-flex gap-2">
+                          <input type="text" class="form-control-modern" id="graphqlSchemaUrl"
+                                 placeholder="https://rickandmortyapi.com/graphql">
+                          <button class="btn-modern btn-modern-primary" id="btnImportSchema" onclick="importGraphQLSchema()" style="white-space: nowrap;">
+                            <i class="fa fa-download"></i> <%= __('form.importSchemaBtn') %>
+                          </button>
+                        </div>
+                        <small style="color: var(--text-muted); margin-top: 0.5rem; display: block;">
+                          <%= __('form.help.graphqlSchemaHelp') %>
+                        </small>
+                        <div id="schemaImportProgress" style="display: none; margin-top: 0.5rem;">
+                          <i class="fa fa-spinner fa-spin"></i> <span id="schemaImportStatus"></span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Contenedor de operaciones (sortable) -->
+                  <div id="graphqlOperationsContainer" class="sortable-conditions">
+                    <!-- Operaciones dinamicas aqui -->
+                  </div>
+
+                  <div id="noGraphQLOpsMsg" class="empty-state" style="padding: 1rem;">
+                    <i class="fa fa-inbox"></i>
+                    <p><%= __('empty.noGraphQLOperations') %></p>
+                  </div>
+                </div>
               </div>
 
               <!-- Espera Activa -->

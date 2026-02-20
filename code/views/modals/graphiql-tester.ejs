@@ -1,0 +1,17 @@
+<!-- Modal GraphiQL Tester -->
+<div class="modal fade modal-modern" id="graphiqlTesterModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-fullscreen">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h5 class="modal-title">
+          <i class="fa fa-share-alt me-2"></i><%= __('requestTester.graphiqlTitle') %>
+          <small class="text-muted ms-2" id="graphiqlEndpointUrl" style="font-size: 0.75rem;"></small>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" style="padding: 0; height: calc(100vh - 56px); overflow: hidden;">
+        <div id="graphiqlContainer" style="height: 100%;"></div>
+      </div>
+    </div>
+  </div>
+</div>

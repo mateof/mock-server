@@ -1,6 +1,7 @@
 const sqliteService = require('../services/sqlite.service');
 const criteriaService = require('../services/criteria-evaluator.service');
 const { log, sendData } = require('../services/socket.service');
+const graphqlService = require('../services/graphql.service');
 const semaphore = require('../services/semaphore.service');
 const moment = require("moment");
 const path = require("path");
@@ -318,6 +319,14 @@ async function checkRoute(req, res, next) {
                         console.log(`[ROUTE] Archivo enviado: ${fileName} en ${duration}ms`);
                     }
                 });
+                log.mock(method, url, res.statusCode, duration);
+                return;
+            }
+            if (responseType === 'graphql') {
+                console.log(`[ROUTE] Respuesta tipo GRAPHQL`);
+                const operations = await sqliteService.getGraphQLOperations(rute.id);
+                const result = await graphqlService.handleGraphQLRequest(req.body, operations, rute.graphql_schema, rute.graphql_proxy_url);
+                res.json(result);
                 log.mock(method, url, res.statusCode, duration);
                 return;
             }

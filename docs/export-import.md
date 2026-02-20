@@ -5,7 +5,7 @@ This document describes the export and import functionality of Mock Server, incl
 ## Overview
 
 The Export/Import feature allows you to:
-- **Export** all configured routes, tags, conditions, and optionally uploaded files as a compressed ZIP archive
+- **Export** all configured routes, tags, conditions, GraphQL operations, and optionally uploaded files as a compressed ZIP archive
 - **Import** previously exported data to restore or migrate configurations between Mock Server instances
 - **Import from Git Repository** by cloning and importing files directly from a git repository
 - **Auto-import on Startup** by placing files in the import directory or configuring environment variables
@@ -578,6 +578,9 @@ Create a `data.json` file with the same structure as inside the ZIP:
 | `requestBodyExample` | string | Example request body JSON |
 | `proxy_timeout` | integer | Timeout in milliseconds for proxy requests (default: 30000) |
 | `fallbacks` | array | Array of proxy fallback objects (for proxy routes only) |
+| `graphql_schema` | string | JSON string of the stored introspection schema (for GraphQL routes) |
+| `graphql_proxy_url` | string | Remote GraphQL endpoint URL for proxy operations (for GraphQL routes) |
+| `graphqlOperations` | array | Array of GraphQL operation objects (for GraphQL routes) |
 
 ### Tags
 
@@ -654,6 +657,83 @@ Conditions can be defined within each fallback to provide dynamic responses base
 | `respuesta` | string | Response body content (overrides fallback) |
 | `customHeaders` | string/array | Custom headers (overrides fallback, same format as route conditions) |
 | `activo` | integer | 1 if condition is active, 0 otherwise |
+
+### GraphQL Operations
+
+GraphQL routes include an array of operations that define individual query/mutation handlers.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | integer | Unique operation identifier |
+| `route_id` | integer | Associated route ID |
+| `orden` | integer | Operation order |
+| `operationType` | string | `query` or `mutation` |
+| `operationName` | string | Operation/field name (e.g., `characters`, `createUser`) |
+| `respuesta` | string | JSON response body for mock mode |
+| `activo` | integer | 1 if operation is active, 0 otherwise |
+| `useProxy` | integer | 1 if operation forwards to remote endpoint, 0 for mock mode |
+
+**Example GraphQL route in export:**
+
+```json
+{
+  "tipo": "post",
+  "ruta": "/graphql",
+  "codigo": "200",
+  "tiporespuesta": "graphql",
+  "respuesta": null,
+  "graphql_schema": "{\"data\":{\"__schema\":{...}}}",
+  "graphql_proxy_url": "https://rickandmortyapi.com/graphql",
+  "graphqlOperations": [
+    {
+      "orden": 0,
+      "operationType": "query",
+      "operationName": "characters",
+      "respuesta": "{\"characters\": {\"results\": [{\"id\": \"1\", \"name\": \"Rick\"}]}}",
+      "activo": 1,
+      "useProxy": 0
+    },
+    {
+      "orden": 1,
+      "operationType": "query",
+      "operationName": "location",
+      "respuesta": null,
+      "activo": 1,
+      "useProxy": 1
+    }
+  ]
+}
+```
+
+**XML format:**
+
+```xml
+<route>
+  <tipo>post</tipo>
+  <ruta>/graphql</ruta>
+  <codigo>200</codigo>
+  <tiporespuesta>graphql</tiporespuesta>
+  <graphql_schema><![CDATA[{"data":{"__schema":{...}}}]]></graphql_schema>
+  <graphql_proxy_url>https://rickandmortyapi.com/graphql</graphql_proxy_url>
+  <graphqlOperations>
+    <operation>
+      <orden>0</orden>
+      <operationType>query</operationType>
+      <operationName>characters</operationName>
+      <respuesta><![CDATA[{"characters": {"results": [{"id": "1", "name": "Rick"}]}}]]></respuesta>
+      <activo>1</activo>
+      <useProxy>0</useProxy>
+    </operation>
+    <operation>
+      <orden>1</orden>
+      <operationType>query</operationType>
+      <operationName>location</operationName>
+      <activo>1</activo>
+      <useProxy>1</useProxy>
+    </operation>
+  </graphqlOperations>
+</route>
+```
 
 ## Use Cases
 
