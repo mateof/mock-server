@@ -113,7 +113,7 @@ async function getRuta(ruta, tipo) {
 
 async function getProxys() {
     console.log(`[DB] Obteniendo configuraciones de proxy...`);
-    let sql = `SELECT * FROM rutas WHERE tiporespuesta = 'proxy' AND (activo IS NULL OR activo = 1)`;
+    let sql = `SELECT * FROM rutas WHERE tiporespuesta = 'proxy' AND (activo IS NULL OR activo = 1) ORDER BY COALESCE(orden, 999999) ASC, LENGTH(ruta) DESC`;
     const proxies = await new Promise((resolve, reject) => {
         _db.all(sql, [], (err, result) => {
             if (err) {
