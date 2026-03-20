@@ -3997,7 +3997,7 @@
 
     const response = await fetch('/api/delete/' + deleteRouteId.toString(), { method: 'DELETE' });
     if (response.status === 200) {
-      tabla.ajax.reload();
+      tabla.ajax.reload(null, false);
       $('#deleteModal').modal('hide');
       $("#routesModal").modal('hide');
     }
@@ -4142,7 +4142,7 @@
         tabla.ajax.reload(function() {
           document.getElementById('selectAllRoutes').checked = false;
           updateBulkSelection();
-        });
+        }, false);
         $('#bulkDeleteModal').modal('hide');
       }
     } catch (err) {
@@ -4328,7 +4328,7 @@
         await saveGraphQLProxyUrlForRoute(result.id);
       }
 
-      tabla.ajax.reload();
+      tabla.ajax.reload(null, false);
       $("#routesModal").modal('hide');
     }
   }
@@ -4445,7 +4445,7 @@
         await saveGraphQLProxyUrlForRoute(id);
       }
 
-      tabla.ajax.reload();
+      tabla.ajax.reload(null, false);
       $("#routesModal").modal('hide');
     }
   }
@@ -4776,7 +4776,7 @@
       body: JSON.stringify({ activo })
     });
     if (response.status === 200) {
-      tabla.ajax.reload();
+      tabla.ajax.reload(null, false);
     }
   }
 
@@ -4787,7 +4787,7 @@
       body: JSON.stringify({ esperaActiva })
     });
     if (response.status === 200) {
-      tabla.ajax.reload();
+      tabla.ajax.reload(null, false);
     }
   }
 
@@ -5272,7 +5272,7 @@
       const data = await response.json();
 
       if (data.success) {
-        tabla.ajax.reload();
+        tabla.ajax.reload(null, false);
         $('#importOpenApiModal').modal('hide');
         showToast(`${t('import.successMessage')}: ${data.imported} ${t('import.importedCount')}` +
           (data.skipped > 0 ? `, ${data.skipped} ${t('import.skippedCount')}` : ''), 'success');
