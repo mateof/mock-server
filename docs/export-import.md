@@ -5,7 +5,7 @@ This document describes the export and import functionality of Mock Server, incl
 ## Overview
 
 The Export/Import feature allows you to:
-- **Export** all configured routes, tags, conditions, GraphQL operations, and optionally uploaded files as a compressed ZIP archive
+- **Export** all configured routes, tags, conditions, GraphQL operations, WebSocket messages, and optionally uploaded files as a compressed ZIP archive
 - **Import** previously exported data to restore or migrate configurations between Mock Server instances
 - **Import from Git Repository** by cloning and importing files directly from a git repository
 - **Auto-import on Startup** by placing files in the import directory or configuring environment variables
@@ -563,7 +563,7 @@ Create a `data.json` file with the same structure as inside the ZIP:
 | `tipo` | string | HTTP method (get, post, put, delete, patch, options, head, any) |
 | `ruta` | string | Route path (e.g., `/api/users`) |
 | `codigo` | string | HTTP response code |
-| `tiporespuesta` | string | Response type (json, xml, soap, text, html, page, file, proxy, empty) |
+| `tiporespuesta` | string | Response type (json, xml, soap, text, html, page, file, proxy, graphql, websocket, empty) |
 | `respuesta` | string | Response body content |
 | `isRegex` | integer | 1 if route uses regex, 0 otherwise |
 | `activo` | integer | 1 if route is active, 0 otherwise |
@@ -581,6 +581,7 @@ Create a `data.json` file with the same structure as inside the ZIP:
 | `graphql_schema` | string | JSON string of the stored introspection schema (for GraphQL routes) |
 | `graphql_proxy_url` | string | Remote GraphQL endpoint URL for proxy operations (for GraphQL routes) |
 | `graphqlOperations` | array | Array of GraphQL operation objects (for GraphQL routes) |
+| `websocketMessages` | array | Array of WebSocket message objects (for WebSocket routes) |
 
 ### Tags
 
@@ -672,6 +673,92 @@ GraphQL routes include an array of operations that define individual query/mutat
 | `respuesta` | string | JSON response body for mock mode |
 | `activo` | integer | 1 if operation is active, 0 otherwise |
 | `useProxy` | integer | 1 if operation forwards to remote endpoint, 0 for mock mode |
+
+### WebSocket Messages
+
+WebSocket routes include an array of message handlers that define the endpoint behavior.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | integer | Unique message identifier |
+| `route_id` | integer | Associated route ID |
+| `orden` | integer | Message order/priority |
+| `event_type` | string | `onConnect`, `onMessage`, or `periodic` |
+| `match_pattern` | string | Pattern for matching incoming messages (onMessage only) |
+| `is_regex` | integer | 1 if pattern is regex, 0 for exact match |
+| `respuesta` | string | Message to send |
+| `delay` | integer | Delay in milliseconds before sending |
+| `send_interval` | integer | Interval in milliseconds for periodic messages |
+| `activo` | integer | 1 if active, 0 if disabled |
+| `nombre` | string | Display name for the message handler |
+
+**Example WebSocket route in export:**
+
+```json
+{
+  "tipo": "get",
+  "ruta": "/ws/chat",
+  "tiporespuesta": "websocket",
+  "websocketMessages": [
+    {
+      "orden": 0,
+      "event_type": "onConnect",
+      "respuesta": "{\"type\": \"welcome\", \"message\": \"Connected!\"}",
+      "delay": 0,
+      "activo": 1,
+      "nombre": "Welcome"
+    },
+    {
+      "orden": 1,
+      "event_type": "onMessage",
+      "match_pattern": "ping",
+      "is_regex": 0,
+      "respuesta": "pong",
+      "delay": 0,
+      "activo": 1,
+      "nombre": "Ping handler"
+    },
+    {
+      "orden": 2,
+      "event_type": "periodic",
+      "respuesta": "{\"type\": \"heartbeat\"}",
+      "delay": 1000,
+      "send_interval": 5000,
+      "activo": 1,
+      "nombre": "Heartbeat"
+    }
+  ]
+}
+```
+
+**XML format:**
+
+```xml
+<route>
+  <ruta>/ws/chat</ruta>
+  <tiporespuesta>websocket</tiporespuesta>
+  <websocketMessages>
+    <wsMessage>
+      <orden>0</orden>
+      <event_type>onConnect</event_type>
+      <respuesta><![CDATA[{"type": "welcome", "message": "Connected!"}]]></respuesta>
+      <delay>0</delay>
+      <activo>1</activo>
+      <nombre>Welcome</nombre>
+    </wsMessage>
+    <wsMessage>
+      <orden>1</orden>
+      <event_type>onMessage</event_type>
+      <match_pattern>ping</match_pattern>
+      <is_regex>0</is_regex>
+      <respuesta>pong</respuesta>
+      <delay>0</delay>
+      <activo>1</activo>
+      <nombre>Ping handler</nombre>
+    </wsMessage>
+  </websocketMessages>
+</route>
+```
 
 **Example GraphQL route in export:**
 

@@ -357,6 +357,30 @@ async function createTables(newdb) {
     };
     await addGqlColumn(newdb, 'useProxy', 'INTEGER DEFAULT 0');
 
+    // Crear tabla de mensajes WebSocket
+    await new Promise((resolve) => {
+        newdb.exec(`
+            CREATE TABLE IF NOT EXISTS websocket_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                route_id INTEGER NOT NULL,
+                orden INTEGER DEFAULT 0,
+                event_type TEXT NOT NULL DEFAULT 'onMessage',
+                match_pattern TEXT,
+                is_regex INTEGER DEFAULT 0,
+                respuesta TEXT,
+                delay INTEGER DEFAULT 0,
+                send_interval INTEGER DEFAULT 0,
+                activo INTEGER DEFAULT 1,
+                nombre TEXT,
+                FOREIGN KEY (route_id) REFERENCES rutas(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_ws_messages_route_orden ON websocket_messages(route_id, orden);
+        `, (err) => {
+            if (!err) console.log('[DB] Tabla websocket_messages verificada');
+            resolve();
+        });
+    });
+
     console.log('[DB] Inicialización de tablas completada');
 }
 
@@ -760,6 +784,94 @@ async function deleteGraphQLOperations(routeId) {
     });
 }
 
+// ===== WEBSOCKET MESSAGES FUNCTIONS =====
+
+// Get active websocket messages for a route (ordered)
+async function getWebSocketMessages(routeId) {
+    const sql = `SELECT * FROM websocket_messages
+                 WHERE route_id = ? AND (activo = 1 OR activo IS NULL)
+                 ORDER BY orden ASC`;
+    return new Promise((resolve, reject) => {
+        _db.all(sql, [routeId], (err, rows) => {
+            if (err) {
+                console.error(`[DB] Error obteniendo mensajes WebSocket: ${err.message}`);
+                reject(err);
+            } else {
+                resolve(rows || []);
+            }
+        });
+    });
+}
+
+// Get all websocket messages for a route (including inactive, for edit form)
+async function getAllWebSocketMessages(routeId) {
+    const sql = `SELECT * FROM websocket_messages WHERE route_id = ? ORDER BY orden ASC`;
+    return new Promise((resolve, reject) => {
+        _db.all(sql, [routeId], (err, rows) => {
+            if (err) {
+                console.error(`[DB] Error obteniendo todos los mensajes WebSocket: ${err.message}`);
+                reject(err);
+            } else {
+                resolve(rows || []);
+            }
+        });
+    });
+}
+
+// Save websocket messages (replaces all existing)
+async function saveWebSocketMessages(routeId, messages) {
+    await new Promise((resolve, reject) => {
+        _db.run('DELETE FROM websocket_messages WHERE route_id = ?', [routeId], (err) => {
+            if (err) reject(err);
+            else resolve();
+        });
+    });
+
+    for (let i = 0; i < messages.length; i++) {
+        const m = messages[i];
+        await new Promise((resolve, reject) => {
+            _db.run(`INSERT INTO websocket_messages
+                     (route_id, orden, event_type, match_pattern, is_regex, respuesta, delay, send_interval, activo, nombre)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [routeId, i, m.event_type || 'onMessage', m.match_pattern || null,
+                 m.is_regex ? 1 : 0, m.respuesta || null, m.delay || 0,
+                 m.send_interval || 0, m.activo !== false && m.activo !== 0 ? 1 : 0,
+                 m.nombre || null],
+                (err) => {
+                    if (err) reject(err);
+                    else resolve();
+                });
+        });
+    }
+
+    console.log(`[DB] Guardados ${messages.length} mensajes WebSocket para ruta ${routeId}`);
+}
+
+// Delete websocket messages for a route
+async function deleteWebSocketMessages(routeId) {
+    return new Promise((resolve, reject) => {
+        _db.run('DELETE FROM websocket_messages WHERE route_id = ?', [routeId], (err) => {
+            if (err) reject(err);
+            else resolve();
+        });
+    });
+}
+
+// Get all websocket routes (active)
+async function getWebSocketRoutes() {
+    const sql = `SELECT * FROM rutas WHERE tiporespuesta = 'websocket' AND (activo IS NULL OR activo = 1) ORDER BY orden ASC`;
+    return new Promise((resolve, reject) => {
+        _db.all(sql, [], (err, rows) => {
+            if (err) {
+                console.error(`[DB] Error obteniendo rutas WebSocket: ${err.message}`);
+                reject(err);
+            } else {
+                resolve(rows || []);
+            }
+        });
+    });
+}
+
 exports.initSql = initSql;
 exports.getDatabase = getDatabase;
 exports.getRuta = getRuta;
@@ -783,3 +895,8 @@ exports.getGraphQLOperations = getGraphQLOperations;
 exports.getAllGraphQLOperations = getAllGraphQLOperations;
 exports.saveGraphQLOperations = saveGraphQLOperations;
 exports.deleteGraphQLOperations = deleteGraphQLOperations;
+exports.getWebSocketMessages = getWebSocketMessages;
+exports.getAllWebSocketMessages = getAllWebSocketMessages;
+exports.saveWebSocketMessages = saveWebSocketMessages;
+exports.deleteWebSocketMessages = deleteWebSocketMessages;
+exports.getWebSocketRoutes = getWebSocketRoutes;

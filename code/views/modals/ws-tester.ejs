@@ -1,0 +1,54 @@
+<!-- Modal WebSocket Tester -->
+<div class="modal fade modal-modern" id="wsTesterModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-plug me-2"></i><%= __('ws.testerTitle') %></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <!-- Connection Bar -->
+        <div class="ws-tester-url-bar">
+          <span class="ws-tester-protocol">WS</span>
+          <input type="text" class="form-control-modern ws-tester-url" id="wsTesterUrl" placeholder="ws://localhost:3880/ws/example">
+          <button class="btn-modern btn-modern-success ws-tester-connect-btn" id="wsTesterConnectBtn" onclick="wsTesterConnect()">
+            <i class="fa fa-plug"></i> <%= __('ws.connect') %>
+          </button>
+          <button class="btn-modern btn-modern-danger ws-tester-connect-btn" id="wsTesterDisconnectBtn" onclick="wsTesterDisconnect()" style="display: none;">
+            <i class="fa fa-times"></i> <%= __('ws.disconnect') %>
+          </button>
+        </div>
+
+        <!-- Connection Status -->
+        <div class="ws-tester-status" id="wsTesterStatus">
+          <span class="ws-tester-status-dot ws-tester-status-disconnected" id="wsTesterStatusDot"></span>
+          <span id="wsTesterStatusText"><%= __('ws.statusDisconnected') %></span>
+        </div>
+
+        <!-- Message Input -->
+        <div class="ws-tester-send-bar" id="wsTesterSendBar" style="display: none;">
+          <textarea class="form-control-modern ws-tester-input" id="wsTesterInput" rows="2" placeholder="<%= __('ws.typeMessage') %>"></textarea>
+          <button class="btn-modern btn-modern-primary" id="wsTesterSendMsgBtn" onclick="wsTesterSendMessage()">
+            <i class="fa fa-paper-plane"></i>
+          </button>
+        </div>
+
+        <!-- Messages Log -->
+        <div class="ws-tester-messages" id="wsTesterMessages">
+          <div class="ws-tester-empty" id="wsTesterEmpty">
+            <i class="fa fa-plug"></i>
+            <p><%= __('ws.testerEmpty') %></p>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-modern btn-modern-secondary" onclick="wsTesterClearMessages()">
+          <i class="fa fa-eraser"></i> <%= __('ws.clearMessages') %>
+        </button>
+        <button type="button" class="btn-modern btn-modern-secondary" data-bs-dismiss="modal">
+          <i class="fa fa-times"></i> <%= __('buttons.close') %>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

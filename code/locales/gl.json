@@ -102,7 +102,8 @@
       "fallbacksHelp": "Define respostas mock que se devolverán cando o proxy falle por timeout, erros de conexión ou respostas HTTP 5xx.",
       "graphqlHelp": "Define respostas mock para queries e mutations GraphQL. Cada operación empátase polo seu tipo e nome desde a petición GraphQL entrante.",
       "graphqlSchemaHelp": "Introduce a URL dun endpoint GraphQL. Enviarase unha consulta de introspección para extraer o schema e xerar respostas mock automaticamente.",
-      "graphqlProxyHelp": "URL do endpoint GraphQL remoto. As operacións en modo 'Proxy' reenviarán a query a esta URL en lugar de devolver datos mock."
+      "graphqlProxyHelp": "URL do endpoint GraphQL remoto. As operacións en modo 'Proxy' reenviarán a query a esta URL en lugar de devolver datos mock.",
+      "wsHelp": "Define o comportamento deste endpoint WebSocket. Engade mensaxes para enviar ao conectar, en resposta a mensaxes entrantes (por patrón) ou periodicamente."
     },
     "proxyTimeout": "Timeout de Petición",
     "proxyFallbacks": "Respostas de Fallback",
@@ -119,6 +120,8 @@
     "summary": "Resumo",
     "description": "Descrición",
     "graphqlOperations": "Operacións GraphQL",
+    "wsMessages": "Mensaxes WebSocket",
+    "wsMessageName": "Nome da mensaxe",
     "operationName": "Nome da Operación",
     "importSchema": "Importar Schema",
     "importSchemaBtn": "Importar",
@@ -156,6 +159,7 @@
     "file": "Arquivo",
     "proxy": "Proxy",
     "graphql": "GraphQL",
+    "websocket": "WebSocket",
     "empty": "Sen Body"
   },
   "buttons": {
@@ -283,7 +287,8 @@
     "noConditions": "Non hai condicións. Usarase sempre a resposta por defecto.",
     "noTags": "Non hai tags. Crea un novo.",
     "noFallbacks": "Non hai fallbacks configurados. Devolverase a resposta de erro por defecto cando falle o proxy.",
-    "noGraphQLOperations": "Non hai operacións GraphQL configuradas. Fai clic en '+' para engadir unha."
+    "noGraphQLOperations": "Non hai operacións GraphQL configuradas. Fai clic en '+' para engadir unha.",
+    "noWSMessages": "Non hai mensaxes WebSocket configuradas. Fai clic en '+' para engadir unha."
   },
   "errorTypes": {
     "timeout": "Timeout",
@@ -478,5 +483,45 @@
     "noFilesInDirectory": "Non se atoparon arquivos ZIP no cartafol import",
     "filesImported": "Arquivos importados",
     "errors": "Erros"
+  },
+  "ws": {
+    "clientsTitle": "Clientes WebSocket",
+    "connectedClients": "clientes conectados",
+    "noClients": "Non hai clientes WebSocket conectados",
+    "sendMessage": "Enviar Mensaxe",
+    "sendToAll": "Todos os clientes conectados",
+    "sendToSelected": "So clientes seleccionados",
+    "messagePlaceholder": "Mensaxe a enviar...",
+    "send": "Enviar",
+    "messageRequired": "Introduce unha mensaxe",
+    "noClientsSelected": "Non hai clientes seleccionados",
+    "messageSent": "Mensaxe enviada a",
+    "clients": "clientes",
+    "received": "recib",
+    "sent": "env",
+    "onConnect": "Ao Conectar",
+    "onMessage": "Ao Recibir",
+    "periodic": "Periódico",
+    "message": "Mensaxe",
+    "matchPattern": "Patrón de coincidencia",
+    "matchPatternPlaceholder": "Texto ou regex para coincidir con mensaxes entrantes...",
+    "delay": "Retardo",
+    "interval": "Intervalo",
+    "responseMessage": "Mensaxe de resposta",
+    "responsePlaceholder": "Mensaxe a enviar de volta...",
+    "testerTitle": "Probador WebSocket",
+    "connect": "Conectar",
+    "disconnect": "Desconectar",
+    "statusDisconnected": "Desconectado",
+    "statusConnecting": "Conectando...",
+    "statusConnected": "Conectado",
+    "typeMessage": "Escribe unha mensaxe... (Enter para enviar, Shift+Enter para salto de liña)",
+    "testerEmpty": "Conéctate a un endpoint WebSocket para comezar a enviar e recibir mensaxes",
+    "clearMessages": "Limpar mensaxes",
+    "connecting": "Conectando a",
+    "connected": "Conexión establecida",
+    "disconnected": "Conexión pechada",
+    "connectionError": "Erro de conexión",
+    "urlRequired": "Introduce unha URL de WebSocket"
   }
 }

@@ -830,6 +830,7 @@ body {
 .response-type.type-json { color: var(--success); }
 .response-type.type-page { color: var(--info); }
 .response-type.type-proxy { color: var(--warning); }
+.response-type.type-websocket { color: #8b5cf6; }
 .response-type.type-empty { color: var(--text-muted); }
 
 /* ===== CONDITIONAL RESPONSES ===== */
@@ -3820,4 +3821,281 @@ table.dataTable.no-footer {
   .route-nav-panel {
     max-height: 150px;
   }
+}
+
+/* ===== WEBSOCKET STYLES ===== */
+
+.ws-message-row .condition-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.ws-clients-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.ws-clients-count {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+}
+
+.ws-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  display: inline-block;
+  animation: ws-pulse 2s infinite;
+}
+
+@keyframes ws-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.ws-clients-list {
+  max-height: 350px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  margin-bottom: 1.5rem;
+}
+
+.ws-client-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  transition: background 0.15s;
+}
+
+.ws-client-item:last-child {
+  border-bottom: none;
+}
+
+.ws-client-item:hover {
+  background: var(--bg-hover);
+}
+
+.ws-client-select {
+  flex-shrink: 0;
+}
+
+.ws-client-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.ws-client-path {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.ws-client-details {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.ws-client-details span {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.ws-client-actions {
+  flex-shrink: 0;
+}
+
+.ws-send-section {
+  border-top: 1px solid var(--border-color);
+  padding-top: 1rem;
+}
+
+.ws-send-section h6 {
+  margin-bottom: 0.75rem;
+  font-weight: 600;
+}
+
+.ws-send-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.ws-send-target {
+  max-width: 250px;
+}
+
+.ws-send-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.ws-clients-badge {
+  background: #6366f1;
+  color: white;
+  font-size: 0.7rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 10px;
+  margin-left: 0.5rem;
+}
+
+/* ===== WEBSOCKET TESTER ===== */
+
+.ws-tester-url-bar {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.ws-tester-protocol {
+  background: var(--accent-primary);
+  color: white;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-md);
+  font-weight: 700;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.ws-tester-url {
+  flex: 1;
+}
+
+.ws-tester-connect-btn {
+  white-space: nowrap;
+}
+
+.ws-tester-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+}
+
+.ws-tester-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.ws-tester-status-disconnected { background: #6b7280; }
+.ws-tester-status-connecting { background: #f59e0b; animation: ws-pulse 1s infinite; }
+.ws-tester-status-connected { background: #22c55e; animation: ws-pulse 2s infinite; }
+
+.ws-tester-send-bar {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+  margin-bottom: 0.75rem;
+}
+
+.ws-tester-input {
+  flex: 1;
+  resize: none;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.85rem;
+}
+
+.ws-tester-messages {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  min-height: 300px;
+  max-height: 450px;
+  overflow-y: auto;
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.ws-tester-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 250px;
+  color: var(--text-muted);
+  gap: 0.5rem;
+}
+
+.ws-tester-empty i {
+  font-size: 2rem;
+  opacity: 0.5;
+}
+
+.ws-tester-msg {
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+}
+
+.ws-msg-sent {
+  background: rgba(99, 102, 241, 0.1);
+  border-left: 3px solid #6366f1;
+}
+
+.ws-msg-received {
+  background: rgba(34, 197, 94, 0.1);
+  border-left: 3px solid #22c55e;
+}
+
+.ws-msg-system {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  padding: 0.25rem 0.75rem;
+  font-style: italic;
+}
+
+.ws-msg-error {
+  color: #ef4444;
+}
+
+.ws-tester-msg-header {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.ws-tester-msg-dir {
+  font-weight: 600;
+}
+
+.ws-msg-sent .ws-tester-msg-dir { color: #6366f1; }
+.ws-msg-received .ws-tester-msg-dir { color: #22c55e; }
+
+.ws-tester-msg-body {
+  margin: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--text-primary);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.ws-tester-json {
+  color: var(--text-secondary);
 }

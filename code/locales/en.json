@@ -102,7 +102,8 @@
       "fallbacksHelp": "Define mock responses to return when the proxy fails due to timeout, connection errors, or HTTP 5xx responses.",
       "graphqlHelp": "Define mock responses for GraphQL queries and mutations. Each operation is matched by its type and name from the incoming GraphQL request.",
       "graphqlSchemaHelp": "Enter the URL of a GraphQL endpoint. An introspection query will be sent to extract the schema and automatically generate mock responses.",
-      "graphqlProxyHelp": "URL of the remote GraphQL endpoint. Operations set to 'Proxy' mode will forward the query to this URL instead of returning mock data."
+      "graphqlProxyHelp": "URL of the remote GraphQL endpoint. Operations set to 'Proxy' mode will forward the query to this URL instead of returning mock data.",
+      "wsHelp": "Define how this WebSocket endpoint behaves. Add messages to send on connect, in response to incoming messages (by pattern matching), or periodically."
     },
     "proxyTimeout": "Request Timeout",
     "proxyFallbacks": "Fallback Responses",
@@ -119,6 +120,8 @@
     "summary": "Summary",
     "description": "Description",
     "graphqlOperations": "GraphQL Operations",
+    "wsMessages": "WebSocket Messages",
+    "wsMessageName": "Message name",
     "operationName": "Operation Name",
     "importSchema": "Import Schema",
     "importSchemaBtn": "Import",
@@ -156,6 +159,7 @@
     "file": "File",
     "proxy": "Proxy",
     "graphql": "GraphQL",
+    "websocket": "WebSocket",
     "empty": "No Body"
   },
   "buttons": {
@@ -283,7 +287,8 @@
     "noConditions": "No conditions configured. Default response will always be used.",
     "noTags": "No tags. Create a new one.",
     "noFallbacks": "No fallbacks configured. Default error response will be returned on proxy failures.",
-    "noGraphQLOperations": "No GraphQL operations configured. Click '+' to add one."
+    "noGraphQLOperations": "No GraphQL operations configured. Click '+' to add one.",
+    "noWSMessages": "No WebSocket messages configured. Click '+' to add one."
   },
   "errorTypes": {
     "timeout": "Timeout",
@@ -486,5 +491,45 @@
     "deselectAll": "Deselect all",
     "selectedCount": "selected",
     "noRoutesSelected": "Please select at least one route to export"
+  },
+  "ws": {
+    "clientsTitle": "WebSocket Clients",
+    "connectedClients": "connected clients",
+    "noClients": "No WebSocket clients connected",
+    "sendMessage": "Send Message",
+    "sendToAll": "All connected clients",
+    "sendToSelected": "Selected clients only",
+    "messagePlaceholder": "Message to send...",
+    "send": "Send",
+    "messageRequired": "Please enter a message",
+    "noClientsSelected": "No clients selected",
+    "messageSent": "Message sent to",
+    "clients": "clients",
+    "received": "recv",
+    "sent": "sent",
+    "onConnect": "On Connect",
+    "onMessage": "On Message",
+    "periodic": "Periodic",
+    "message": "Message",
+    "matchPattern": "Match Pattern",
+    "matchPatternPlaceholder": "Text or regex to match incoming messages...",
+    "delay": "Delay",
+    "interval": "Interval",
+    "responseMessage": "Response Message",
+    "responsePlaceholder": "Message to send back...",
+    "testerTitle": "WebSocket Tester",
+    "connect": "Connect",
+    "disconnect": "Disconnect",
+    "statusDisconnected": "Disconnected",
+    "statusConnecting": "Connecting...",
+    "statusConnected": "Connected",
+    "typeMessage": "Type a message... (Enter to send, Shift+Enter for newline)",
+    "testerEmpty": "Connect to a WebSocket endpoint to start sending and receiving messages",
+    "clearMessages": "Clear Messages",
+    "connecting": "Connecting to",
+    "connected": "Connection established",
+    "disconnected": "Connection closed",
+    "connectionError": "Connection error",
+    "urlRequired": "Please enter a WebSocket URL"
   }
 }
