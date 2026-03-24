@@ -1,7 +1,7 @@
 const { WebSocketServer } = require('ws');
 const sqliteService = require('./sqlite.service');
 const socketService = require('./socket.service');
-const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
 
 let wss = null;
 // Map of route path -> Set of client connections
@@ -41,7 +41,7 @@ function init(server) {
     });
 
     wss.on('connection', async (ws, request, route) => {
-        const clientId = uuidv4();
+        const clientId = crypto.randomUUID();
         const pathname = request.url.split('?')[0];
         const ip = request.headers['x-forwarded-for'] || request.socket.remoteAddress;
 
