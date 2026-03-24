@@ -516,6 +516,20 @@
     "delay": "Retardo",
     "interval": "Intervalo",
     "responseMessage": "Mensaje de respuesta",
-    "responsePlaceholder": "Mensaje a enviar de vuelta..."
+    "responsePlaceholder": "Mensaje a enviar de vuelta...",
+    "testerTitle": "Probador WebSocket",
+    "connect": "Conectar",
+    "disconnect": "Desconectar",
+    "statusDisconnected": "Desconectado",
+    "statusConnecting": "Conectando...",
+    "statusConnected": "Conectado",
+    "typeMessage": "Escribe un mensaje... (Enter para enviar, Shift+Enter para salto de línea)",
+    "testerEmpty": "Conéctate a un endpoint WebSocket para empezar a enviar y recibir mensajes",
+    "clearMessages": "Limpiar mensajes",
+    "connecting": "Conectando a",
+    "connected": "Conexión establecida",
+    "disconnected": "Conexión cerrada",
+    "connectionError": "Error de conexión",
+    "urlRequired": "Introduce una URL de WebSocket"
   }
 }

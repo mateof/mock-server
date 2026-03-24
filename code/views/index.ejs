@@ -212,6 +212,7 @@
 <%- include('modals/tag-manager') %>
 <%- include('modals/export-import') %>
 <%- include('modals/ws-clients') %>
+<%- include('modals/ws-tester') %>
 
 <script src="/js/socket.io.js"></script>
 
@@ -726,7 +727,7 @@
         return html;
       }},
       { data: null, render: function (data) {
-        const icons = { json: 'fa-code', xml: 'fa-file-code-o', soap: 'fa-envelope-o', text: 'fa-align-left', html: 'fa-html5', page: 'fa-file-text-o', file: 'fa-file-o', proxy: 'fa-exchange', graphql: 'fa-share-alt', empty: 'fa-circle-o' };
+        const icons = { json: 'fa-code', xml: 'fa-file-code-o', soap: 'fa-envelope-o', text: 'fa-align-left', html: 'fa-html5', page: 'fa-file-text-o', file: 'fa-file-o', proxy: 'fa-exchange', graphql: 'fa-share-alt', websocket: 'fa-plug', empty: 'fa-circle-o' };
         return `<span class="response-type type-${data.tiporespuesta}"><i class="fa ${icons[data.tiporespuesta] || 'fa-question'}"></i> ${data.tiporespuesta}</span>`;
       }},
       { data: null, render: function (data) {
@@ -3911,6 +3912,192 @@
     });
   }
 
+  // ===== WEBSOCKET TESTER =====
+
+  let wsTesterSocket = null;
+  let wsTesterMessageId = 0;
+
+  function openWSTester(obj) {
+    // Clean previous connection
+    wsTesterDisconnect();
+    wsTesterClearMessages();
+
+    // Build WS URL
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    let route = obj.ruta;
+    if (obj.isRegex) {
+      route = regexToSampleUrl(route);
+    }
+    document.getElementById('wsTesterUrl').value = `${wsProtocol}//${window.location.host}${route}`;
+
+    const modal = new bootstrap.Modal(document.getElementById('wsTesterModal'));
+    modal.show();
+  }
+
+  function wsTesterConnect() {
+    const url = document.getElementById('wsTesterUrl').value.trim();
+    if (!url) {
+      showToast(t('ws.urlRequired'), 'warning');
+      return;
+    }
+
+    wsTesterUpdateStatus('connecting');
+    wsTesterAddSystemMessage(t('ws.connecting') + ' ' + url);
+
+    try {
+      wsTesterSocket = new WebSocket(url);
+
+      wsTesterSocket.onopen = function() {
+        wsTesterUpdateStatus('connected');
+        wsTesterAddSystemMessage(t('ws.connected'));
+        document.getElementById('wsTesterSendBar').style.display = '';
+        document.getElementById('wsTesterConnectBtn').style.display = 'none';
+        document.getElementById('wsTesterDisconnectBtn').style.display = '';
+        document.getElementById('wsTesterUrl').disabled = true;
+      };
+
+      wsTesterSocket.onmessage = function(event) {
+        wsTesterAddMessage('received', event.data);
+      };
+
+      wsTesterSocket.onclose = function(event) {
+        const reason = event.reason ? ` (${event.reason})` : '';
+        wsTesterAddSystemMessage(`${t('ws.disconnected')} [${event.code}]${reason}`);
+        wsTesterUpdateStatus('disconnected');
+        wsTesterResetUI();
+      };
+
+      wsTesterSocket.onerror = function() {
+        wsTesterAddSystemMessage(t('ws.connectionError'), true);
+        wsTesterUpdateStatus('disconnected');
+        wsTesterResetUI();
+      };
+    } catch (e) {
+      wsTesterAddSystemMessage(`${t('ws.connectionError')}: ${e.message}`, true);
+      wsTesterUpdateStatus('disconnected');
+    }
+  }
+
+  function wsTesterDisconnect() {
+    if (wsTesterSocket) {
+      wsTesterSocket.close(1000, 'User disconnected');
+      wsTesterSocket = null;
+    }
+    wsTesterResetUI();
+  }
+
+  function wsTesterResetUI() {
+    document.getElementById('wsTesterSendBar').style.display = 'none';
+    document.getElementById('wsTesterConnectBtn').style.display = '';
+    document.getElementById('wsTesterDisconnectBtn').style.display = 'none';
+    document.getElementById('wsTesterUrl').disabled = false;
+  }
+
+  function wsTesterSendMessage() {
+    const input = document.getElementById('wsTesterInput');
+    const message = input.value;
+    if (!message || !wsTesterSocket || wsTesterSocket.readyState !== WebSocket.OPEN) return;
+
+    wsTesterSocket.send(message);
+    wsTesterAddMessage('sent', message);
+    input.value = '';
+    input.focus();
+  }
+
+  // Allow Enter to send (Shift+Enter for newline)
+  document.addEventListener('keydown', function(e) {
+    if (e.target.id === 'wsTesterInput' && e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      wsTesterSendMessage();
+    }
+  });
+
+  function wsTesterAddMessage(type, data) {
+    wsTesterMessageId++;
+    const container = document.getElementById('wsTesterMessages');
+    const empty = document.getElementById('wsTesterEmpty');
+    if (empty) empty.style.display = 'none';
+
+    const time = new Date().toLocaleTimeString('es-ES', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 });
+    const icon = type === 'sent' ? 'fa-arrow-up' : 'fa-arrow-down';
+    const dirClass = type === 'sent' ? 'ws-msg-sent' : 'ws-msg-received';
+
+    // Try to format as JSON
+    let formatted = data;
+    let isJson = false;
+    try {
+      const parsed = JSON.parse(data);
+      formatted = JSON.stringify(parsed, null, 2);
+      isJson = true;
+    } catch (e) { /* not JSON */ }
+
+    const div = document.createElement('div');
+    div.className = `ws-tester-msg ${dirClass}`;
+    div.innerHTML = `
+      <div class="ws-tester-msg-header">
+        <span class="ws-tester-msg-dir"><i class="fa ${icon}"></i> ${type === 'sent' ? t('ws.sent') : t('ws.received')}</span>
+        <span class="ws-tester-msg-time">${time}</span>
+        <span class="ws-tester-msg-size">${new Blob([data]).size} B</span>
+      </div>
+      <pre class="ws-tester-msg-body${isJson ? ' ws-tester-json' : ''}">${escapeHtml(formatted)}</pre>
+    `;
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+  }
+
+  function wsTesterAddSystemMessage(text, isError = false) {
+    const container = document.getElementById('wsTesterMessages');
+    const empty = document.getElementById('wsTesterEmpty');
+    if (empty) empty.style.display = 'none';
+
+    const time = new Date().toLocaleTimeString('es-ES', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const div = document.createElement('div');
+    div.className = `ws-tester-msg ws-msg-system${isError ? ' ws-msg-error' : ''}`;
+    div.innerHTML = `<span class="ws-tester-msg-time">${time}</span> <span>${escapeHtml(text)}</span>`;
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+  }
+
+  function wsTesterUpdateStatus(status) {
+    const dot = document.getElementById('wsTesterStatusDot');
+    const text = document.getElementById('wsTesterStatusText');
+    dot.className = 'ws-tester-status-dot';
+    if (status === 'connected') {
+      dot.classList.add('ws-tester-status-connected');
+      text.textContent = t('ws.statusConnected');
+    } else if (status === 'connecting') {
+      dot.classList.add('ws-tester-status-connecting');
+      text.textContent = t('ws.statusConnecting');
+    } else {
+      dot.classList.add('ws-tester-status-disconnected');
+      text.textContent = t('ws.statusDisconnected');
+    }
+  }
+
+  function wsTesterClearMessages() {
+    const container = document.getElementById('wsTesterMessages');
+    if (container) {
+      container.innerHTML = `<div class="ws-tester-empty" id="wsTesterEmpty"><i class="fa fa-plug"></i><p>${t('ws.testerEmpty')}</p></div>`;
+    }
+    wsTesterMessageId = 0;
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  // Disconnect when modal closes
+  document.addEventListener('DOMContentLoaded', function() {
+    const modal = document.getElementById('wsTesterModal');
+    if (modal) {
+      modal.addEventListener('hidden.bs.modal', function() {
+        wsTesterDisconnect();
+      });
+    }
+  });
+
   // ===== GRAPHQL SCHEMA IMPORT =====
   let currentGraphQLSchema = null;
 
@@ -5814,6 +6001,12 @@
     // Si es ruta GraphQL, abrir GraphiQL en lugar del tester normal
     if (obj.tiporespuesta === 'graphql') {
       openGraphiQLTester(obj);
+      return;
+    }
+
+    // Si es ruta WebSocket, abrir el tester de WS
+    if (obj.tiporespuesta === 'websocket') {
+      openWSTester(obj);
       return;
     }
 
