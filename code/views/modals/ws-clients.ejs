@@ -1,0 +1,52 @@
+<!-- Modal WebSocket Clients -->
+<div class="modal fade modal-modern" id="wsClientsModal" tabindex="-1" aria-labelledby="wsClientsModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-plug me-2"></i><%= __('ws.clientsTitle') %></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <!-- Connected clients list -->
+        <div class="ws-clients-toolbar">
+          <div class="ws-clients-count" id="wsClientsCount">
+            <span class="ws-status-dot"></span> <span id="wsClientsCountText">0</span> <%= __('ws.connectedClients') %>
+          </div>
+          <div class="ws-clients-actions">
+          </div>
+        </div>
+
+        <div class="ws-clients-list" id="wsClientsList">
+          <div class="empty-state" id="wsClientsEmpty">
+            <i class="fa fa-plug"></i>
+            <p><%= __('ws.noClients') %></p>
+          </div>
+        </div>
+
+        <!-- Send message section -->
+        <div class="ws-send-section">
+          <h6><i class="fa fa-paper-plane me-1"></i> <%= __('ws.sendMessage') %></h6>
+          <div class="ws-send-form">
+            <div class="ws-send-target">
+              <select class="form-control-modern form-select-modern" id="wsSendTarget">
+                <option value="all"><%= __('ws.sendToAll') %></option>
+                <option value="selected"><%= __('ws.sendToSelected') %></option>
+              </select>
+            </div>
+            <div class="ws-send-input">
+              <textarea class="form-control-modern" id="wsSendMessage" rows="3" placeholder='<%= __("ws.messagePlaceholder") %>'></textarea>
+            </div>
+            <div class="ws-send-actions">
+              <button type="button" class="btn-modern btn-modern-primary" onclick="sendWSMessage()">
+                <i class="fa fa-paper-plane"></i> <%= __('ws.send') %>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-modern btn-modern-secondary" data-bs-dismiss="modal"><%= __('buttons.close') %></button>
+      </div>
+    </div>
+  </div>
+</div>

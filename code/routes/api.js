@@ -1436,4 +1436,79 @@ router.post('/import-openapi/confirm', async function(req, res) {
     }
 });
 
+// ===== WEBSOCKET MESSAGES API =====
+
+const websocketService = require('../services/websocket.service');
+
+/* Get WebSocket messages for a route */
+router.get('/ws-messages/:routeId', async function(req, res) {
+    try {
+        const messages = await sqliteService.getAllWebSocketMessages(req.params.routeId);
+        res.json({ success: true, messages });
+    } catch (err) {
+        console.error(`[API] Error obteniendo mensajes WebSocket: ${err.message}`);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+/* Save WebSocket messages for a route */
+router.put('/ws-messages/:routeId', async function(req, res) {
+    const { messages } = req.body;
+
+    if (!Array.isArray(messages)) {
+        return res.status(400).json({ success: false, error: 'messages debe ser un array' });
+    }
+
+    for (let i = 0; i < messages.length; i++) {
+        const m = messages[i];
+        if (!['onConnect', 'onMessage', 'periodic'].includes(m.event_type)) {
+            return res.status(400).json({
+                success: false,
+                error: `Mensaje ${i + 1}: event_type inválido "${m.event_type}"`
+            });
+        }
+    }
+
+    try {
+        await sqliteService.saveWebSocketMessages(req.params.routeId, messages);
+        await websocketService.reloadRouteConfig(req.params.routeId);
+        res.json({ success: true });
+    } catch (err) {
+        console.error(`[API] Error guardando mensajes WebSocket: ${err.message}`);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// ===== WEBSOCKET CLIENTS API =====
+
+/* Get connected WebSocket clients */
+router.get('/ws-clients', function(req, res) {
+    res.json({ success: true, clients: websocketService.getConnectedClients() });
+});
+
+/* Send message to specific WebSocket clients */
+router.post('/ws-clients/send', function(req, res) {
+    const { clientIds, message } = req.body;
+
+    if (!Array.isArray(clientIds) || !clientIds.length) {
+        return res.status(400).json({ success: false, error: 'clientIds debe ser un array no vacío' });
+    }
+    if (typeof message !== 'string') {
+        return res.status(400).json({ success: false, error: 'message debe ser un string' });
+    }
+
+    const sent = websocketService.sendMessageToClients(clientIds, message);
+    res.json({ success: true, sent });
+});
+
+/* Disconnect a WebSocket client */
+router.post('/ws-clients/disconnect', function(req, res) {
+    const { clientId } = req.body;
+    if (!clientId) {
+        return res.status(400).json({ success: false, error: 'clientId es requerido' });
+    }
+    const disconnected = websocketService.disconnectClient(clientId);
+    res.json({ success: true, disconnected });
+});
+
 module.exports = router;

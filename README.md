@@ -26,6 +26,7 @@ A powerful HTTP mocking and proxying application built with Express.js and Node.
 | **File** | Upload and serve files (up to 50MB) |
 | **Empty** | Empty 204 responses |
 | **GraphQL** | GraphQL endpoint with per-operation mock/proxy support |
+| **WebSocket** | WebSocket endpoint with configurable message handlers |
 | **Proxy** | Forward requests to backend servers |
 | **Redirect** | HTTP 301 redirects |
 
@@ -56,6 +57,13 @@ A powerful HTTP mocking and proxying application built with Express.js and Node.
   - Multi-root-field query support with combined mock/proxy results
   - Built-in GraphiQL IDE with autocomplete and documentation
   - See [GraphQL Documentation](docs/graphql.md) for details
+
+- **WebSocket Mocking** - Full WebSocket endpoint simulation
+  - On-connect, on-message (pattern matching), and periodic message handlers
+  - Real-time client management panel (view, send messages, disconnect)
+  - Exact text and regex pattern matching for incoming messages
+  - Configurable delays and intervals
+  - See [WebSocket Documentation](docs/websocket.md) for details
 
 - **Proxy Configuration** - Forward requests to backend services
   - Prefix or regex-based route matching
@@ -211,6 +219,16 @@ volumes:
 | GET | `/api/graphql-proxy-url/:routeId` | Get proxy URL for a GraphQL route |
 | PUT | `/api/graphql-proxy-url/:routeId` | Save/update proxy URL |
 
+### WebSocket
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/ws-messages/:routeId` | Get WebSocket messages for a route |
+| PUT | `/api/ws-messages/:routeId` | Save WebSocket messages |
+| GET | `/api/ws-clients` | Get connected WebSocket clients |
+| POST | `/api/ws-clients/send` | Send message to specific clients |
+| POST | `/api/ws-clients/disconnect` | Disconnect a client |
+
 ### Utilities
 
 | Method | Endpoint | Description |
@@ -274,6 +292,25 @@ volumes:
 9. Click the test button (paper plane icon) to open GraphiQL IDE and test queries
 
 For a detailed walkthrough, see [GraphQL Documentation](docs/graphql.md).
+
+### Creating a WebSocket Mock
+
+1. Click "Nueva Ruta" (New Route)
+2. Enter route path: `/ws/notifications`
+3. Select response type: WebSocket
+4. Add message handlers:
+   - **On Connect**: `{"type": "welcome", "message": "Connected!"}`
+   - **On Message** (pattern: `ping`): `pong`
+   - **Periodic** (interval: 5000ms): `{"type": "heartbeat"}`
+5. Save
+6. Connect from your client:
+   ```javascript
+   const ws = new WebSocket('ws://localhost:3880/ws/notifications');
+   ws.onmessage = (e) => console.log(e.data);
+   ```
+7. Use **Tools** > **WebSocket Clients** to monitor connections and send manual messages
+
+For a detailed walkthrough, see [WebSocket Documentation](docs/websocket.md).
 
 ### Conditional Responses
 

@@ -72,6 +72,18 @@ function routesToXml(data) {
                     xml += '      </condition>\n';
                 });
                 xml += '    </conditions>\n';
+            } else if (key === 'websocketMessages' && Array.isArray(value) && value.length > 0) {
+                xml += '    <websocketMessages>\n';
+                value.forEach(msg => {
+                    xml += '      <wsMessage>\n';
+                    Object.entries(msg).forEach(([mk, mv]) => {
+                        if (mv !== null && mv !== undefined) {
+                            xml += `        <${mk}>${escapeXml(mv)}</${mk}>\n`;
+                        }
+                    });
+                    xml += '      </wsMessage>\n';
+                });
+                xml += '    </websocketMessages>\n';
             } else if (key === 'graphqlOperations' && Array.isArray(value) && value.length > 0) {
                 xml += '    <graphqlOperations>\n';
                 value.forEach(op => {
@@ -204,6 +216,32 @@ function xmlToRoutes(xmlContent) {
                     }
                 });
                 return cond;
+            });
+        }
+
+        // Parse websocketMessages
+        const wsMsgsMatch = routeXml.match(/<websocketMessages>([\s\S]*?)<\/websocketMessages>/);
+        if (wsMsgsMatch) {
+            const msgXmls = getTagContent(wsMsgsMatch[1], 'wsMessage');
+            route.websocketMessages = msgXmls.map(msgXml => {
+                const msg = {};
+                const msgFields = ['id', 'orden', 'event_type', 'match_pattern', 'is_regex', 'respuesta', 'delay', 'send_interval', 'activo', 'nombre'];
+                msgFields.forEach(field => {
+                    const match = msgXml.match(new RegExp(`<${field}>([\\s\\S]*?)<\\/${field}>`));
+                    if (match) {
+                        let value = match[1].trim()
+                            .replace(/&lt;/g, '<')
+                            .replace(/&gt;/g, '>')
+                            .replace(/&quot;/g, '"')
+                            .replace(/&apos;/g, "'")
+                            .replace(/&amp;/g, '&');
+                        if (['orden', 'activo', 'is_regex', 'delay', 'send_interval'].includes(field)) {
+                            value = parseInt(value) || 0;
+                        }
+                        msg[field] = value;
+                    }
+                });
+                return msg;
             });
         }
 
@@ -406,6 +444,17 @@ router.get('/export', async (req, res) => {
                     });
                 });
                 route.graphqlOperations = graphqlOps;
+            }
+
+            // Get WebSocket messages for websocket routes
+            if (route.tiporespuesta === 'websocket') {
+                const wsMessages = await new Promise((resolve, reject) => {
+                    db.all('SELECT * FROM websocket_messages WHERE route_id = ? ORDER BY orden ASC', [route.id], (err, rows) => {
+                        if (err) reject(err);
+                        else resolve(rows || []);
+                    });
+                });
+                route.websocketMessages = wsMessages;
             }
         }
 
@@ -755,6 +804,25 @@ router.post('/import', upload.single('file'), async (req, res) => {
                     });
                     if (!results.graphqlOperations) results.graphqlOperations = { imported: 0 };
                     results.graphqlOperations.imported++;
+                }
+            }
+
+            // Import websocketMessages for websocket routes
+            if (route.websocketMessages && route.websocketMessages.length > 0 && newRouteId) {
+                for (const msg of route.websocketMessages) {
+                    await new Promise((resolve, reject) => {
+                        db.run(`INSERT INTO websocket_messages (route_id, orden, event_type, match_pattern, is_regex, respuesta, delay, send_interval, activo, nombre)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                            [newRouteId, msg.orden || 0, msg.event_type || 'onMessage', msg.match_pattern || null,
+                            msg.is_regex ? 1 : 0, msg.respuesta, msg.delay || 0, msg.send_interval || 0,
+                            msg.activo ?? 1, msg.nombre || null],
+                            function(err) {
+                                if (err) reject(err);
+                                else resolve();
+                            });
+                    });
+                    if (!results.websocketMessages) results.websocketMessages = { imported: 0 };
+                    results.websocketMessages.imported++;
                 }
             }
         }

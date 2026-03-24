@@ -20,6 +20,7 @@ const sqliteService = require('./services/sqlite.service');
 const socketService = require('./services/socket.service');
 const semaphore = require('./services/semaphore.service');
 const autoImportService = require('./services/auto-import.service');
+const websocketService = require('./services/websocket.service');
 
 // ===== MIDDLEWARES =====
 const routesMiddleware = require('./middlewares/routes.middleware');
@@ -205,6 +206,9 @@ server.on('listening', () => {
   console.log('[APP] Inicializando servicio de auto-importación...');
   await autoImportService.init(sqliteService);
   console.log('[APP] Servicio de auto-importación inicializado');
+
+  console.log('[APP] Inicializando WebSocket...');
+  websocketService.init(server);
 
   console.log('[APP] Configurando proxy...');
   await proxyMiddleware.configureProxy(app);

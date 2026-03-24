@@ -102,7 +102,8 @@
       "fallbacksHelp": "Define respuestas mock que se devolverán cuando el proxy falle por timeout, errores de conexión o respuestas HTTP 5xx.",
       "graphqlHelp": "Define respuestas mock para queries y mutations GraphQL. Cada operación se matchea por su tipo y nombre desde la petición GraphQL entrante.",
       "graphqlSchemaHelp": "Ingresa la URL de un endpoint GraphQL. Se enviará una consulta de introspección para extraer el schema y generar respuestas mock automáticamente.",
-      "graphqlProxyHelp": "URL del endpoint GraphQL remoto. Las operaciones en modo 'Proxy' reenviarán la query a esta URL en lugar de devolver datos mock."
+      "graphqlProxyHelp": "URL del endpoint GraphQL remoto. Las operaciones en modo 'Proxy' reenviarán la query a esta URL en lugar de devolver datos mock.",
+      "wsHelp": "Define el comportamiento de este endpoint WebSocket. Añade mensajes para enviar al conectar, en respuesta a mensajes entrantes (por patrón) o periódicamente."
     },
     "proxyTimeout": "Timeout de Petición",
     "proxyFallbacks": "Respuestas de Fallback",
@@ -119,6 +120,8 @@
     "summary": "Resumen",
     "description": "Descripción",
     "graphqlOperations": "Operaciones GraphQL",
+    "wsMessages": "Mensajes WebSocket",
+    "wsMessageName": "Nombre del mensaje",
     "operationName": "Nombre de Operación",
     "importSchema": "Importar Schema",
     "importSchemaBtn": "Importar",
@@ -156,6 +159,7 @@
     "file": "Archivo",
     "proxy": "Proxy",
     "graphql": "GraphQL",
+    "websocket": "WebSocket",
     "empty": "Sin Body"
   },
   "buttons": {
@@ -283,7 +287,8 @@
     "noConditions": "No hay condiciones. Se usara siempre la respuesta por defecto.",
     "noTags": "No hay tags. Crea uno nuevo.",
     "noFallbacks": "No hay fallbacks configurados. Se devolverá la respuesta de error por defecto cuando falle el proxy.",
-    "noGraphQLOperations": "No hay operaciones GraphQL configuradas. Haz clic en '+' para añadir una."
+    "noGraphQLOperations": "No hay operaciones GraphQL configuradas. Haz clic en '+' para añadir una.",
+    "noWSMessages": "No hay mensajes WebSocket configurados. Haz clic en '+' para añadir uno."
   },
   "errorTypes": {
     "timeout": "Timeout",
@@ -486,5 +491,31 @@
     "deselectAll": "Deseleccionar todas",
     "selectedCount": "seleccionadas",
     "noRoutesSelected": "Selecciona al menos una ruta para exportar"
+  },
+  "ws": {
+    "clientsTitle": "Clientes WebSocket",
+    "connectedClients": "clientes conectados",
+    "noClients": "No hay clientes WebSocket conectados",
+    "sendMessage": "Enviar Mensaje",
+    "sendToAll": "Todos los clientes conectados",
+    "sendToSelected": "Solo clientes seleccionados",
+    "messagePlaceholder": "Mensaje a enviar...",
+    "send": "Enviar",
+    "messageRequired": "Introduce un mensaje",
+    "noClientsSelected": "No hay clientes seleccionados",
+    "messageSent": "Mensaje enviado a",
+    "clients": "clientes",
+    "received": "recib",
+    "sent": "env",
+    "onConnect": "Al Conectar",
+    "onMessage": "Al Recibir",
+    "periodic": "Periódico",
+    "message": "Mensaje",
+    "matchPattern": "Patrón de coincidencia",
+    "matchPatternPlaceholder": "Texto o regex para coincidir con mensajes entrantes...",
+    "delay": "Retardo",
+    "interval": "Intervalo",
+    "responseMessage": "Mensaje de respuesta",
+    "responsePlaceholder": "Mensaje a enviar de vuelta..."
   }
 }

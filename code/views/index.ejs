@@ -21,6 +21,9 @@
             <button type="button" class="dropdown-item-modern" onclick="openExportImportModal(); closeToolsDropdown();">
               <i class="fa fa-exchange"></i> <%= __('exportImport.title') %>
             </button>
+            <button type="button" class="dropdown-item-modern" onclick="openWSClientsModal(); closeToolsDropdown();">
+              <i class="fa fa-plug"></i> <%= __('ws.clientsTitle') %> <span class="ws-clients-badge" id="wsClientsBadge" style="display: none;">0</span>
+            </button>
           </div>
         </div>
         <button type="button" class="btn-modern btn-modern-secondary" onclick="openList()" style="position: relative;">
@@ -208,6 +211,7 @@
 <%- include('modals/graphiql-tester') %>
 <%- include('modals/tag-manager') %>
 <%- include('modals/export-import') %>
+<%- include('modals/ws-clients') %>
 
 <script src="/js/socket.io.js"></script>
 
@@ -1000,21 +1004,24 @@
     page: '<h1>Hello World</h1>\n<p>This is a rendered page.</p>',
     empty: '',
     proxy: '',
-    graphql: ''
+    graphql: '',
+    websocket: ''
   };
 
   function checkRespuesta() {
     const tipoResp = document.getElementById("tiporespuesta").value;
     showElements(['#divtresp', '#divtipo', '#divruta', '#divcodresp', '#divresp', '#divEsperaActiva', '#divMetadata', '#divHeaders', '#divConditions']);
-    hideElements(['#divDestino', '#divFile', '#divProxyTimeout', '#divFallbacks', '#divGraphQL']);
+    hideElements(['#divDestino', '#divFile', '#divProxyTimeout', '#divFallbacks', '#divGraphQL', '#divWebSocket']);
 
-    // Nav panel: show conditions/fallbacks/graphql dividers based on type
+    // Nav panel: show conditions/fallbacks/graphql/websocket dividers based on type
     document.getElementById('navDividerConditions').style.display = '';
     document.getElementById('routeNavConditions').style.display = '';
     document.getElementById('navDividerFallbacks').style.display = 'none';
     document.getElementById('routeNavFallbacks').style.display = 'none';
     document.getElementById('navDividerGraphQL').style.display = 'none';
     document.getElementById('routeNavGraphQL').style.display = 'none';
+    document.getElementById('navDividerWebSocket').style.display = 'none';
+    document.getElementById('routeNavWebSocket').style.display = 'none';
 
     if (tipoResp === 'proxy') {
       // For proxy: hide response fields, metadata, headers, conditions (those are per-fallback)
@@ -1040,6 +1047,18 @@
       // Auto-expand graphql section
       const gqlBody = document.getElementById('graphqlCollapsibleBody');
       if (gqlBody) gqlBody.style.display = 'block';
+    } else if (tipoResp === 'websocket') {
+      // For websocket: hide most fields, show WS messages config
+      hideElements(['#divtipo', '#divcodresp', '#divresp', '#divFile', '#divEsperaActiva', '#divConditions', '#divMetadata', '#divHeaders']);
+      showElements(['#divWebSocket']);
+      // Nav panel: hide conditions, show websocket
+      document.getElementById('navDividerConditions').style.display = 'none';
+      document.getElementById('routeNavConditions').style.display = 'none';
+      document.getElementById('navDividerWebSocket').style.display = '';
+      document.getElementById('routeNavWebSocket').style.display = '';
+      // Auto-expand ws section
+      const wsBody = document.getElementById('wsCollapsibleBody');
+      if (wsBody) wsBody.style.display = 'block';
     } else if (tipoResp === 'file') {
       hideElements(['#divresp']);
       showElements(['#divFile']);
@@ -3510,6 +3529,388 @@
     }
   }
 
+  // ===== WEBSOCKET MESSAGES =====
+
+  let wsMessageCounter = 0;
+
+  function toggleWebSocketSection() {
+    const body = document.getElementById('wsCollapsibleBody');
+    body.style.display = body.style.display === 'none' ? 'block' : 'none';
+  }
+
+  function addWSMessageRow(data = null) {
+    wsMessageCounter++;
+    const id = wsMessageCounter;
+    const container = document.getElementById('wsMessagesContainer');
+    const noMsg = document.getElementById('noWSMsgsMsg');
+    if (noMsg) noMsg.style.display = 'none';
+
+    const eventType = data ? data.event_type : 'onMessage';
+    const matchPattern = data ? (data.match_pattern || '') : '';
+    const isRegex = data ? data.is_regex : false;
+    const respuesta = data ? (data.respuesta || '') : '';
+    const delay = data ? (data.delay || 0) : 0;
+    const interval = data ? (data.send_interval || 0) : 5000;
+    const activo = data ? (data.activo !== false && data.activo !== 0) : true;
+    const nombre = data ? (data.nombre || '') : '';
+
+    const div = document.createElement('div');
+    div.className = 'condition-row ws-message-row';
+    div.id = `ws-msg-${id}`;
+    div.innerHTML = `
+      <div class="condition-header">
+        <div class="condition-header-left">
+          <span class="condition-grip"><i class="fa fa-bars"></i></span>
+          <input type="text" class="form-control-modern form-control-sm" id="ws-msg-name-${id}"
+                 placeholder="${t('form.wsMessageName')}" value="${nombre}" style="max-width: 200px;">
+          <select class="form-control-modern form-select-modern form-control-sm" id="ws-msg-type-${id}" onchange="onWSMessageTypeChange(${id})">
+            <option value="onConnect" ${eventType === 'onConnect' ? 'selected' : ''}>${t('ws.onConnect')}</option>
+            <option value="onMessage" ${eventType === 'onMessage' ? 'selected' : ''}>${t('ws.onMessage')}</option>
+            <option value="periodic" ${eventType === 'periodic' ? 'selected' : ''}>${t('ws.periodic')}</option>
+          </select>
+        </div>
+        <div class="condition-header-right">
+          <label class="switch-modern switch-modern-sm">
+            <input type="checkbox" id="ws-msg-active-${id}" ${activo ? 'checked' : ''}>
+            <span class="slider"></span>
+          </label>
+          <button type="button" class="btn-modern btn-modern-sm btn-modern-danger" onclick="removeWSMessageRow(${id})">
+            <i class="fa fa-trash"></i>
+          </button>
+        </div>
+      </div>
+      <div class="condition-body">
+        <div class="ws-msg-pattern" id="ws-msg-pattern-group-${id}" style="display: ${eventType === 'onMessage' ? '' : 'none'};">
+          <label class="form-label-modern">${t('ws.matchPattern')}</label>
+          <div class="d-flex gap-2 align-items-center">
+            <input type="text" class="form-control-modern" id="ws-msg-pattern-${id}"
+                   placeholder="${t('ws.matchPatternPlaceholder')}" value="${matchPattern.replace(/"/g, '&quot;')}">
+            <label class="d-flex align-items-center gap-1" style="white-space: nowrap;">
+              <input type="checkbox" id="ws-msg-regex-${id}" ${isRegex ? 'checked' : ''}> Regex
+            </label>
+          </div>
+        </div>
+        <div class="ws-msg-delay" id="ws-msg-delay-group-${id}">
+          <label class="form-label-modern">${t('ws.delay')} (ms)</label>
+          <input type="number" class="form-control-modern" id="ws-msg-delay-${id}" value="${delay}" min="0" step="100">
+        </div>
+        <div class="ws-msg-interval" id="ws-msg-interval-group-${id}" style="display: ${eventType === 'periodic' ? '' : 'none'};">
+          <label class="form-label-modern">${t('ws.interval')} (ms)</label>
+          <input type="number" class="form-control-modern" id="ws-msg-interval-${id}" value="${interval}" min="100" step="100">
+        </div>
+        <div class="ws-msg-response">
+          <label class="form-label-modern">${t('ws.responseMessage')}</label>
+          <textarea class="form-control-modern" id="ws-msg-response-${id}" rows="3"
+                    placeholder='${t("ws.responsePlaceholder")}'>${respuesta}</textarea>
+        </div>
+      </div>
+    `;
+    container.appendChild(div);
+    updateWSNavPanel();
+  }
+
+  function onWSMessageTypeChange(id) {
+    const type = document.getElementById(`ws-msg-type-${id}`).value;
+    document.getElementById(`ws-msg-pattern-group-${id}`).style.display = type === 'onMessage' ? '' : 'none';
+    document.getElementById(`ws-msg-interval-group-${id}`).style.display = type === 'periodic' ? '' : 'none';
+  }
+
+  function removeWSMessageRow(id) {
+    const el = document.getElementById(`ws-msg-${id}`);
+    if (el) el.remove();
+    const container = document.getElementById('wsMessagesContainer');
+    if (container.children.length === 0) {
+      document.getElementById('noWSMsgsMsg').style.display = '';
+    }
+    updateWSNavPanel();
+  }
+
+  function getWSMessages() {
+    const container = document.getElementById('wsMessagesContainer');
+    const rows = container.querySelectorAll('.ws-message-row');
+    const messages = [];
+    rows.forEach(row => {
+      const id = row.id.replace('ws-msg-', '');
+      messages.push({
+        nombre: document.getElementById(`ws-msg-name-${id}`).value,
+        event_type: document.getElementById(`ws-msg-type-${id}`).value,
+        match_pattern: document.getElementById(`ws-msg-pattern-${id}`).value,
+        is_regex: document.getElementById(`ws-msg-regex-${id}`).checked,
+        respuesta: document.getElementById(`ws-msg-response-${id}`).value,
+        delay: parseInt(document.getElementById(`ws-msg-delay-${id}`).value) || 0,
+        send_interval: parseInt(document.getElementById(`ws-msg-interval-${id}`).value) || 0,
+        activo: document.getElementById(`ws-msg-active-${id}`).checked
+      });
+    });
+    return messages;
+  }
+
+  function clearWSMessages() {
+    document.getElementById('wsMessagesContainer').innerHTML = '';
+    document.getElementById('noWSMsgsMsg').style.display = '';
+    wsMessageCounter = 0;
+  }
+
+  async function loadWSMessagesForRoute(routeId) {
+    try {
+      const response = await fetch(`/api/ws-messages/${routeId}`);
+      const data = await response.json();
+      if (data.success && data.messages) {
+        clearWSMessages();
+        data.messages.forEach(m => addWSMessageRow(m));
+        if (data.messages.length > 0) {
+          const wsBody = document.getElementById('wsCollapsibleBody');
+          if (wsBody) wsBody.style.display = 'block';
+        }
+      }
+    } catch (e) {
+      console.error('Error loading WS messages:', e);
+    }
+  }
+
+  async function saveWSMessagesForRoute(routeId) {
+    const messages = getWSMessages();
+    try {
+      const response = await fetch(`/api/ws-messages/${routeId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages })
+      });
+      const data = await response.json();
+      if (!data.success) {
+        showToast(data.error || t('errors.savingWSMessages'), 'error');
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.error('Error saving WS messages:', e);
+      return false;
+    }
+  }
+
+  function updateWSNavPanel() {
+    const nav = document.getElementById('routeNavWebSocket');
+    if (!nav) return;
+    const container = document.getElementById('wsMessagesContainer');
+    const rows = container.querySelectorAll('.ws-message-row');
+    nav.innerHTML = '';
+    rows.forEach((row, idx) => {
+      const id = row.id.replace('ws-msg-', '');
+      const name = document.getElementById(`ws-msg-name-${id}`).value || `${t('ws.message')} ${idx + 1}`;
+      const type = document.getElementById(`ws-msg-type-${id}`).value;
+      const icon = type === 'onConnect' ? 'fa-sign-in' : type === 'periodic' ? 'fa-clock-o' : 'fa-comment';
+      const item = document.createElement('a');
+      item.className = 'route-nav-item';
+      item.href = '#';
+      item.onclick = (e) => { e.preventDefault(); document.getElementById(`ws-msg-${id}`).scrollIntoView({ behavior: 'smooth', block: 'center' }); };
+      item.innerHTML = `<i class="fa ${icon}"></i> <span>${name}</span>`;
+      nav.appendChild(item);
+    });
+  }
+
+  // ===== WEBSOCKET CLIENTS PANEL =====
+
+  function openWSClientsModal() {
+    refreshWSClients();
+    $('#wsClientsModal').modal('show');
+  }
+
+  async function refreshWSClients() {
+    try {
+      const response = await fetch('/api/ws-clients');
+      const data = await response.json();
+      if (data.success) {
+        renderWSClients(data.clients);
+      }
+    } catch (e) {
+      console.error('Error fetching WS clients:', e);
+    }
+  }
+
+  let wsClientsData = [];
+  let wsDurationTimer = null;
+
+  function updateWSClientsBadge(count) {
+    const countText = document.getElementById('wsClientsCountText');
+    const badge = document.getElementById('wsClientsBadge');
+    if (countText) countText.textContent = count;
+    if (badge) {
+      badge.textContent = count;
+      badge.style.display = count > 0 ? '' : 'none';
+    }
+  }
+
+  function renderWSClients(clientsList) {
+    wsClientsData = clientsList;
+    updateWSClientsBadge(clientsList.length);
+
+    const container = document.getElementById('wsClientsList');
+    if (!container) return;
+
+    if (clientsList.length === 0) {
+      container.innerHTML = `<div class="empty-state"><i class="fa fa-plug"></i><p>${t('ws.noClients')}</p></div>`;
+      return;
+    }
+
+    // Preserve checked state
+    const checkedIds = new Set(
+      Array.from(document.querySelectorAll('.ws-client-check:checked')).map(cb => cb.value)
+    );
+
+    container.innerHTML = clientsList.map(c => {
+      const checked = checkedIds.has(c.id) ? 'checked' : '';
+      return `
+        <div class="ws-client-item" data-client-id="${c.id}" data-connected-at="${c.connectedAt}">
+          <div class="ws-client-select">
+            <input type="checkbox" class="ws-client-check" value="${c.id}" ${checked}>
+          </div>
+          <div class="ws-client-info">
+            <div class="ws-client-path">
+              <i class="fa fa-plug"></i> <strong>${c.path}</strong>
+            </div>
+            <div class="ws-client-details">
+              <span><i class="fa fa-globe"></i> ${c.ip}</span>
+              <span class="ws-client-duration"><i class="fa fa-clock-o"></i> ${formatDuration(Date.now() - c.connectedAt)}</span>
+              <span class="ws-client-recv"><i class="fa fa-arrow-down"></i> ${c.messagesReceived} ${t('ws.received')}</span>
+              <span class="ws-client-sent"><i class="fa fa-arrow-up"></i> ${c.messagesSent} ${t('ws.sent')}</span>
+            </div>
+          </div>
+          <div class="ws-client-actions">
+            <button type="button" class="btn-modern btn-modern-sm btn-modern-danger" onclick="disconnectWSClient('${c.id}')">
+              <i class="fa fa-times"></i>
+            </button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function updateWSClientsDuration() {
+    document.querySelectorAll('.ws-client-item[data-connected-at]').forEach(el => {
+      const connectedAt = parseInt(el.dataset.connectedAt);
+      const durationEl = el.querySelector('.ws-client-duration');
+      if (durationEl && connectedAt) {
+        durationEl.innerHTML = `<i class="fa fa-clock-o"></i> ${formatDuration(Date.now() - connectedAt)}`;
+      }
+    });
+  }
+
+  function startWSDurationTimer() {
+    stopWSDurationTimer();
+    wsDurationTimer = setInterval(updateWSClientsDuration, 1000);
+  }
+
+  function stopWSDurationTimer() {
+    if (wsDurationTimer) {
+      clearInterval(wsDurationTimer);
+      wsDurationTimer = null;
+    }
+  }
+
+  // Start/stop timer when modal opens/closes
+  document.addEventListener('DOMContentLoaded', function() {
+    const wsModal = document.getElementById('wsClientsModal');
+    if (wsModal) {
+      wsModal.addEventListener('shown.bs.modal', startWSDurationTimer);
+      wsModal.addEventListener('hidden.bs.modal', stopWSDurationTimer);
+    }
+  });
+
+  function formatDuration(ms) {
+    const seconds = Math.floor(ms / 1000);
+    if (seconds < 60) return `${seconds}s`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
+    const hours = Math.floor(minutes / 60);
+    return `${hours}h ${minutes % 60}m`;
+  }
+
+  async function sendWSMessage() {
+    const target = document.getElementById('wsSendTarget').value;
+    const message = document.getElementById('wsSendMessage').value;
+    if (!message) {
+      showToast(t('ws.messageRequired'), 'warning');
+      return;
+    }
+
+    let clientIds = [];
+    if (target === 'all') {
+      // Send to all connected
+      const res = await fetch('/api/ws-clients');
+      const data = await res.json();
+      if (data.success) clientIds = data.clients.map(c => c.id);
+    } else {
+      // Send to selected
+      clientIds = Array.from(document.querySelectorAll('.ws-client-check:checked')).map(cb => cb.value);
+    }
+
+    if (clientIds.length === 0) {
+      showToast(t('ws.noClientsSelected'), 'warning');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/ws-clients/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientIds, message })
+      });
+      const data = await response.json();
+      if (data.success) {
+        showToast(`${t('ws.messageSent')}: ${data.sent} ${t('ws.clients')}`, 'success');
+        document.getElementById('wsSendMessage').value = '';
+      }
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  }
+
+  async function disconnectWSClient(clientId) {
+    try {
+      await fetch('/api/ws-clients/disconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId })
+      });
+      refreshWSClients();
+    } catch (e) {
+      console.error('Error disconnecting client:', e);
+    }
+  }
+
+  // Listen for real-time WS client updates via socket.io
+  if (typeof socket !== 'undefined') {
+    socket.on('ws-clients-update', function(clientsList) {
+      updateWSClientsBadge(clientsList.length);
+      if (!$('#wsClientsModal').hasClass('show')) {
+        wsClientsData = clientsList;
+        return;
+      }
+
+      // Check if clients changed (added/removed) vs just counters updated
+      const currentIds = new Set(wsClientsData.map(c => c.id));
+      const newIds = new Set(clientsList.map(c => c.id));
+      const structureChanged = currentIds.size !== newIds.size || [...currentIds].some(id => !newIds.has(id));
+
+      if (structureChanged) {
+        // Full re-render when clients connect/disconnect
+        renderWSClients(clientsList);
+      } else {
+        // Incremental update: just update message counters
+        wsClientsData = clientsList;
+        clientsList.forEach(c => {
+          const el = document.querySelector(`.ws-client-item[data-client-id="${c.id}"]`);
+          if (el) {
+            const recv = el.querySelector('.ws-client-recv');
+            const sent = el.querySelector('.ws-client-sent');
+            if (recv) recv.innerHTML = `<i class="fa fa-arrow-down"></i> ${c.messagesReceived} ${t('ws.received')}`;
+            if (sent) sent.innerHTML = `<i class="fa fa-arrow-up"></i> ${c.messagesSent} ${t('ws.sent')}`;
+          }
+        });
+      }
+    });
+  }
+
   // ===== GRAPHQL SCHEMA IMPORT =====
   let currentGraphQLSchema = null;
 
@@ -3738,6 +4139,10 @@
         loadGraphQLOperationsForRoute(objId).then(() => updateGraphQLProxyUrlVisibility());
         loadGraphQLSchemaForRoute(objId);
         loadGraphQLProxyUrlForRoute(objId);
+      }
+      // Cargar mensajes WebSocket si es tipo websocket
+      if (obj && obj.tiporespuesta === 'websocket') {
+        loadWSMessagesForRoute(objId);
       }
       $("#titleModal").html('<i class="fa fa-pencil me-2"></i>Editar Ruta');
       $("#routesModal").modal('show');
@@ -4328,6 +4733,11 @@
         await saveGraphQLProxyUrlForRoute(result.id);
       }
 
+      // Guardar mensajes WebSocket si es tipo websocket
+      if (tiporespuesta === 'websocket' && result.id) {
+        await saveWSMessagesForRoute(result.id);
+      }
+
       tabla.ajax.reload(null, false);
       $("#routesModal").modal('hide');
     }
@@ -4443,6 +4853,11 @@
         await saveGraphQLOperationsForRoute(id);
         await saveGraphQLSchemaForRoute(id);
         await saveGraphQLProxyUrlForRoute(id);
+      }
+
+      // Guardar/limpiar mensajes WebSocket
+      if (tiporespuesta === 'websocket') {
+        await saveWSMessagesForRoute(id);
       }
 
       tabla.ajax.reload(null, false);
