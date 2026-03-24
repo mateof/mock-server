@@ -3087,6 +3087,80 @@ table.dataTable.no-footer {
   margin-top: 0.5rem;
 }
 
+.export-route-list-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.export-route-list-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.export-route-list {
+  max-height: 250px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+}
+
+.export-route-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.export-route-item:last-child {
+  border-bottom: none;
+}
+
+.export-route-item:hover {
+  background: var(--bg-hover);
+}
+
+.export-route-item input[type="checkbox"] {
+  flex-shrink: 0;
+}
+
+.export-route-item .route-method {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.15rem 0.4rem;
+  border-radius: var(--radius-sm);
+  min-width: 3rem;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.export-route-item .route-path {
+  flex: 1;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.85rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.export-route-item .route-type {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.export-route-count {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-align: right;
+}
+
 .export-actions,
 .import-actions {
   display: flex;

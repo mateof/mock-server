@@ -346,13 +346,22 @@ router.get('/export', async (req, res) => {
         const includeFiles = req.query.includeFiles === 'true';
 
         const db = sqliteService.getDatabase();
+        const selectedIds = req.query.ids ? req.query.ids.split(',').map(Number).filter(n => !isNaN(n)) : null;
 
-        // Get all routes
+        // Get routes (all or filtered by IDs)
         const routes = await new Promise((resolve, reject) => {
-            db.all('SELECT * FROM rutas ORDER BY orden ASC', [], (err, rows) => {
-                if (err) reject(err);
-                else resolve(rows || []);
-            });
+            if (selectedIds && selectedIds.length > 0) {
+                const placeholders = selectedIds.map(() => '?').join(',');
+                db.all(`SELECT * FROM rutas WHERE id IN (${placeholders}) ORDER BY orden ASC`, selectedIds, (err, rows) => {
+                    if (err) reject(err);
+                    else resolve(rows || []);
+                });
+            } else {
+                db.all('SELECT * FROM rutas ORDER BY orden ASC', [], (err, rows) => {
+                    if (err) reject(err);
+                    else resolve(rows || []);
+                });
+            }
         });
 
         // Get conditional responses for each route

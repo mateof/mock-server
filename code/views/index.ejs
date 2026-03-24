@@ -5837,14 +5837,89 @@
     }
   }
 
+  let exportRoutes = [];
+
+  function toggleExportRouteList() {
+    const scope = document.querySelector('input[name="exportScope"]:checked').value;
+    const container = document.getElementById('exportRouteListContainer');
+    if (scope === 'selected') {
+      container.style.display = 'block';
+      loadExportRouteList();
+    } else {
+      container.style.display = 'none';
+    }
+  }
+
+  async function loadExportRouteList() {
+    const listEl = document.getElementById('exportRouteList');
+    listEl.innerHTML = `<div class="export-preview-loading"><i class="fa fa-spinner fa-spin"></i> ${t('exportImport.loading')}</div>`;
+    try {
+      const response = await fetch('/api/routes');
+      exportRoutes = await response.json();
+      renderExportRouteList();
+    } catch (e) {
+      listEl.innerHTML = `<div class="alert-modern alert-modern-warning">${e.message}</div>`;
+    }
+  }
+
+  function renderExportRouteList() {
+    const listEl = document.getElementById('exportRouteList');
+    const search = document.getElementById('exportRouteSearch').value.toLowerCase();
+    const filtered = exportRoutes.filter(r =>
+      (r.ruta || '').toLowerCase().includes(search) ||
+      (r.metodo || '').toLowerCase().includes(search) ||
+      (r.tiporespuesta || '').toLowerCase().includes(search)
+    );
+
+    listEl.innerHTML = filtered.map(r => `
+      <label class="export-route-item">
+        <input type="checkbox" class="export-route-check" value="${r.id}" checked>
+        <span class="route-method badge-method-${(r.metodo || '').toLowerCase()}">${r.metodo || ''}</span>
+        <span class="route-path">${r.ruta || ''}</span>
+        <span class="route-type">${r.tiporespuesta || ''}</span>
+      </label>
+    `).join('');
+
+    updateExportRouteCount();
+  }
+
+  function filterExportRoutes() {
+    renderExportRouteList();
+  }
+
+  function toggleAllExportRoutes(checked) {
+    document.querySelectorAll('.export-route-check').forEach(cb => cb.checked = checked);
+    updateExportRouteCount();
+  }
+
+  function updateExportRouteCount() {
+    const total = document.querySelectorAll('.export-route-check').length;
+    const selected = document.querySelectorAll('.export-route-check:checked').length;
+    document.getElementById('exportRouteCount').textContent = `${selected} / ${total} ${t('exportImport.selectedCount')}`;
+  }
+
+  document.addEventListener('change', function(e) {
+    if (e.target.classList.contains('export-route-check')) {
+      updateExportRouteCount();
+    }
+  });
+
   async function performExport() {
     const format = document.querySelector('input[name="exportFormat"]:checked').value;
     const includeFiles = document.getElementById('includeFiles').checked;
+    const scope = document.querySelector('input[name="exportScope"]:checked').value;
 
-    // Create download link with query parameters
-    const url = `/api/export?format=${format}&includeFiles=${includeFiles}`;
+    let url = `/api/export?format=${format}&includeFiles=${includeFiles}`;
 
-    // Trigger download
+    if (scope === 'selected') {
+      const selectedIds = Array.from(document.querySelectorAll('.export-route-check:checked')).map(cb => cb.value);
+      if (selectedIds.length === 0) {
+        showToast(t('exportImport.noRoutesSelected'), 'warning');
+        return;
+      }
+      url += `&ids=${selectedIds.join(',')}`;
+    }
+
     const a = document.createElement('a');
     a.href = url;
     a.download = `mock-server-export-${new Date().toISOString().slice(0, 10)}.zip`;
