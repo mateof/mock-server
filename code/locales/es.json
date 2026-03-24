@@ -477,6 +477,14 @@
     "directoryPath": "Ruta de la carpeta",
     "noFilesInDirectory": "No se encontraron archivos ZIP en la carpeta import",
     "filesImported": "Archivos importados",
-    "errors": "Errores"
+    "errors": "Errores",
+    "exportAll": "Todas las rutas",
+    "exportSelected": "Rutas seleccionadas",
+    "selectRoutesToExport": "Selecciona las rutas a exportar",
+    "searchRoutes": "Buscar rutas...",
+    "selectAll": "Seleccionar todas",
+    "deselectAll": "Deseleccionar todas",
+    "selectedCount": "seleccionadas",
+    "noRoutesSelected": "Selecciona al menos una ruta para exportar"
   }
 }

@@ -32,6 +32,38 @@
             </div>
 
             <div class="form-group-modern">
+              <label class="form-label-modern"><%= __('exportImport.selectRoutesToExport') %></label>
+              <div class="btn-group-modern" role="group">
+                <input type="radio" class="btn-check" name="exportScope" id="exportAll" value="all" checked onchange="toggleExportRouteList()">
+                <label class="btn-modern btn-modern-outline" for="exportAll">
+                  <i class="fa fa-globe"></i> <%= __('exportImport.exportAll') %>
+                </label>
+                <input type="radio" class="btn-check" name="exportScope" id="exportSelected" value="selected" onchange="toggleExportRouteList()">
+                <label class="btn-modern btn-modern-outline" for="exportSelected">
+                  <i class="fa fa-check-square-o"></i> <%= __('exportImport.exportSelected') %>
+                </label>
+              </div>
+            </div>
+
+            <div id="exportRouteListContainer" style="display: none;">
+              <div class="export-route-list-header">
+                <input type="text" class="form-control-modern" id="exportRouteSearch" placeholder="<%= __('exportImport.searchRoutes') %>" oninput="filterExportRoutes()">
+                <div class="export-route-list-actions">
+                  <button type="button" class="btn-modern btn-modern-sm btn-modern-outline" onclick="toggleAllExportRoutes(true)">
+                    <i class="fa fa-check-square-o"></i> <%= __('exportImport.selectAll') %>
+                  </button>
+                  <button type="button" class="btn-modern btn-modern-sm btn-modern-outline" onclick="toggleAllExportRoutes(false)">
+                    <i class="fa fa-square-o"></i> <%= __('exportImport.deselectAll') %>
+                  </button>
+                </div>
+              </div>
+              <div class="export-route-list" id="exportRouteList">
+                <div class="export-preview-loading"><i class="fa fa-spinner fa-spin"></i> <%= __('exportImport.loading') %></div>
+              </div>
+              <div class="export-route-count" id="exportRouteCount"></div>
+            </div>
+
+            <div class="form-group-modern">
               <label class="form-label-modern"><%= __('exportImport.format') %></label>
               <div class="btn-group-modern" role="group">
                 <input type="radio" class="btn-check" name="exportFormat" id="formatJson" value="json" checked>

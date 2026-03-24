@@ -477,6 +477,14 @@
     "directoryPath": "Folder path",
     "noFilesInDirectory": "No ZIP files found in the import folder",
     "filesImported": "Files imported",
-    "errors": "Errors"
+    "errors": "Errors",
+    "exportAll": "All routes",
+    "exportSelected": "Selected routes",
+    "selectRoutesToExport": "Select routes to export",
+    "searchRoutes": "Search routes...",
+    "selectAll": "Select all",
+    "deselectAll": "Deselect all",
+    "selectedCount": "selected",
+    "noRoutesSelected": "Please select at least one route to export"
   }
 }
