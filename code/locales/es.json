@@ -158,7 +158,8 @@
     "headerNamePlaceholder": "Nombre de cabecera",
     "paramNamePlaceholder": "Nombre de parámetro",
     "valuePlaceholder": "Valor",
-    "scriptValid": "Script válido"
+    "scriptValid": "Script válido",
+    "editorFallback": "El editor avanzado no se pudo cargar. Puedes escribir el script igualmente, pero sin autocompletado."
   },
   "responseTypes": {
     "json": "JSON",

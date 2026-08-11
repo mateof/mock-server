@@ -158,7 +158,8 @@
     "headerNamePlaceholder": "Header name",
     "paramNamePlaceholder": "Parameter name",
     "valuePlaceholder": "Value",
-    "scriptValid": "Valid script"
+    "scriptValid": "Valid script",
+    "editorFallback": "The rich editor could not be loaded. You can still write the script, just without autocomplete."
   },
   "responseTypes": {
     "json": "JSON",
