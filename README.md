@@ -71,7 +71,7 @@ A powerful HTTP mocking and proxying application built with Express.js and Node.
   - Automatic decompression of gzipped responses
 
 - **Persistent Log & Log Viewer** - Every request is recorded, not just streamed
-  - Grafana-style screen at `/logs`: time range, level, type, method, status, free text and minimum duration
+  - Grafana-style screen at `/logs`: time range (presets or a custom one down to the second), level, type, method, status, free text and minimum duration
   - Stacked histogram over time, summary tiles and expandable detail with the proxied headers and bodies
   - Live tail, per-filter clear and scoped clearing (only what the filters match)
   - Bounded retention (`MOCK_SERVER_LOG_MAX_ROWS`, 50000 by default) so it cannot eat the volume

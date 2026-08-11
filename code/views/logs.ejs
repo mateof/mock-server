@@ -30,7 +30,25 @@
             <option value="1440"><%= __('logs.last24h') %></option>
             <option value="10080"><%= __('logs.last7d') %></option>
             <option value=""><%= __('logs.allTime') %></option>
+            <option value="custom"><%= __('logs.customRange') %></option>
           </select>
+        </div>
+
+        <!-- Rango a medida, con segundos. Solo visible al elegirlo -->
+        <div class="filter-group" id="logCustomRange" style="display: none;">
+          <label class="filter-label" for="logFrom"><%= __('logs.from') %>
+            <button type="button" class="btn-filter-clear-one" id="clear-logFrom" style="display: none;"
+                    onclick="LogsView.clearOne('logFrom')" title="<%= __('filters.clearOne') %>"><i class="fa fa-times"></i></button>
+          </label>
+          <input type="datetime-local" id="logFrom" class="filter-input" step="1" onchange="LogsView.apply()">
+        </div>
+
+        <div class="filter-group" id="logCustomRangeTo" style="display: none;">
+          <label class="filter-label" for="logTo"><%= __('logs.to') %>
+            <button type="button" class="btn-filter-clear-one" id="clear-logTo" style="display: none;"
+                    onclick="LogsView.clearOne('logTo')" title="<%= __('filters.clearOne') %>"><i class="fa fa-times"></i></button>
+          </label>
+          <input type="datetime-local" id="logTo" class="filter-input" step="1" onchange="LogsView.apply()">
         </div>
 
         <div class="filter-group">
@@ -161,7 +179,7 @@
     expandidas: new Set(),
 
     // Los filtros de la pantalla y su valor "sin filtrar"
-    FILTROS: { logLevel: '', logType: '', logMethod: '', logStatus: '', logSearch: '', logMinDuration: '' },
+    FILTROS: { logLevel: '', logType: '', logMethod: '', logStatus: '', logSearch: '', logMinDuration: '', logFrom: '', logTo: '' },
 
     valor(id) {
       const el = document.getElementById(id);
@@ -170,8 +188,18 @@
 
     parametros() {
       const p = new URLSearchParams();
-      const minutos = this.valor('logRange');
-      if (minutos) p.set('from', String(Date.now() - Number(minutos) * 60000));
+      const rango = this.valor('logRange');
+
+      if (rango === 'custom') {
+        // datetime-local da hora local sin zona; new Date la interpreta como
+        // local, que es justo lo que el usuario acaba de escribir
+        const desde = this.valor('logFrom');
+        const hasta = this.valor('logTo');
+        if (desde) p.set('from', String(new Date(desde).getTime()));
+        if (hasta) p.set('to', String(new Date(hasta).getTime()));
+      } else if (rango) {
+        p.set('from', String(Date.now() - Number(rango) * 60000));
+      }
       if (this.valor('logLevel')) p.set('level', this.valor('logLevel'));
       if (this.valor('logType')) p.set('type', this.valor('logType'));
       if (this.valor('logMethod')) p.set('method', this.valor('logMethod'));
@@ -182,9 +210,35 @@
     },
 
     async apply() {
+      this.sincronizarRango();
       this.offset = 0;
       this.entradas = [];
       await this.cargar();
+    },
+
+    /**
+     * Enseña los campos de fecha solo en modo "a medida" y, la primera vez,
+     * los prellena con el rango que se estaba viendo: así el usuario ajusta
+     * desde donde estaba en vez de partir de dos campos vacíos.
+     */
+    sincronizarRango() {
+      const aMedida = this.valor('logRange') === 'custom';
+      document.getElementById('logCustomRange').style.display = aMedida ? '' : 'none';
+      document.getElementById('logCustomRangeTo').style.display = aMedida ? '' : 'none';
+
+      if (aMedida && !this.valor('logFrom') && !this.valor('logTo')) {
+        const ahora = new Date();
+        const antes = new Date(ahora.getTime() - 60 * 60000);
+        document.getElementById('logFrom').value = this.paraInput(antes);
+        document.getElementById('logTo').value = this.paraInput(ahora);
+      }
+    },
+
+    // datetime-local espera hora local en formato YYYY-MM-DDTHH:mm:ss
+    paraInput(fecha) {
+      const dos = n => String(n).padStart(2, '0');
+      return `${fecha.getFullYear()}-${dos(fecha.getMonth() + 1)}-${dos(fecha.getDate())}` +
+             `T${dos(fecha.getHours())}:${dos(fecha.getMinutes())}:${dos(fecha.getSeconds())}`;
     },
 
     // Escribir en un campo de texto no debe disparar una consulta por tecla
@@ -353,6 +407,9 @@
       Object.entries(this.FILTROS).forEach(([id, vacio]) => {
         document.getElementById(id).value = vacio;
       });
+      // El rango vuelve a su preajuste, no a "sin filtro": mirar todo el
+      // histórico por defecto sería lento y rara vez es lo que se quiere
+      document.getElementById('logRange').value = '60';
       this.apply();
     },
 

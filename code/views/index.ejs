@@ -659,6 +659,8 @@
   // fila lo consulta para marcar los tags activos.
   let selectedFilterTags = [];
   let allFilterTags = [];
+  // 'or' = la ruta lleva alguno de los tags; 'and' = los lleva todos
+  let tagFilterMode = 'or';
 
   let tabla = $('#dtList').DataTable({
     ajax: {
@@ -875,8 +877,11 @@
         routeTags = rowData.tags ? JSON.parse(rowData.tags).map(t => t.id) : [];
       } catch (e) {}
 
-      // OR logic - route matches if it has ANY of the selected tags
-      const hasMatch = filterTags.some(tagId => routeTags.includes(tagId));
+      // Con "todos" la ruta tiene que llevar los tags seleccionados a la vez;
+      // con "cualquiera" basta con uno
+      const hasMatch = tagFilterMode === 'and'
+        ? filterTags.every(tagId => routeTags.includes(tagId))
+        : filterTags.some(tagId => routeTags.includes(tagId));
       if (!hasMatch) return false;
     }
 
@@ -904,6 +909,7 @@
       document.getElementById(id).value = vacio;
     });
     document.getElementById('filterRouteType').value = 'contains';
+    tagFilterMode = 'or';
     clearTagFilter();
     applyFilters();
   }
@@ -1001,7 +1007,21 @@
           </label>
         `).join('');
 
+    // El selector solo aporta con dos o más tags, pero se enseña siempre para
+    // que se sepa que existe antes de seleccionar el segundo
+    const selectorModo = `
+      <div class="tags-filter-mode" onclick="event.stopPropagation()">
+        <span class="tags-filter-mode-label">${t('filters.tagMode')}</span>
+        <div class="tags-filter-mode-options">
+          <button type="button" class="${tagFilterMode === 'or' ? 'is-active' : ''}"
+                  onclick="setTagFilterMode('or')" title="${t('filters.tagModeAnyHelp')}">${t('filters.tagModeAny')}</button>
+          <button type="button" class="${tagFilterMode === 'and' ? 'is-active' : ''}"
+                  onclick="setTagFilterMode('and')" title="${t('filters.tagModeAllHelp')}">${t('filters.tagModeAll')}</button>
+        </div>
+      </div>`;
+
     menu.innerHTML = `
+      ${selectorModo}
       <div class="tags-filter-search">
         <i class="fa fa-search"></i>
         <input type="text" id="tagsFilterSearchInput" placeholder="${t('filters.searchTags')}"
@@ -1024,6 +1044,14 @@
         input.setSelectionRange(input.value.length, input.value.length);
       }
     }
+  }
+
+  function setTagFilterMode(modo) {
+    if (tagFilterMode === modo) return;
+    tagFilterMode = modo;
+    renderTagFilterMenu();
+    updateTagFilterLabel();
+    applyFilters();
   }
 
   function onTagFilterSearch(valor) {
@@ -1064,8 +1092,9 @@
       .map(id => (allFilterTags.find(tag => tag.id === id) || {}).name)
       .filter(Boolean);
 
+    const union = tagFilterMode === 'and' ? ' + ' : ', ';
     label.innerHTML = nombres.length <= 2
-      ? escapeHtml(nombres.join(', '))
+      ? escapeHtml(nombres.join(union))
       : `${escapeHtml(nombres[0])} <span class="selected-count">+${nombres.length - 1}</span>`;
   }
 
