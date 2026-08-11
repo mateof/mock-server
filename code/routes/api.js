@@ -9,6 +9,8 @@ const fs = require('fs');
 const openapiService = require('../services/openapi.service');
 const criteriaService = require('../services/criteria-evaluator.service');
 const graphqlService = require('../services/graphql.service');
+const scriptRunner = require('../services/script-runner.service');
+const routesService = require('../services/routes.service');
 
 // Configuración de multer para subida de archivos
 const UPLOADS_DIR = path.join(__dirname, '..', 'data', 'uploads');
@@ -35,111 +37,35 @@ const upload = multer({
     limits: { fileSize: 50 * 1024 * 1024 } // 50MB límite
 });
 
-// Constantes para orden
-const PROXY_ORDER_START = 99999999;
-
-// Helper para obtener siguiente orden disponible
-function getNextOrder(db, isProxy) {
-    return new Promise((resolve) => {
-        if (isProxy) {
-            // Para proxies: buscar el menor orden de proxies y restar 1
-            db.get(`SELECT MIN(orden) as minOrden FROM rutas WHERE tiporespuesta = 'proxy'`, [], (err, row) => {
-                if (err || !row || !row.minOrden) {
-                    resolve(PROXY_ORDER_START);
-                } else {
-                    resolve(row.minOrden - 1);
-                }
-            });
-        } else {
-            // Para rutas normales: buscar el mayor orden de no-proxies y sumar 1
-            db.get(`SELECT MAX(orden) as maxOrden FROM rutas WHERE tiporespuesta != 'proxy' OR tiporespuesta IS NULL`, [], (err, row) => {
-                if (err || !row || !row.maxOrden) {
-                    resolve(1);
-                } else {
-                    resolve(row.maxOrden + 1);
-                }
-            });
-        }
-    });
-}
+// El orden y la validación de rutas viven en routes.service, compartidos con MCP
+const getNextOrder = (db, isProxy) => routesService.getNextOrder(isProxy);
 
 /* Crear nueva ruta */
 router.post('/create', upload.single('file'), async function(req, res, next) {
-    // Validar que la ruta no comience con /api/
-    const ruta = req.body.ruta || '';
-    if (ruta.startsWith('/api/') || ruta === '/api') {
-        if (req.file) {
-            fs.unlink(path.join(UPLOADS_DIR, req.file.filename), () => {});
-        }
-        res.status(400).json({ error: 'Routes starting with /api/ are reserved for internal use' });
-        return;
+    // La validación y el guardado viven en routes.service para que el panel y
+    // el servidor MCP no puedan divergir. Aquí solo queda lo propio de HTTP:
+    // el fichero que sube multer y la traducción de errores a códigos.
+    const file = (req.body.tiporespuesta === 'file' && req.file)
+        ? { fileName: req.file.originalname, filePath: req.file.filename, fileMimeType: req.file.mimetype }
+        : null;
+
+    if (file) {
+        console.log(`[API] Archivo subido: ${file.fileName} (${file.fileMimeType})`);
     }
-
-    const db = sqliteService.getDatabase();
-    const customHeaders = req.body.customHeaders ? JSON.stringify(req.body.customHeaders) : null;
-    const activo = req.body.activo !== 'false' && req.body.activo !== false ? 1 : 0;
-    const esperaActiva = req.body.esperaActiva === 'true' || req.body.esperaActiva === true ? 1 : 0;
-    const isProxy = req.body.tiporespuesta === 'proxy';
-    const isFile = req.body.tiporespuesta === 'file';
-
-    // Calcular orden automáticamente
-    const orden = await getNextOrder(db, isProxy);
-
-    // Datos del archivo si existe
-    let fileName = null;
-    let filePath = null;
-    let fileMimeType = null;
-
-    if (isFile && req.file) {
-        fileName = req.file.originalname;
-        filePath = req.file.filename; // Solo el nombre del archivo, no la ruta completa
-        fileMimeType = req.file.mimetype;
-        console.log(`[API] Archivo subido: ${fileName} (${fileMimeType})`);
-    }
-
-    // Tags
-    const tags = req.body.tags || null;
-
-    // Metadata fields
-    const operationId = req.body.operationId || null;
-    const summary = req.body.summary || null;
-    const description = req.body.description || null;
-    const requestBodyExample = req.body.requestBodyExample || null;
-
-    // Proxy timeout
-    const proxyTimeout = isProxy ? (parseInt(req.body.proxyTimeout) || 30000) : null;
 
     try {
-        const result = await new Promise((resolve, reject) => {
-            db.run(`INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders, activo, orden, fileName, filePath, fileMimeType, tags, operationId, summary, description, requestBodyExample, proxy_timeout) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-                [req.body.tipo, req.body.ruta, req.body.codigo, req.body.respuesta, req.body.tiporespuesta, esperaActiva, req.body.isRegex === 'true' || req.body.isRegex === true ? 1 : 0, customHeaders, activo, orden, fileName, filePath, fileMimeType, tags, operationId, summary, description, requestBodyExample, proxyTimeout],
-                function(err) {
-                    if (err) {
-                        reject(err);
-                    } else {
-                        resolve({ lastID: this.lastID });
-                    }
-                });
-        });
-
-        console.log(`Ruta insertada con id ${result.lastID} y orden ${orden}`);
-
-
-        if (isProxy) {
-            console.log('Recargando configuración de proxy...');
-            await pm.reloadProxyConfigs();
-            console.log('Configuración de proxy recargada');
-        }
-
+        const id = await routesService.createRoute(req.body, { file });
         res.statusCode = 200;
-        res.json({ id: result.lastID });
+        res.json({ id });
     } catch (err) {
-        console.log(err.message);
-
-        // Si hubo error y se subió archivo, eliminarlo
         if (req.file) {
             fs.unlink(path.join(UPLOADS_DIR, req.file.filename), () => {});
         }
+        if (err.validation) {
+            res.status(400).json({ error: err.message });
+            return;
+        }
+        console.log(err.message);
         res.statusCode = 500;
         res.end();
     }
@@ -155,8 +81,8 @@ router.post('/duplicate/:id', async function(req, res) {
         return res.status(400).json({ error: 'New route is required' });
     }
 
-    if (newRoute.startsWith('/api/') || newRoute === '/api') {
-        return res.status(400).json({ error: 'Routes starting with /api/ are reserved for internal use' });
+    if (routesService.isReservedRoute(newRoute)) {
+        return res.status(400).json({ error: `Routes starting with ${routesService.RESERVED_PREFIXES.join(' or ')} are reserved for internal use` });
     }
 
     try {
@@ -200,8 +126,8 @@ router.post('/duplicate/:id', async function(req, res) {
         }
 
         const result = await new Promise((resolve, reject) => {
-            db.run(`INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders, activo, orden, fileName, filePath, fileMimeType, tags, operationId, summary, description, requestBodyExample) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-                [original.tipo, newRoute, original.codigo, original.respuesta, original.tiporespuesta, original.esperaActiva, isRegex, original.customHeaders, original.activo, orden, fileName, filePath, fileMimeType, original.tags, original.operationId, original.summary, original.description, original.requestBodyExample],
+            db.run(`INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders, activo, orden, fileName, filePath, fileMimeType, tags, operationId, summary, description, requestBodyExample, proxy_timeout, proxy_request_headers, proxy_request_params, proxy_pre_script, proxy_post_script) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                [original.tipo, newRoute, original.codigo, original.respuesta, original.tiporespuesta, original.esperaActiva, isRegex, original.customHeaders, original.activo, orden, fileName, filePath, fileMimeType, original.tags, original.operationId, original.summary, original.description, original.requestBodyExample, original.proxy_timeout, original.proxy_request_headers, original.proxy_request_params, original.proxy_pre_script, original.proxy_post_script],
                 function(err) {
                     if (err) reject(err);
                     else resolve({ lastID: this.lastID });
@@ -240,113 +166,31 @@ router.post('/duplicate/:id', async function(req, res) {
 });
 
 router.put('/update/:id', upload.single('file'), async function(req, res) {
-    // Validar que la ruta no comience con /api/
-    const ruta = req.body.ruta || '';
-    if (ruta.startsWith('/api/') || ruta === '/api') {
-        if (req.file) {
-            fs.unlink(path.join(UPLOADS_DIR, req.file.filename), () => {});
-        }
-        res.status(400).json({ error: 'Routes starting with /api/ are reserved for internal use' });
-        return;
-    }
-
-    const db = sqliteService.getDatabase();
     const id = req.params.id;
-    const customHeaders = req.body.customHeaders ? JSON.stringify(req.body.customHeaders) : null;
-    const activo = req.body.activo !== 'false' && req.body.activo !== false ? 1 : 0;
-    const esperaActiva = req.body.esperaActiva === 'true' || req.body.esperaActiva === true ? 1 : 0;
-    const isProxy = req.body.tiporespuesta === 'proxy';
     const isFile = req.body.tiporespuesta === 'file';
 
-    // Verificar si cambió de/a proxy para recalcular orden
-    const currentRow = await new Promise((resolve) => {
-        db.get(`SELECT tiporespuesta, orden, filePath FROM rutas WHERE id = ?`, [id], (err, row) => resolve(row));
-    });
-
-    let newOrden = currentRow ? currentRow.orden : 1;
-    const wasProxy = currentRow && currentRow.tiporespuesta === 'proxy';
-    const oldFilePath = currentRow ? currentRow.filePath : null;
-
-    // Si cambió de tipo (proxy <-> no proxy), recalcular orden
-    if (wasProxy !== isProxy) {
-        newOrden = await getNextOrder(db, isProxy);
-        console.log(`Tipo cambiado, nuevo orden: ${newOrden}`);
+    // Qué hacer con el fichero: uno nuevo, conservar el que hay, o ninguno
+    // (si la ruta deja de ser de tipo file, el servicio borra el antiguo)
+    let file = null;
+    if (isFile && req.file) {
+        file = { fileName: req.file.originalname, filePath: req.file.filename, fileMimeType: req.file.mimetype };
+        console.log(`[API] Nuevo archivo subido: ${file.fileName} (${file.fileMimeType})`);
+    } else if (isFile && req.body.keepFile === 'true') {
+        file = 'keep';
     }
-
-    // Datos del archivo
-    let fileName = null;
-    let filePath = null;
-    let fileMimeType = null;
-
-    if (isFile) {
-        if (req.file) {
-            // Nuevo archivo subido
-            fileName = req.file.originalname;
-            filePath = req.file.filename;
-            fileMimeType = req.file.mimetype;
-            console.log(`[API] Nuevo archivo subido: ${fileName} (${fileMimeType})`);
-
-            // Eliminar archivo antiguo si existía
-            if (oldFilePath) {
-                const oldFullPath = path.join(UPLOADS_DIR, oldFilePath);
-                fs.unlink(oldFullPath, (err) => {
-                    if (!err) console.log(`[API] Archivo antiguo eliminado: ${oldFilePath}`);
-                });
-            }
-        } else if (req.body.keepFile === 'true') {
-            // Mantener archivo existente
-            const existingFile = await new Promise((resolve) => {
-                db.get(`SELECT fileName, filePath, fileMimeType FROM rutas WHERE id = ?`, [id], (err, row) => resolve(row));
-            });
-            if (existingFile) {
-                fileName = existingFile.fileName;
-                filePath = existingFile.filePath;
-                fileMimeType = existingFile.fileMimeType;
-            }
-        }
-    } else if (oldFilePath) {
-        // Cambió de tipo file a otro, eliminar archivo
-        const oldFullPath = path.join(UPLOADS_DIR, oldFilePath);
-        fs.unlink(oldFullPath, (err) => {
-            if (!err) console.log(`[API] Archivo eliminado por cambio de tipo: ${oldFilePath}`);
-        });
-    }
-
-    // Tags
-    const tags = req.body.tags || null;
-
-    // Metadata fields
-    const operationId = req.body.operationId || null;
-    const summary = req.body.summary || null;
-    const description = req.body.description || null;
-    const requestBodyExample = req.body.requestBodyExample || null;
-
-    // Proxy timeout
-    const proxyTimeout = isProxy ? (parseInt(req.body.proxyTimeout) || 30000) : null;
 
     try {
-        await new Promise((resolve, reject) => {
-            db.run(`UPDATE rutas SET tipo = ?, ruta = ?, codigo = ?, respuesta = ?, tiporespuesta = ?, esperaActiva = ?, isRegex = ?, customHeaders = ?, activo = ?, orden = ?, fileName = ?, filePath = ?, fileMimeType = ?, tags = ?, operationId = ?, summary = ?, description = ?, requestBodyExample = ?, proxy_timeout = ? WHERE id = ?`,
-                [req.body.tipo, req.body.ruta, req.body.codigo, req.body.respuesta, req.body.tiporespuesta, esperaActiva, req.body.isRegex === 'true' || req.body.isRegex === true ? 1 : 0, customHeaders, activo, newOrden, fileName, filePath, fileMimeType, tags, operationId, summary, description, requestBodyExample, proxyTimeout, id],
-                function(err) {
-                    if (err) {
-                        reject(err);
-                    } else {
-                        resolve();
-                    }
-                });
-        });
-
-        console.log(`Ruta ${id} actualizada con orden ${newOrden}`);
-
-
-        console.log('Recargando configuración de proxy...');
-        await pm.reloadProxyConfigs();
-        console.log('Configuración de proxy recargada');
-
+        await routesService.updateRoute(id, req.body, { file });
         res.statusCode = 200;
         res.json({ success: true });
     } catch (err) {
+        if (err.validation) {
+            if (req.file) {
+                fs.unlink(path.join(UPLOADS_DIR, req.file.filename), () => {});
+            }
+            res.status(400).json({ error: err.message });
+            return;
+        }
         console.log(err.message);
 
         // Si hubo error y se subió archivo nuevo, eliminarlo
@@ -359,46 +203,16 @@ router.put('/update/:id', upload.single('file'), async function(req, res) {
 });
 
 router.delete('/delete/:id', async function(req, res) {
-    const db = sqliteService.getDatabase();
-    const id = req.params.id;
-
     try {
-        // Primero obtener info del archivo si existe
-        const row = await new Promise((resolve, reject) => {
-            db.get(`SELECT filePath FROM rutas WHERE id = ?`, [id], (err, row) => {
-                if (err) reject(err);
-                else resolve(row);
-            });
-        });
-
-        // Eliminar archivo si existe
-        if (row && row.filePath) {
-            const fullPath = path.join(UPLOADS_DIR, row.filePath);
-            fs.unlink(fullPath, (unlinkErr) => {
-                if (!unlinkErr) console.log(`[API] Archivo eliminado: ${row.filePath}`);
-            });
-        }
-
-        // Eliminar registro
-        await new Promise((resolve, reject) => {
-            db.run(`DELETE FROM rutas WHERE id = ?`, [id], function(deleteErr) {
-                if (deleteErr) reject(deleteErr);
-                else resolve();
-            });
-        });
-
-        console.log(`Ruta eliminada con id ${id}`);
-
-
-        console.log('Recargando configuración de proxy...');
-        await pm.reloadProxyConfigs();
-        console.log('Configuración de proxy recargada');
-
+        await routesService.deleteRoute(req.params.id);
         res.statusCode = 200;
         res.end();
     } catch (err) {
+        if (err.validation) {
+            res.status(404).json({ error: err.message });
+            return;
+        }
         console.log(err.message);
-
         res.statusCode = 500;
         res.end();
     }
@@ -517,6 +331,89 @@ router.post('/validateCriteria', function(req, res) {
     }
 
     res.json({ valid: true });
+});
+
+/* Validar un script de transformación de proxy, opcionalmente probándolo */
+router.post('/validateScript', function(req, res) {
+    const { script, phase, testContext } = req.body;
+
+    const validation = scriptRunner.validateScript(script);
+    if (!validation.valid) {
+        return res.json({ valid: false, error: validation.error });
+    }
+
+    // Sin contexto solo se valida sintaxis y patrones prohibidos
+    if (!testContext) {
+        return res.json({ valid: true });
+    }
+
+    const vars = {};
+    const outcome = phase === 'response'
+        ? scriptRunner.runResponseScript(script, {
+            status: testContext.status || 200,
+            headers: testContext.headers || {},
+            bodyText: typeof testContext.body === 'string' ? testContext.body : JSON.stringify(testContext.body || {}),
+            request: testContext.request || {},
+            vars
+        })
+        : scriptRunner.runRequestScript(script, {
+            method: testContext.method || 'GET',
+            path: testContext.path || '/',
+            query: testContext.query || {},
+            headers: testContext.headers || {},
+            bodyText: typeof testContext.body === 'string' ? testContext.body : JSON.stringify(testContext.body || {}),
+            vars
+        });
+
+    res.json({ valid: true, testResult: outcome });
+});
+
+// ===== CONEXIONES MCP =====
+
+/* Listar conexiones MCP */
+router.get('/mcp/tokens', async function(req, res) {
+    try {
+        const tokens = await sqliteService.getMcpTokens();
+        res.json(tokens);
+    } catch (err) {
+        console.error(`[API] Error listando tokens MCP: ${err.message}`);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/* Crear una conexión MCP y devolver su token */
+router.post('/mcp/tokens', async function(req, res) {
+    const nombre = (req.body.nombre || '').trim();
+    if (!nombre) {
+        return res.status(400).json({ error: 'El nombre es obligatorio' });
+    }
+
+    try {
+        const token = await sqliteService.createMcpToken(nombre);
+        res.json(token);
+    } catch (err) {
+        console.error(`[API] Error creando token MCP: ${err.message}`);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/* Revocar una conexión MCP */
+router.delete('/mcp/tokens/:id', async function(req, res) {
+    try {
+        const eliminado = await sqliteService.deleteMcpToken(req.params.id);
+        if (!eliminado) {
+            return res.status(404).json({ error: 'La conexión no existe' });
+        }
+        res.json({ success: true });
+    } catch (err) {
+        console.error(`[API] Error eliminando token MCP: ${err.message}`);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/* Referencia de la API ms.* para el modal de ayuda */
+router.get('/script-api-reference', function(req, res) {
+    res.json(scriptRunner.getApiReference());
 });
 
 /* Obtener helpers y ejemplos disponibles para criterios */
@@ -1323,7 +1220,7 @@ router.post('/import-openapi/confirm', async function(req, res) {
     }
 
     // Validar que ninguna ruta empiece con /api/
-    const reserved = routes.filter(r => r.ruta.startsWith('/api/') || r.ruta === '/api');
+    const reserved = routes.filter(r => routesService.isReservedRoute(r.ruta));
     if (reserved.length > 0) {
         return res.status(400).json({ success: false, error: 'Routes starting with /api/ are reserved' });
     }

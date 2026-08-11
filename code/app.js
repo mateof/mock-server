@@ -21,6 +21,7 @@ const socketService = require('./services/socket.service');
 const semaphore = require('./services/semaphore.service');
 const autoImportService = require('./services/auto-import.service');
 const websocketService = require('./services/websocket.service');
+const mcpService = require('./services/mcp.service');
 
 // ===== MIDDLEWARES =====
 const routesMiddleware = require('./middlewares/routes.middleware');
@@ -96,8 +97,13 @@ app.use((req, res, next) => {
 
 app.use(expressLayouts);
 app.use(logger('dev'));
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// Guardamos el cuerpo original tal cual llega. Los parsers consumen el stream,
+// así que el proxy ya no puede hacer pipe: sin esto tendría que reconstruirlo
+// (y reconstruirlo como JSON rompe formularios y cualquier otro formato).
+const keepRawBody = (req, res, buf) => { req.rawBody = buf; };
+
+app.use(express.json({ limit: '50mb', verify: keepRawBody }));
+app.use(express.urlencoded({ extended: true, limit: '50mb', verify: keepRawBody }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 console.log('[APP] Express configurado');
@@ -109,6 +115,17 @@ console.log('[APP] Express configurado');
 app.use('/', indexRouter);
 app.use('/api', apiRouter);
 app.use('/api', exportImportRouter);
+
+// ============================================
+// SERVIDOR MCP
+// ============================================
+// Va antes del middleware de mocks: si una ruta mock pudiera capturar /mcp,
+// la conexión del asistente dejaría de funcionar sin explicación. Por eso
+// routes.service también rechaza crear rutas con ese prefijo.
+
+app.post('/mcp', mcpService.authenticate, mcpService.handleRequest);
+app.get('/mcp', mcpService.methodNotAllowed);
+app.delete('/mcp', mcpService.methodNotAllowed);
 
 console.log('[APP] Rutas registradas');
 

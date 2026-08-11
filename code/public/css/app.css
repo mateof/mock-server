@@ -1246,6 +1246,112 @@ body {
   white-space: pre;
 }
 
+/* ===== CONEXIONES MCP ===== */
+.mcp-command {
+  background: var(--surface-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: 0.85rem;
+  margin: 0;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Monaco', 'Menlo', monospace;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.mcp-details {
+  margin-top: 1rem;
+}
+
+.mcp-field {
+  display: block;
+  background: var(--surface-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8rem;
+  color: var(--text-primary);
+  word-break: break-all;
+}
+
+.mcp-token-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  margin-bottom: 0.5rem;
+}
+
+.mcp-token-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.mcp-token-info small {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+/* ===== SCRIPTS DE TRANSFORMACIÓN DE PROXY ===== */
+.script-editor {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Monaco', 'Menlo', monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  tab-size: 2;
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow-x: auto;
+}
+
+.script-validation-result {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  min-height: 1.2rem;
+}
+
+.script-validation-result .text-success {
+  color: var(--success);
+}
+
+.script-validation-result .text-danger {
+  color: var(--danger);
+}
+
+.script-api-reference {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.script-api-group strong {
+  color: var(--primary);
+  display: block;
+  margin-bottom: 0.35rem;
+}
+
+.script-api-group table {
+  width: 100%;
+}
+
+.script-api-group td {
+  padding: 0.25rem 0.5rem;
+  vertical-align: top;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.85rem;
+}
+
+.script-api-group td:first-child {
+  white-space: nowrap;
+  width: 45%;
+}
+
 /* ===== REQUEST TESTER (Postman-like) ===== */
 .request-url-bar {
   display: flex;

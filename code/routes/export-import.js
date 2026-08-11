@@ -174,7 +174,9 @@ function xmlToRoutes(xmlContent) {
         const route = {};
         const simpleFields = ['id', 'tipo', 'ruta', 'codigo', 'tiporespuesta', 'respuesta', 'esperaActiva',
             'isRegex', 'customHeaders', 'activo', 'orden', 'fileName', 'filePath', 'fileMimeType',
-            'tags', 'operationId', 'summary', 'description', 'requestBodyExample'];
+            'tags', 'operationId', 'summary', 'description', 'requestBodyExample',
+            'proxy_timeout', 'proxy_request_headers', 'proxy_request_params',
+            'proxy_pre_script', 'proxy_post_script'];
 
         simpleFields.forEach(field => {
             const match = routeXml.match(new RegExp(`<${field}>([\\s\\S]*?)<\\/${field}>`));
@@ -658,12 +660,16 @@ router.post('/import', upload.single('file'), async (req, res) => {
                         db.run(`UPDATE rutas SET codigo = ?, respuesta = ?, tiporespuesta = ?, esperaActiva = ?,
                             isRegex = ?, customHeaders = ?, activo = ?, fileName = ?, filePath = ?,
                             fileMimeType = ?, tags = ?, operationId = ?, summary = ?, description = ?, requestBodyExample = ?,
-                            graphql_schema = ?, graphql_proxy_url = ?
+                            graphql_schema = ?, graphql_proxy_url = ?,
+                            proxy_timeout = ?, proxy_request_headers = ?, proxy_request_params = ?,
+                            proxy_pre_script = ?, proxy_post_script = ?
                             WHERE id = ?`,
                             [route.codigo, route.respuesta, route.tiporespuesta, route.esperaActiva || 0,
                             route.isRegex || 0, route.customHeaders, route.activo ?? 1, null, null,
                             null, route.tags, route.operationId, route.summary, route.description, route.requestBodyExample,
-                            route.graphql_schema || null, route.graphql_proxy_url || null, existing.id],
+                            route.graphql_schema || null, route.graphql_proxy_url || null,
+                            route.proxy_timeout || null, route.proxy_request_headers || null, route.proxy_request_params || null,
+                            route.proxy_pre_script || null, route.proxy_post_script || null, existing.id],
                             function(err) {
                                 if (err) reject(err);
                                 else resolve();
@@ -694,12 +700,15 @@ router.post('/import', upload.single('file'), async (req, res) => {
                     const newRuta = route.ruta + '_imported_' + Date.now();
                     await new Promise((resolve, reject) => {
                         db.run(`INSERT INTO rutas (tipo, ruta, codigo, tiporespuesta, respuesta, esperaActiva,
-                            isRegex, customHeaders, activo, orden, tags, operationId, summary, description, requestBodyExample, graphql_schema, graphql_proxy_url)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                            isRegex, customHeaders, activo, orden, tags, operationId, summary, description, requestBodyExample, graphql_schema, graphql_proxy_url,
+                            proxy_timeout, proxy_request_headers, proxy_request_params, proxy_pre_script, proxy_post_script)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                             [route.tipo, newRuta, route.codigo, route.tiporespuesta, route.respuesta,
                             route.esperaActiva || 0, route.isRegex || 0, route.customHeaders, route.activo ?? 1,
                             maxOrder, route.tags, route.operationId, route.summary, route.description, route.requestBodyExample,
-                            route.graphql_schema || null, route.graphql_proxy_url || null],
+                            route.graphql_schema || null, route.graphql_proxy_url || null,
+                            route.proxy_timeout || null, route.proxy_request_headers || null, route.proxy_request_params || null,
+                            route.proxy_pre_script || null, route.proxy_post_script || null],
                             function(err) {
                                 if (err) reject(err);
                                 else {
@@ -715,12 +724,15 @@ router.post('/import', upload.single('file'), async (req, res) => {
                 maxOrder++;
                 await new Promise((resolve, reject) => {
                     db.run(`INSERT INTO rutas (tipo, ruta, codigo, tiporespuesta, respuesta, esperaActiva,
-                        isRegex, customHeaders, activo, orden, tags, operationId, summary, description, requestBodyExample, graphql_schema, graphql_proxy_url)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        isRegex, customHeaders, activo, orden, tags, operationId, summary, description, requestBodyExample, graphql_schema, graphql_proxy_url,
+                        proxy_timeout, proxy_request_headers, proxy_request_params, proxy_pre_script, proxy_post_script)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                         [route.tipo, route.ruta, route.codigo, route.tiporespuesta, route.respuesta,
                         route.esperaActiva || 0, route.isRegex || 0, route.customHeaders, route.activo ?? 1,
                         maxOrder, route.tags, route.operationId, route.summary, route.description, route.requestBodyExample,
-                        route.graphql_schema || null, route.graphql_proxy_url || null],
+                        route.graphql_schema || null, route.graphql_proxy_url || null,
+                        route.proxy_timeout || null, route.proxy_request_headers || null, route.proxy_request_params || null,
+                        route.proxy_pre_script || null, route.proxy_post_script || null],
                         function(err) {
                             if (err) reject(err);
                             else {
