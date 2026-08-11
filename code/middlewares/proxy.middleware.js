@@ -1,9 +1,110 @@
 const sqliteService = require('../services/sqlite.service');
 const criteriaService = require('../services/criteria-evaluator.service');
+const scriptRunner = require('../services/script-runner.service');
 const http = require('http');
 const https = require('https');
 const zlib = require('zlib');
 const { log } = require('../services/socket.service');
+
+// ===== HELPERS DE TRANSFORMACIÓN =====
+
+// Separa "/ruta?a=1" en { path, query }
+function splitPathAndQuery(fullPath) {
+    const idx = fullPath.indexOf('?');
+    if (idx === -1) return { path: fullPath, queryString: '' };
+    return { path: fullPath.substring(0, idx), queryString: fullPath.substring(idx + 1) };
+}
+
+// Los parámetros se modelan como objeto plano: con claves repetidas
+// (?tag=a&tag=b) gana la última, que es el caso raro y evita complicar la API
+function parseQueryString(queryString) {
+    const params = {};
+    if (!queryString) return params;
+    for (const [key, value] of new URLSearchParams(queryString)) {
+        params[key] = value;
+    }
+    return params;
+}
+
+function buildQueryString(params) {
+    const search = new URLSearchParams();
+    Object.keys(params).forEach(key => search.append(key, params[key]));
+    const str = search.toString();
+    return str ? `?${str}` : '';
+}
+
+// Lee el cuerpo crudo cuando ningún parser lo consumió (XML, multipart...).
+// Solo hace falta si hay script, que necesita verlo para poder transformarlo.
+function readRequestBody(req) {
+    return new Promise((resolve) => {
+        const chunks = [];
+        req.on('data', chunk => chunks.push(chunk));
+        req.on('end', () => resolve(Buffer.concat(chunks)));
+        req.on('error', () => resolve(Buffer.alloc(0)));
+    });
+}
+
+// Vuelca los console.log del script a la consola del panel
+function emitScriptLogs(phase, logs) {
+    if (!logs || logs.length === 0) return;
+    for (const entry of logs) {
+        const text = `📜 [${phase}] ${entry.message}`;
+        if (entry.level === 'error') log.error(text);
+        else if (entry.level === 'warn') log.warning(text);
+        else log.info(text);
+    }
+}
+
+/**
+ * Quita del objeto de respuesta las cabeceras que ya no están en el juego final.
+ *
+ * Hace falta porque Express pone cabeceras por su cuenta (X-Powered-By es la
+ * típica) y writeHead las fusiona con las nuestras: sin esto, un "remove" del
+ * usuario parece no funcionar, cuando lo que pasa es que Express la vuelve a
+ * poner. Verificado en vivo con X-Powered-By.
+ */
+function dropStaleResponseHeaders(res, finalHeaders) {
+    res.getHeaderNames().forEach(name => {
+        if (!Object.prototype.hasOwnProperty.call(finalHeaders, name.toLowerCase())) {
+            res.removeHeader(name);
+        }
+    });
+}
+
+// Respuesta emitida por pm.respond(), sin llegar a llamar al backend
+function sendScriptResponse(res, payload, req, requestPath, proxyConfig, requestStart) {
+    const isObject = payload.body !== null && typeof payload.body === 'object';
+    const bodyText = isObject
+        ? JSON.stringify(payload.body)
+        : (payload.body == null ? '' : String(payload.body));
+
+    const headers = {
+        'Content-Type': isObject ? 'application/json; charset=utf-8' : 'text/plain; charset=utf-8',
+        'X-Mock-Script': 'short-circuit'
+    };
+    Object.keys(payload.headers || {}).forEach(name => {
+        headers[name] = payload.headers[name];
+    });
+
+    res.writeHead(payload.code, headers);
+    res.end(bodyText);
+
+    const duration = Date.now() - requestStart;
+    console.log(`[PROXY] Cortocircuito del script: ${payload.code} en ${duration}ms`);
+
+    log.proxyDetailed({
+        method: req.method,
+        url: requestPath,
+        target: proxyConfig.target,
+        targetFull: 'SCRIPT: pm.respond()',
+        statusCode: payload.code,
+        duration,
+        requestHeaders: {},
+        requestBody: null,
+        responseHeaders: headers,
+        responseBody: { type: isObject ? 'json' : 'text', data: isObject ? payload.body : bodyText }
+    });
+}
 
 // Parsea el body de respuesta según el content-type
 function parseResponseBody(buffer, contentType) {
@@ -78,7 +179,12 @@ async function loadProxyConfigs() {
             isRegex: p.isRegex === 1,
             customHeaders,
             timeout: p.proxy_timeout || 30000,
-            fallbacks: fallbacksWithConditions
+            fallbacks: fallbacksWithConditions,
+            // Transformaciones de la petición
+            requestHeaders: p.proxy_request_headers || null,
+            requestParams: p.proxy_request_params || null,
+            preScript: p.proxy_pre_script || null,
+            postScript: p.proxy_post_script || null
         };
     }));
 
@@ -417,12 +523,98 @@ async function configureProxy(app) {
             delete options.headers['content-length'];
             delete options.headers['connection']; // Evitar keep-alive issues
 
+            // ============================================
+            // TRANSFORMACIONES DE LA PETICIÓN
+            // Orden: reglas declarativas primero, script después, para que el
+            // script pueda leer y corregir lo que hicieron las reglas.
+            // ============================================
+
+            const split = splitPathAndQuery(targetPath);
+            let requestPathOnly = split.path;
+            let queryParams = parseQueryString(split.queryString);
+
+            const headerRules = scriptRunner.applyKeyValueRules(options.headers, proxyConfig.requestHeaders, { lowercase: true });
+            const paramRules = scriptRunner.applyKeyValueRules(queryParams, proxyConfig.requestParams);
+            if (headerRules || paramRules) {
+                console.log(`[PROXY] Reglas aplicadas: ${headerRules} cabecera(s), ${paramRules} parámetro(s)`);
+            }
+
+            // Cuerpo a enviar. req.rawBody lo dejan los parsers de body (ver
+            // app.js); si no hay parser que lo consumiera y el script necesita
+            // verlo, se lee aquí.
+            let outgoingBody = req.rawBody || null;
+            if (proxyConfig.preScript && !outgoingBody) {
+                outgoingBody = await readRequestBody(req);
+            }
+
+            // Variables compartidas entre el script de petición y el de respuesta
+            const scriptVars = {};
+
+            if (proxyConfig.preScript) {
+                console.log('[PROXY] Ejecutando script de petición...');
+                const outcome = scriptRunner.runRequestScript(proxyConfig.preScript, {
+                    method: req.method,
+                    path: requestPathOnly,
+                    query: queryParams,
+                    headers: options.headers,
+                    bodyText: outgoingBody ? outgoingBody.toString('utf8') : '',
+                    vars: scriptVars
+                });
+
+                emitScriptLogs('request', outcome.logs);
+
+                if (!outcome.success) {
+                    console.error(`[PROXY] Error en el script de petición: ${outcome.error}`);
+                    log.proxyError(req.method, requestPath, proxyConfig.target, `Script de petición: ${outcome.error}`);
+                    res.status(500).json({ error: 'Proxy request script error', message: outcome.error });
+                    return;
+                }
+
+                if (outcome.shortCircuit) {
+                    sendScriptResponse(res, outcome.shortCircuit, req, requestPath, proxyConfig, requestStart);
+                    return;
+                }
+
+                const transformed = outcome.result;
+                options.method = transformed.method;
+                options.headers = transformed.headers;
+                requestPathOnly = transformed.path;
+                queryParams = transformed.query;
+
+                if (transformed.body.changed) {
+                    outgoingBody = Buffer.from(transformed.body.text, 'utf8');
+                    // Si el script inventa un cuerpo donde no lo había, hay que
+                    // etiquetarlo o el backend no sabrá interpretarlo
+                    if (!options.headers['content-type'] && outgoingBody.length > 0) {
+                        try {
+                            JSON.parse(transformed.body.text);
+                            options.headers['content-type'] = 'application/json';
+                        } catch (e) {
+                            options.headers['content-type'] = 'text/plain';
+                        }
+                    }
+                    console.log(`[PROXY] El script cambió el cuerpo (${outgoingBody.length} bytes)`);
+                }
+            }
+
+            // Path definitivo tras reglas y script
+            targetPath = requestPathOnly + buildQueryString(queryParams);
+            options.path = targetPath;
+
             console.log(`[PROXY] Iniciando petición al servidor destino...`);
+            console.log(`[PROXY] Path definitivo: ${options.method} ${targetPath}`);
             console.log(`[PROXY] Timeout configurado: ${proxyConfig.timeout}ms`);
 
             // Capturar request body para el log
             let requestBodyForLog = null;
-            if (req.body && Object.keys(req.body).length > 0) {
+            if (outgoingBody && outgoingBody.length > 0) {
+                const asText = outgoingBody.toString('utf8').substring(0, 10 * 1024);
+                try {
+                    requestBodyForLog = JSON.parse(asText);
+                } catch (e) {
+                    requestBodyForLog = asText;
+                }
+            } else if (req.body && Object.keys(req.body).length > 0) {
                 requestBodyForLog = req.body;
             }
 
@@ -474,6 +666,71 @@ async function configureProxy(app) {
 
                 // Buffer para capturar el body de la respuesta
                 const responseChunks = [];
+                const hasPostScript = !!proxyConfig.postScript;
+
+                const emitProxyLog = (statusCode, headers, bodyBuffer) => {
+                    const duration = Date.now() - requestStart;
+                    const responseBody = parseResponseBody(bodyBuffer, headers['content-type']);
+                    log.proxyDetailed({
+                        method: req.method,
+                        url: requestPath,
+                        target: proxyConfig.target,
+                        targetFull: `${proxyConfig.target}${targetPath}`,
+                        statusCode,
+                        duration,
+                        requestHeaders: requestHeadersForLog,
+                        requestBody: requestBodyForLog,
+                        responseHeaders: headers,
+                        responseBody
+                    });
+                };
+
+                // Con script de respuesta no se puede ir escribiendo según llega:
+                // el script puede cambiar código y cabeceras, y eso no se
+                // deshace una vez enviadas. Se acumula, se transforma y se envía.
+                const finishTransformed = (statusCode, headers, bodyBuffer) => {
+                    console.log('[PROXY] Ejecutando script de respuesta...');
+                    const outcome = scriptRunner.runResponseScript(proxyConfig.postScript, {
+                        status: statusCode,
+                        headers,
+                        bodyText: bodyBuffer.toString('utf8'),
+                        request: {
+                            method: options.method,
+                            path: requestPathOnly,
+                            query: queryParams,
+                            headers: options.headers
+                        },
+                        vars: scriptVars
+                    });
+
+                    emitScriptLogs('response', outcome.logs);
+
+                    if (!outcome.success) {
+                        console.error(`[PROXY] Error en el script de respuesta: ${outcome.error}`);
+                        log.proxyError(req.method, requestPath, proxyConfig.target, `Script de respuesta: ${outcome.error}`);
+                        if (!res.headersSent) {
+                            res.status(500).json({ error: 'Proxy response script error', message: outcome.error });
+                        }
+                        return;
+                    }
+
+                    const finalStatus = outcome.result.status;
+                    const finalHeaders = outcome.result.headers;
+                    const finalBody = outcome.result.body.changed
+                        ? Buffer.from(outcome.result.body.text, 'utf8')
+                        : bodyBuffer;
+
+                    // El cuerpo ya está completo y sin comprimir en este punto
+                    delete finalHeaders['content-encoding'];
+                    finalHeaders['content-length'] = String(finalBody.length);
+                    finalHeaders['x-mock-script'] = 'response';
+
+                    dropStaleResponseHeaders(res, finalHeaders);
+                    res.writeHead(finalStatus, finalHeaders);
+                    res.end(finalBody);
+                    console.log(`[PROXY] Respuesta transformada enviada: ${finalStatus} (${finalBody.length} bytes)`);
+                    emitProxyLog(finalStatus, finalHeaders, finalBody);
+                };
 
                 // Si está comprimido, descomprimirlo y quitar el header
                 if (contentEncoding === 'gzip' || contentEncoding === 'deflate' || contentEncoding === 'br') {
@@ -490,42 +747,37 @@ async function configureProxy(app) {
                         decompressor = zlib.createBrotliDecompress();
                     }
 
-                    res.writeHead(proxyRes.statusCode, responseHeaders);
-
-                    // Capturar body descomprimido
                     decompressor.on('data', (chunk) => {
                         responseChunks.push(chunk);
                     });
-
-                    proxyRes.pipe(decompressor).pipe(res);
 
                     decompressor.on('error', (err) => {
                         console.error(`[PROXY] Error descomprimiendo: ${err.message}`);
                     });
 
-                    decompressor.on('end', () => {
-                        const duration = Date.now() - requestStart;
-                        console.log(`[PROXY] Respuesta descomprimida y enviada en ${duration}ms`);
-
-                        // Parsear body de respuesta para el log
-                        const responseBody = parseResponseBody(Buffer.concat(responseChunks), proxyRes.headers['content-type']);
-
-                        // Enviar log detallado
-                        log.proxyDetailed({
-                            method: req.method,
-                            url: requestPath,
-                            target: proxyConfig.target,
-                            targetFull: `${proxyConfig.target}${targetPath}`,
-                            statusCode: proxyRes.statusCode,
-                            duration,
-                            requestHeaders: requestHeadersForLog,
-                            requestBody: requestBodyForLog,
-                            responseHeaders: responseHeaders,
-                            responseBody: responseBody
+                    if (hasPostScript) {
+                        proxyRes.pipe(decompressor);
+                        decompressor.on('end', () => {
+                            finishTransformed(proxyRes.statusCode, responseHeaders, Buffer.concat(responseChunks));
                         });
+                    } else {
+                        dropStaleResponseHeaders(res, responseHeaders);
+                        res.writeHead(proxyRes.statusCode, responseHeaders);
+                        proxyRes.pipe(decompressor).pipe(res);
+                        decompressor.on('end', () => {
+                            console.log(`[PROXY] Respuesta descomprimida y enviada en ${Date.now() - requestStart}ms`);
+                            emitProxyLog(proxyRes.statusCode, responseHeaders, Buffer.concat(responseChunks));
+                        });
+                    }
+                } else if (hasPostScript) {
+                    // Sin compresión, pero hay que acumular para transformar
+                    proxyRes.on('data', (chunk) => responseChunks.push(chunk));
+                    proxyRes.on('end', () => {
+                        finishTransformed(proxyRes.statusCode, responseHeaders, Buffer.concat(responseChunks));
                     });
                 } else {
-                    // Sin compresión, capturar y enviar
+                    // Sin compresión y sin script: envío según llega
+                    dropStaleResponseHeaders(res, responseHeaders);
                     res.writeHead(proxyRes.statusCode, responseHeaders);
 
                     proxyRes.on('data', (chunk) => {
@@ -535,25 +787,8 @@ async function configureProxy(app) {
 
                     proxyRes.on('end', () => {
                         res.end();
-                        const duration = Date.now() - requestStart;
-                        console.log(`[PROXY] Respuesta completa en ${duration}ms`);
-
-                        // Parsear body de respuesta para el log
-                        const responseBody = parseResponseBody(Buffer.concat(responseChunks), proxyRes.headers['content-type']);
-
-                        // Enviar log detallado
-                        log.proxyDetailed({
-                            method: req.method,
-                            url: requestPath,
-                            target: proxyConfig.target,
-                            targetFull: `${proxyConfig.target}${targetPath}`,
-                            statusCode: proxyRes.statusCode,
-                            duration,
-                            requestHeaders: requestHeadersForLog,
-                            requestBody: requestBodyForLog,
-                            responseHeaders: responseHeaders,
-                            responseBody: responseBody
-                        });
+                        console.log(`[PROXY] Respuesta completa en ${Date.now() - requestStart}ms`);
+                        emitProxyLog(proxyRes.statusCode, responseHeaders, Buffer.concat(responseChunks));
                     });
                 }
             });
@@ -616,14 +851,11 @@ async function configureProxy(app) {
             // Si un parser de body consumió el stream dejó el original en
             // req.rawBody (ver app.js): se reenvía tal cual, sin reserializar,
             // para no convertir un formulario o un XML en JSON por el camino.
-            if (req.rawBody) {
-                if (req.rawBody.length > 0) {
-                    console.log(`[PROXY] Enviando body original (${req.rawBody.length} bytes, ${req.headers['content-type'] || 'sin content-type'})`);
-                    proxyReq.setHeader('Content-Length', req.rawBody.length);
-                    if (req.headers['content-type']) {
-                        proxyReq.setHeader('Content-Type', req.headers['content-type']);
-                    }
-                    proxyReq.write(req.rawBody);
+            if (outgoingBody) {
+                if (outgoingBody.length > 0) {
+                    console.log(`[PROXY] Enviando body (${outgoingBody.length} bytes, ${options.headers['content-type'] || 'sin content-type'})`);
+                    proxyReq.setHeader('Content-Length', outgoingBody.length);
+                    proxyReq.write(outgoingBody);
                 } else {
                     console.log(`[PROXY] Body vacío, cerrando petición`);
                 }

@@ -191,6 +191,12 @@ async function createTables(newdb) {
     await addColumn(newdb, 'proxy_timeout', 'INTEGER DEFAULT 30000');
     await addColumn(newdb, 'graphql_schema', 'TEXT');
     await addColumn(newdb, 'graphql_proxy_url', 'TEXT');
+    // Transformaciones de rutas proxy: reglas declarativas sobre la petición
+    // y scripts de transformación (ver script-runner.service.js)
+    await addColumn(newdb, 'proxy_request_headers', 'TEXT');
+    await addColumn(newdb, 'proxy_request_params', 'TEXT');
+    await addColumn(newdb, 'proxy_pre_script', 'TEXT');
+    await addColumn(newdb, 'proxy_post_script', 'TEXT');
 
     // Crear índices para optimizar búsquedas de rutas
     await new Promise((resolve) => {
@@ -201,6 +207,46 @@ async function createTables(newdb) {
         `, (err) => {
             if (!err) console.log('[DB] Indices verificados');
             resolve();
+        });
+    });
+
+    // Normalización de customHeaders con doble codificación JSON.
+    // El panel manda el array ya serializado y el servidor volvía a
+    // serializarlo, así que quedaba '"[{\"action\":...}]"': ni el formulario
+    // los releía ni el servidor los aplicaba. Se desenvuelve una sola vez y es
+    // idempotente, porque solo actúa cuando el valor parsea a texto.
+    await new Promise((resolve) => {
+        newdb.all(`SELECT id, customHeaders FROM rutas WHERE customHeaders IS NOT NULL AND customHeaders != ''`, [], (err, rows) => {
+            if (err || !rows || rows.length === 0) return resolve();
+
+            const updates = [];
+            for (const row of rows) {
+                let value = row.customHeaders;
+                let unwrapped = false;
+                // Cada guardado añadía una capa, así que puede haber varias
+                for (let i = 0; i < 5; i++) {
+                    try {
+                        const parsed = JSON.parse(value);
+                        if (typeof parsed !== 'string') break;
+                        value = parsed;
+                        unwrapped = true;
+                    } catch (e) {
+                        break;
+                    }
+                }
+                if (unwrapped) {
+                    updates.push(new Promise((done) => {
+                        newdb.run('UPDATE rutas SET customHeaders = ? WHERE id = ?', [value, row.id], () => done());
+                    }));
+                }
+            }
+
+            Promise.all(updates).then(() => {
+                if (updates.length > 0) {
+                    console.log(`[DB] customHeaders normalizados en ${updates.length} ruta(s)`);
+                }
+                resolve();
+            });
         });
     });
 

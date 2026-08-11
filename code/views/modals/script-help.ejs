@@ -1,0 +1,79 @@
+<!-- Modal Ayuda de Scripts de Proxy (API pm.*) -->
+<div class="modal fade modal-modern" id="scriptHelpModal" tabindex="-1" aria-hidden="true" data-bs-focus="false" data-bs-backdrop="static">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-magic me-2"></i><%= __('scriptHelp.title') %></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="criteria-help">
+          <p style="color: var(--text-muted);"><%= __('scriptHelp.intro') %></p>
+
+          <h6><i class="fa fa-arrow-right"></i> <%= __('scriptHelp.requestTitle') %></h6>
+          <pre><code>// <%= __('scriptHelp.addHeader') %>
+pm.request.headers.add({ key: 'x-api-key', value: 'abc123' });
+pm.request.headers.remove('authorization');
+
+// <%= __('scriptHelp.queryParams') %>
+pm.request.url.query.add({ key: 'limit', value: '10' });
+pm.request.url.query.remove('debug');
+
+// <%= __('scriptHelp.changeBody') %>
+const body = pm.request.body.json();
+body.origen = 'mock-server';
+delete body.interno;
+
+// <%= __('scriptHelp.changePath') %>
+pm.request.path = '/v2' + pm.request.path;
+pm.request.method = 'POST';</code></pre>
+
+          <h6><i class="fa fa-bolt"></i> <%= __('scriptHelp.shortCircuitTitle') %></h6>
+          <pre><code>// <%= __('scriptHelp.shortCircuitDesc') %>
+if (!pm.request.headers.get('authorization')) {
+  pm.respond(401, { error: 'falta token' });
+}</code></pre>
+
+          <h6><i class="fa fa-arrow-left"></i> <%= __('scriptHelp.responseTitle') %></h6>
+          <pre><code>// <%= __('scriptHelp.transformResponse') %>
+const data = pm.response.json();
+data.items = data.items.slice(0, 5);
+data.total = data.items.length;
+pm.response.setBody(data);
+
+pm.response.code = 200;
+pm.response.headers.add({ key: 'x-servido-por', value: 'mock-server' });
+pm.response.headers.remove('x-powered-by');</code></pre>
+
+          <h6><i class="fa fa-exchange"></i> <%= __('scriptHelp.variablesTitle') %></h6>
+          <pre><code>// <%= __('scriptHelp.variablesDesc') %>
+// request:
+pm.variables.set('inicio', String(new Date().getTime()));
+// response:
+pm.response.headers.add({ key: 'x-inicio', value: pm.variables.get('inicio') });</code></pre>
+
+          <h6><i class="fa fa-list"></i> <%= __('scriptHelp.apiTitle') %></h6>
+          <div id="scriptApiReference" class="script-api-reference">
+            <em style="color: var(--text-muted);"><%= __('scriptHelp.loading') %></em>
+          </div>
+
+          <div class="alert-modern alert-modern-warning" style="margin-top: 1rem; padding: 0.75rem;">
+            <div>
+              <strong><%= __('scriptHelp.limitsTitle') %></strong>
+              <ul style="margin: 0.5rem 0 0 1rem; padding: 0;">
+                <li><%= __('scriptHelp.limitTimeout') %></li>
+                <li><%= __('scriptHelp.limitSandbox') %></li>
+                <li><%= __('scriptHelp.limitBody') %></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-modern btn-modern-secondary" data-bs-dismiss="modal">
+          <%= __('buttons.close') %>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

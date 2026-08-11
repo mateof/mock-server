@@ -207,6 +207,7 @@
 <%- include('modals/connection') %>
 <%- include('modals/duplicate') %>
 <%- include('modals/criteria-help') %>
+<%- include('modals/script-help') %>
 <%- include('modals/request-tester') %>
 <%- include('modals/graphiql-tester') %>
 <%- include('modals/tag-manager') %>
@@ -1012,7 +1013,7 @@
   function checkRespuesta() {
     const tipoResp = document.getElementById("tiporespuesta").value;
     showElements(['#divtresp', '#divtipo', '#divruta', '#divcodresp', '#divresp', '#divEsperaActiva', '#divMetadata', '#divHeaders', '#divConditions']);
-    hideElements(['#divDestino', '#divFile', '#divProxyTimeout', '#divFallbacks', '#divGraphQL', '#divWebSocket']);
+    hideElements(['#divDestino', '#divFile', '#divProxyTimeout', '#divFallbacks', '#divProxyTransform', '#divGraphQL', '#divWebSocket']);
 
     // Nav panel: show conditions/fallbacks/graphql/websocket dividers based on type
     document.getElementById('navDividerConditions').style.display = '';
@@ -1025,9 +1026,11 @@
     document.getElementById('routeNavWebSocket').style.display = 'none';
 
     if (tipoResp === 'proxy') {
-      // For proxy: hide response fields, metadata, headers, conditions (those are per-fallback)
-      hideElements(['#divtipo', '#divcodresp', '#divEsperaActiva', '#divresp', '#divFile', '#divMetadata', '#divHeaders', '#divConditions']);
-      showElements(['#divDestino', '#divProxyTimeout', '#divFallbacks']);
+      // For proxy: hide response fields, metadata and conditions (those are per-fallback).
+      // Los headers sí se muestran: en un proxy son los de la respuesta, y el
+      // servidor ya los aplicaba aunque el formulario los tuviera ocultos.
+      hideElements(['#divtipo', '#divcodresp', '#divEsperaActiva', '#divresp', '#divFile', '#divMetadata', '#divConditions']);
+      showElements(['#divDestino', '#divProxyTimeout', '#divFallbacks', '#divProxyTransform', '#divHeaders']);
       document.getElementById('navDividerConditions').style.display = 'none';
       document.getElementById('routeNavConditions').style.display = 'none';
       document.getElementById('navDividerFallbacks').style.display = '';
@@ -1392,6 +1395,177 @@
     document.getElementById('headersContainer').innerHTML = '';
     document.getElementById('noHeadersMsg').style.display = 'block';
     headerCounter = 0;
+  }
+
+  // ===== TRANSFORMACIONES DE PROXY =====
+  // Cabeceras y parámetros declarativos + scripts pm.* de petición y respuesta.
+  // Cabeceras y parámetros comparten toda la mecánica salvo el contenedor, así
+  // que se parametrizan por "kind" en vez de duplicar el bloque entero.
+  const ProxyTransform = {
+    counters: { header: 0, param: 0 },
+
+    ids(kind) {
+      return kind === 'header'
+        ? { container: 'proxyHeadersContainer', empty: 'noProxyHeadersMsg' }
+        : { container: 'proxyParamsContainer', empty: 'noProxyParamsMsg' };
+    },
+
+    addRow(kind, name = '', value = '', action = 'set') {
+      const { container, empty } = ProxyTransform.ids(kind);
+      const id = ++ProxyTransform.counters[kind];
+      document.getElementById(empty).style.display = 'none';
+
+      const row = document.createElement('div');
+      row.className = 'd-flex gap-2 mb-2 align-items-center';
+      row.id = `proxy-${kind}-row-${id}`;
+      row.innerHTML = `
+        <select class="form-control-modern form-select-modern" style="width: 100px;" id="proxy-${kind}-action-${id}">
+          <option value="set" ${action === 'set' ? 'selected' : ''}>Set</option>
+          <option value="remove" ${action === 'remove' ? 'selected' : ''}>Remove</option>
+        </select>
+        <input type="text" class="form-control-modern" placeholder="${kind === 'header' ? t('form.headerNamePlaceholder') : t('form.paramNamePlaceholder')}" id="proxy-${kind}-name-${id}" value="${escapeHtml(name)}" style="width: 180px;">
+        <input type="text" class="form-control-modern" placeholder="${t('form.valuePlaceholder')}" id="proxy-${kind}-value-${id}" value="${escapeHtml(value)}" style="flex: 1;">
+        <button class="btn-icon btn-icon-danger" type="button" onclick="ProxyTransform.removeRow('${kind}', ${id})">
+          <i class="fa fa-trash"></i>
+        </button>
+      `;
+      document.getElementById(container).appendChild(row);
+      ProxyTransform.syncValueVisibility(kind, id);
+
+      document.getElementById(`proxy-${kind}-action-${id}`).addEventListener('change', function() {
+        ProxyTransform.syncValueVisibility(kind, id);
+      });
+    },
+
+    // "remove" no lleva valor: enseñarlo solo confunde
+    syncValueVisibility(kind, id) {
+      const action = document.getElementById(`proxy-${kind}-action-${id}`).value;
+      const valueInput = document.getElementById(`proxy-${kind}-value-${id}`);
+      valueInput.style.display = action === 'remove' ? 'none' : 'block';
+      if (action === 'remove') valueInput.value = '';
+    },
+
+    removeRow(kind, id) {
+      const row = document.getElementById(`proxy-${kind}-row-${id}`);
+      if (row) row.remove();
+      const { container, empty } = ProxyTransform.ids(kind);
+      if (document.getElementById(container).children.length === 0) {
+        document.getElementById(empty).style.display = 'block';
+      }
+    },
+
+    getRules(kind) {
+      const rules = [];
+      const { container } = ProxyTransform.ids(kind);
+      document.getElementById(container).querySelectorAll(`[id^="proxy-${kind}-row-"]`).forEach(row => {
+        const id = row.id.replace(`proxy-${kind}-row-`, '');
+        const action = document.getElementById(`proxy-${kind}-action-${id}`).value;
+        const name = document.getElementById(`proxy-${kind}-name-${id}`).value.trim();
+        const value = document.getElementById(`proxy-${kind}-value-${id}`).value;
+        if (name) rules.push({ action, name, value });
+      });
+      return rules.length > 0 ? rules : null;
+    },
+
+    setRules(kind, rules) {
+      ProxyTransform.clear(kind);
+      let parsed = rules;
+      if (typeof parsed === 'string') {
+        try { parsed = JSON.parse(parsed); } catch (e) { parsed = null; }
+      }
+      if (Array.isArray(parsed)) {
+        parsed.forEach(r => ProxyTransform.addRow(kind, r.name, r.value, r.action));
+      }
+    },
+
+    clear(kind) {
+      const { container, empty } = ProxyTransform.ids(kind);
+      document.getElementById(container).innerHTML = '';
+      document.getElementById(empty).style.display = 'block';
+      ProxyTransform.counters[kind] = 0;
+    },
+
+    clearAll() {
+      ProxyTransform.clear('header');
+      ProxyTransform.clear('param');
+      document.getElementById('proxyPreScript').value = '';
+      document.getElementById('proxyPostScript').value = '';
+      document.getElementById('proxyPreScriptResult').innerHTML = '';
+      document.getElementById('proxyPostScriptResult').innerHTML = '';
+    },
+
+    load(route) {
+      ProxyTransform.clearAll();
+      if (!route) return;
+      ProxyTransform.setRules('header', route.proxy_request_headers);
+      ProxyTransform.setRules('param', route.proxy_request_params);
+      document.getElementById('proxyPreScript').value = route.proxy_pre_script || '';
+      document.getElementById('proxyPostScript').value = route.proxy_post_script || '';
+    },
+
+    // Añade al FormData lo que haya configurado. Los campos van siempre, incluso
+    // vacíos, para que borrarlos en el formulario los borre de verdad al guardar.
+    appendTo(formData) {
+      const headers = ProxyTransform.getRules('header');
+      const params = ProxyTransform.getRules('param');
+      formData.append('proxyRequestHeaders', headers ? JSON.stringify(headers) : '');
+      formData.append('proxyRequestParams', params ? JSON.stringify(params) : '');
+      formData.append('proxyPreScript', document.getElementById('proxyPreScript').value || '');
+      formData.append('proxyPostScript', document.getElementById('proxyPostScript').value || '');
+    }
+  };
+
+  function addProxyHeaderRow() { ProxyTransform.addRow('header'); }
+  function addProxyParamRow() { ProxyTransform.addRow('param'); }
+
+  function toggleProxyTransformSection() {
+    const body = document.querySelector('#divProxyTransform .collapsible-body');
+    body.style.display = body.style.display === 'none' ? 'block' : 'none';
+  }
+
+  async function validateProxyScript(phase) {
+    const isRequest = phase === 'request';
+    const script = document.getElementById(isRequest ? 'proxyPreScript' : 'proxyPostScript').value;
+    const target = document.getElementById(isRequest ? 'proxyPreScriptResult' : 'proxyPostScriptResult');
+
+    if (!script.trim()) {
+      target.innerHTML = '';
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/validateScript', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ script, phase })
+      });
+      const result = await response.json();
+      target.innerHTML = result.valid
+        ? `<span class="text-success"><i class="fa fa-check-circle"></i> ${t('form.scriptValid')}</span>`
+        : `<span class="text-danger"><i class="fa fa-times-circle"></i> ${escapeHtml(result.error)}</span>`;
+    } catch (e) {
+      target.innerHTML = `<span class="text-danger"><i class="fa fa-times-circle"></i> ${escapeHtml(e.message)}</span>`;
+    }
+  }
+
+  async function openScriptHelp() {
+    $('#scriptHelpModal').modal('show');
+    const container = document.getElementById('scriptApiReference');
+    try {
+      const reference = await fetch('/api/script-api-reference').then(r => r.json());
+      const section = (title, entries) => `
+        <div class="script-api-group">
+          <strong>${escapeHtml(title)}</strong>
+          <table class="table-modern">
+            ${entries.map(e => `<tr><td><code>${escapeHtml(e.call)}</code></td><td>${escapeHtml(t('scriptHelp.' + e.key))}</td></tr>`).join('')}
+          </table>
+        </div>`;
+      container.innerHTML = section(t('scriptHelp.groupRequest'), reference.request)
+        + section(t('scriptHelp.groupResponse'), reference.response)
+        + section(t('scriptHelp.groupShared'), reference.shared);
+    } catch (e) {
+      container.innerHTML = `<span class="text-danger">${escapeHtml(e.message)}</span>`;
+    }
   }
 
   // ===== TAGS MODULE =====
@@ -4772,9 +4946,10 @@
     document.getElementById("summary").value = '';
     document.getElementById("description").value = '';
     document.getElementById("requestBodyExample").value = '';
-    // Limpiar proxy timeout y fallbacks
+    // Limpiar proxy timeout, fallbacks y transformaciones
     document.getElementById("proxyTimeout").value = '30000';
     clearFallbacks();
+    ProxyTransform.clearAll();
   }
 
   function valuesForModal(obj) {
@@ -4816,6 +4991,8 @@
     if (obj.tiporespuesta === 'proxy' && obj.id) {
       loadFallbacksForRoute(obj.id);
     }
+    // Transformaciones de proxy (cabeceras, parámetros y scripts)
+    ProxyTransform.load(obj.tiporespuesta === 'proxy' ? obj : null);
   }
 
   async function guardar() {
@@ -4875,10 +5052,11 @@
     if (description) formData.append('description', description);
     if (requestBodyExample) formData.append('requestBodyExample', requestBodyExample);
 
-    // Proxy timeout
+    // Proxy timeout y transformaciones de petición/respuesta
     if (tiporespuesta === 'proxy') {
       const proxyTimeout = document.getElementById("proxyTimeout").value || 30000;
       formData.append('proxyTimeout', proxyTimeout);
+      ProxyTransform.appendTo(formData);
     }
 
     // Añadir archivo si está seleccionado
@@ -4988,10 +5166,11 @@
     if (description) formData.append('description', description);
     if (requestBodyExample) formData.append('requestBodyExample', requestBodyExample);
 
-    // Proxy timeout
+    // Proxy timeout y transformaciones de petición/respuesta
     if (tiporespuesta === 'proxy') {
       const proxyTimeout = document.getElementById("proxyTimeout").value || 30000;
       formData.append('proxyTimeout', proxyTimeout);
+      ProxyTransform.appendTo(formData);
     }
 
     // Manejo de archivo

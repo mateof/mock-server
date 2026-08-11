@@ -256,11 +256,14 @@ async function importDataObject(db, importData, conflictStrategy) {
                 continue;
             } else if (conflictStrategy === 'overwrite') {
                 await dbRun(db, `UPDATE rutas SET codigo = ?, respuesta = ?, tiporespuesta = ?, esperaActiva = ?,
-                    isRegex = ?, customHeaders = ?, activo = ?, tags = ?, operationId = ?, summary = ?, description = ?, requestBodyExample = ?
+                    isRegex = ?, customHeaders = ?, activo = ?, tags = ?, operationId = ?, summary = ?, description = ?, requestBodyExample = ?,
+                    proxy_timeout = ?, proxy_request_headers = ?, proxy_request_params = ?, proxy_pre_script = ?, proxy_post_script = ?
                     WHERE id = ?`,
                     [route.codigo, route.respuesta, route.tiporespuesta, route.esperaActiva || 0,
                     route.isRegex || 0, route.customHeaders, route.activo ?? 1,
-                    route.tags, route.operationId, route.summary, route.description, route.requestBodyExample, existing.id]);
+                    route.tags, route.operationId, route.summary, route.description, route.requestBodyExample,
+                    route.proxy_timeout || null, route.proxy_request_headers || null, route.proxy_request_params || null,
+                    route.proxy_pre_script || null, route.proxy_post_script || null, existing.id]);
 
                 await dbRun(db, 'DELETE FROM conditional_responses WHERE route_id = ?', [existing.id]);
                 newRouteId = existing.id;
@@ -270,21 +273,27 @@ async function importDataObject(db, importData, conflictStrategy) {
                 maxOrder++;
                 const newRuta = route.ruta + '_imported_' + Date.now();
                 newRouteId = await dbRunGetId(db, `INSERT INTO rutas (tipo, ruta, codigo, tiporespuesta, respuesta, esperaActiva,
-                    isRegex, customHeaders, activo, orden, tags, operationId, summary, description, requestBodyExample)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    isRegex, customHeaders, activo, orden, tags, operationId, summary, description, requestBodyExample,
+                    proxy_timeout, proxy_request_headers, proxy_request_params, proxy_pre_script, proxy_post_script)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                     [route.tipo, newRuta, route.codigo, route.tiporespuesta, route.respuesta,
                     route.esperaActiva || 0, route.isRegex || 0, route.customHeaders, route.activo ?? 1,
-                    maxOrder, route.tags, route.operationId, route.summary, route.description, route.requestBodyExample]);
+                    maxOrder, route.tags, route.operationId, route.summary, route.description, route.requestBodyExample,
+                    route.proxy_timeout || null, route.proxy_request_headers || null, route.proxy_request_params || null,
+                    route.proxy_pre_script || null, route.proxy_post_script || null]);
                 results.routes.imported++;
             }
         } else {
             maxOrder++;
             newRouteId = await dbRunGetId(db, `INSERT INTO rutas (tipo, ruta, codigo, tiporespuesta, respuesta, esperaActiva,
-                isRegex, customHeaders, activo, orden, tags, operationId, summary, description, requestBodyExample)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                isRegex, customHeaders, activo, orden, tags, operationId, summary, description, requestBodyExample,
+                proxy_timeout, proxy_request_headers, proxy_request_params, proxy_pre_script, proxy_post_script)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [route.tipo, route.ruta, route.codigo, route.tiporespuesta, route.respuesta,
                 route.esperaActiva || 0, route.isRegex || 0, route.customHeaders, route.activo ?? 1,
-                maxOrder, route.tags, route.operationId, route.summary, route.description, route.requestBodyExample]);
+                maxOrder, route.tags, route.operationId, route.summary, route.description, route.requestBodyExample,
+                route.proxy_timeout || null, route.proxy_request_headers || null, route.proxy_request_params || null,
+                route.proxy_pre_script || null, route.proxy_post_script || null]);
             results.routes.imported++;
         }
 
@@ -524,7 +533,9 @@ function xmlToRoutes(xmlString) {
             const content = match[1];
             const fields = ['id', 'orden', 'tipo', 'ruta', 'codigo', 'tiporespuesta', 'respuesta',
                 'isRegex', 'activo', 'esperaActiva', 'proxyDestination', 'customHeaders',
-                'fileToReturn', 'tags', 'operationId', 'summary', 'description', 'requestBodyExample'];
+                'fileToReturn', 'tags', 'operationId', 'summary', 'description', 'requestBodyExample',
+                'proxy_timeout', 'proxy_request_headers', 'proxy_request_params',
+                'proxy_pre_script', 'proxy_post_script'];
             for (const field of fields) {
                 const fieldMatch = content.match(new RegExp(`<${field}><!\\[CDATA\\[([\\s\\S]*?)\\]\\]><\\/${field}>|<${field}>([^<]*)<\\/${field}>`));
                 if (fieldMatch) {

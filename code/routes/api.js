@@ -9,6 +9,20 @@ const fs = require('fs');
 const openapiService = require('../services/openapi.service');
 const criteriaService = require('../services/criteria-evaluator.service');
 const graphqlService = require('../services/graphql.service');
+const scriptRunner = require('../services/script-runner.service');
+
+/**
+ * Normaliza un campo que se guarda como texto JSON.
+ *
+ * El panel manda estos campos por FormData, o sea ya serializados; otros
+ * clientes mandan el array o el objeto. Serializar sin mirar convertía
+ * '[{"action":"set"}]' en '"[{\"action\":\"set\"}]"', y a partir de ahí ni el
+ * panel podía releerlos ni el servidor aplicarlos.
+ */
+function asJsonText(value) {
+    if (value === undefined || value === null || value === '') return null;
+    return typeof value === 'string' ? value : JSON.stringify(value);
+}
 
 // Configuración de multer para subida de archivos
 const UPLOADS_DIR = path.join(__dirname, '..', 'data', 'uploads');
@@ -76,7 +90,7 @@ router.post('/create', upload.single('file'), async function(req, res, next) {
     }
 
     const db = sqliteService.getDatabase();
-    const customHeaders = req.body.customHeaders ? JSON.stringify(req.body.customHeaders) : null;
+    const customHeaders = asJsonText(req.body.customHeaders);
     const activo = req.body.activo !== 'false' && req.body.activo !== false ? 1 : 0;
     const esperaActiva = req.body.esperaActiva === 'true' || req.body.esperaActiva === true ? 1 : 0;
     const isProxy = req.body.tiporespuesta === 'proxy';
@@ -109,10 +123,29 @@ router.post('/create', upload.single('file'), async function(req, res, next) {
     // Proxy timeout
     const proxyTimeout = isProxy ? (parseInt(req.body.proxyTimeout) || 30000) : null;
 
+    // Transformaciones de la petición (solo tienen sentido en rutas proxy)
+    const proxyRequestHeaders = isProxy ? asJsonText(req.body.proxyRequestHeaders) : null;
+    const proxyRequestParams = isProxy ? asJsonText(req.body.proxyRequestParams) : null;
+    const proxyPreScript = isProxy ? (req.body.proxyPreScript || null) : null;
+    const proxyPostScript = isProxy ? (req.body.proxyPostScript || null) : null;
+
+    // Un script inválido se rechaza al guardar, no al recibir la primera
+    // petición: descubrirlo en producción es el peor momento posible
+    for (const [campo, script] of [['proxyPreScript', proxyPreScript], ['proxyPostScript', proxyPostScript]]) {
+        const check = scriptRunner.validateScript(script);
+        if (!check.valid) {
+            if (req.file) {
+                fs.unlink(path.join(UPLOADS_DIR, req.file.filename), () => {});
+            }
+            res.status(400).json({ error: `Script inválido (${campo}): ${check.error}` });
+            return;
+        }
+    }
+
     try {
         const result = await new Promise((resolve, reject) => {
-            db.run(`INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders, activo, orden, fileName, filePath, fileMimeType, tags, operationId, summary, description, requestBodyExample, proxy_timeout) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-                [req.body.tipo, req.body.ruta, req.body.codigo, req.body.respuesta, req.body.tiporespuesta, esperaActiva, req.body.isRegex === 'true' || req.body.isRegex === true ? 1 : 0, customHeaders, activo, orden, fileName, filePath, fileMimeType, tags, operationId, summary, description, requestBodyExample, proxyTimeout],
+            db.run(`INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders, activo, orden, fileName, filePath, fileMimeType, tags, operationId, summary, description, requestBodyExample, proxy_timeout, proxy_request_headers, proxy_request_params, proxy_pre_script, proxy_post_script) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                [req.body.tipo, req.body.ruta, req.body.codigo, req.body.respuesta, req.body.tiporespuesta, esperaActiva, req.body.isRegex === 'true' || req.body.isRegex === true ? 1 : 0, customHeaders, activo, orden, fileName, filePath, fileMimeType, tags, operationId, summary, description, requestBodyExample, proxyTimeout, proxyRequestHeaders, proxyRequestParams, proxyPreScript, proxyPostScript],
                 function(err) {
                     if (err) {
                         reject(err);
@@ -200,8 +233,8 @@ router.post('/duplicate/:id', async function(req, res) {
         }
 
         const result = await new Promise((resolve, reject) => {
-            db.run(`INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders, activo, orden, fileName, filePath, fileMimeType, tags, operationId, summary, description, requestBodyExample) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-                [original.tipo, newRoute, original.codigo, original.respuesta, original.tiporespuesta, original.esperaActiva, isRegex, original.customHeaders, original.activo, orden, fileName, filePath, fileMimeType, original.tags, original.operationId, original.summary, original.description, original.requestBodyExample],
+            db.run(`INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders, activo, orden, fileName, filePath, fileMimeType, tags, operationId, summary, description, requestBodyExample, proxy_timeout, proxy_request_headers, proxy_request_params, proxy_pre_script, proxy_post_script) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                [original.tipo, newRoute, original.codigo, original.respuesta, original.tiporespuesta, original.esperaActiva, isRegex, original.customHeaders, original.activo, orden, fileName, filePath, fileMimeType, original.tags, original.operationId, original.summary, original.description, original.requestBodyExample, original.proxy_timeout, original.proxy_request_headers, original.proxy_request_params, original.proxy_pre_script, original.proxy_post_script],
                 function(err) {
                     if (err) reject(err);
                     else resolve({ lastID: this.lastID });
@@ -252,7 +285,7 @@ router.put('/update/:id', upload.single('file'), async function(req, res) {
 
     const db = sqliteService.getDatabase();
     const id = req.params.id;
-    const customHeaders = req.body.customHeaders ? JSON.stringify(req.body.customHeaders) : null;
+    const customHeaders = asJsonText(req.body.customHeaders);
     const activo = req.body.activo !== 'false' && req.body.activo !== false ? 1 : 0;
     const esperaActiva = req.body.esperaActiva === 'true' || req.body.esperaActiva === true ? 1 : 0;
     const isProxy = req.body.tiporespuesta === 'proxy';
@@ -324,10 +357,29 @@ router.put('/update/:id', upload.single('file'), async function(req, res) {
     // Proxy timeout
     const proxyTimeout = isProxy ? (parseInt(req.body.proxyTimeout) || 30000) : null;
 
+    // Transformaciones de la petición (solo tienen sentido en rutas proxy)
+    const proxyRequestHeaders = isProxy ? asJsonText(req.body.proxyRequestHeaders) : null;
+    const proxyRequestParams = isProxy ? asJsonText(req.body.proxyRequestParams) : null;
+    const proxyPreScript = isProxy ? (req.body.proxyPreScript || null) : null;
+    const proxyPostScript = isProxy ? (req.body.proxyPostScript || null) : null;
+
+    // Un script inválido se rechaza al guardar, no al recibir la primera
+    // petición: descubrirlo en producción es el peor momento posible
+    for (const [campo, script] of [['proxyPreScript', proxyPreScript], ['proxyPostScript', proxyPostScript]]) {
+        const check = scriptRunner.validateScript(script);
+        if (!check.valid) {
+            if (req.file) {
+                fs.unlink(path.join(UPLOADS_DIR, req.file.filename), () => {});
+            }
+            res.status(400).json({ error: `Script inválido (${campo}): ${check.error}` });
+            return;
+        }
+    }
+
     try {
         await new Promise((resolve, reject) => {
-            db.run(`UPDATE rutas SET tipo = ?, ruta = ?, codigo = ?, respuesta = ?, tiporespuesta = ?, esperaActiva = ?, isRegex = ?, customHeaders = ?, activo = ?, orden = ?, fileName = ?, filePath = ?, fileMimeType = ?, tags = ?, operationId = ?, summary = ?, description = ?, requestBodyExample = ?, proxy_timeout = ? WHERE id = ?`,
-                [req.body.tipo, req.body.ruta, req.body.codigo, req.body.respuesta, req.body.tiporespuesta, esperaActiva, req.body.isRegex === 'true' || req.body.isRegex === true ? 1 : 0, customHeaders, activo, newOrden, fileName, filePath, fileMimeType, tags, operationId, summary, description, requestBodyExample, proxyTimeout, id],
+            db.run(`UPDATE rutas SET tipo = ?, ruta = ?, codigo = ?, respuesta = ?, tiporespuesta = ?, esperaActiva = ?, isRegex = ?, customHeaders = ?, activo = ?, orden = ?, fileName = ?, filePath = ?, fileMimeType = ?, tags = ?, operationId = ?, summary = ?, description = ?, requestBodyExample = ?, proxy_timeout = ?, proxy_request_headers = ?, proxy_request_params = ?, proxy_pre_script = ?, proxy_post_script = ? WHERE id = ?`,
+                [req.body.tipo, req.body.ruta, req.body.codigo, req.body.respuesta, req.body.tiporespuesta, esperaActiva, req.body.isRegex === 'true' || req.body.isRegex === true ? 1 : 0, customHeaders, activo, newOrden, fileName, filePath, fileMimeType, tags, operationId, summary, description, requestBodyExample, proxyTimeout, proxyRequestHeaders, proxyRequestParams, proxyPreScript, proxyPostScript, id],
                 function(err) {
                     if (err) {
                         reject(err);
@@ -517,6 +569,46 @@ router.post('/validateCriteria', function(req, res) {
     }
 
     res.json({ valid: true });
+});
+
+/* Validar un script de transformación de proxy, opcionalmente probándolo */
+router.post('/validateScript', function(req, res) {
+    const { script, phase, testContext } = req.body;
+
+    const validation = scriptRunner.validateScript(script);
+    if (!validation.valid) {
+        return res.json({ valid: false, error: validation.error });
+    }
+
+    // Sin contexto solo se valida sintaxis y patrones prohibidos
+    if (!testContext) {
+        return res.json({ valid: true });
+    }
+
+    const vars = {};
+    const outcome = phase === 'response'
+        ? scriptRunner.runResponseScript(script, {
+            status: testContext.status || 200,
+            headers: testContext.headers || {},
+            bodyText: typeof testContext.body === 'string' ? testContext.body : JSON.stringify(testContext.body || {}),
+            request: testContext.request || {},
+            vars
+        })
+        : scriptRunner.runRequestScript(script, {
+            method: testContext.method || 'GET',
+            path: testContext.path || '/',
+            query: testContext.query || {},
+            headers: testContext.headers || {},
+            bodyText: typeof testContext.body === 'string' ? testContext.body : JSON.stringify(testContext.body || {}),
+            vars
+        });
+
+    res.json({ valid: true, testResult: outcome });
+});
+
+/* Referencia de la API pm.* para el modal de ayuda */
+router.get('/script-api-reference', function(req, res) {
+    res.json(scriptRunner.getApiReference());
 });
 
 /* Obtener helpers y ejemplos disponibles para criterios */
