@@ -38,16 +38,38 @@ The server is stateless on purpose. A tool-only server needs nothing between cal
 | `list_routes` | Routes in priority order, filterable by method, response type, state and free text |
 | `get_route` | Full detail of one route, including conditions, fallbacks and transforms |
 | `list_tags` | Tags available to classify routes |
+| `query_logs` | The recorded traffic: what arrived, what was answered, how long it took |
+| `log_stats` | Totals by level, type and status, durations and a histogram |
 
 ### Writing
 
 | Tool | What it does |
 |------|--------------|
-| `create_route` | Creates a mock or proxy route |
+| `create_route` | Creates a route of any type |
 | `update_route` | Changes only the fields passed; everything else is kept |
 | `delete_route` | Deletes a route and everything attached to it |
+| `duplicate_route` | Copies a route with its conditions, fallbacks, operations and messages |
 | `set_route_conditions` | Replaces the conditional responses of a route |
 | `set_proxy_transform` | Sets request header/parameter rules and the `ms.*` scripts |
+| `set_proxy_fallbacks` | Sets the answers for when the backend times out, refuses or fails |
+| `set_graphql_operations` | Sets the operations of a GraphQL route |
+| `import_graphql_schema` | Introspects a real GraphQL endpoint and generates the operations |
+| `set_websocket_messages` | Sets the on-connect, on-message and periodic handlers |
+| `reorder_routes` | Sets which route wins when several match |
+| `create_tag` / `delete_tag` | Manages tags |
+
+### Building a flow
+
+Some route types are inert until their pieces are configured, so the order matters:
+
+| Type | Sequence |
+|------|----------|
+| Mock | `create_route` → `set_route_conditions` |
+| Proxy | `create_route` (response = target URL) → `set_proxy_transform` → `set_proxy_fallbacks` |
+| GraphQL | `create_route` → `import_graphql_schema` or `set_graphql_operations` |
+| WebSocket | `create_route` → `set_websocket_messages` |
+
+`server_info` returns this same table, so the assistant does not have to guess.
 
 ### Validation
 
@@ -69,11 +91,12 @@ The assistant would call `create_route` and then `set_route_conditions`, and can
 
 ## What the assistant cannot do
 
-The tool surface is deliberately limited to route configuration:
+The whole route configuration surface is covered. What is left out is either binary payloads or runtime operation, not configuration:
 
 - No file uploads (the `file` response type keeps its file when edited through MCP)
-- No import/export, no OpenAPI import
-- No releasing requests held by active wait
+- No export/import of bundles, and no OpenAPI import
+- No releasing requests held by active wait, and no listing of them
+- No sending messages to connected WebSocket clients or disconnecting them
 - No reading or writing the MCP tokens themselves
 
 ## Security

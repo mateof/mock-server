@@ -70,6 +70,13 @@ A powerful HTTP mocking and proxying application built with Express.js and Node.
   - Request/response header modification
   - Automatic decompression of gzipped responses
 
+- **Persistent Log & Log Viewer** - Every request is recorded, not just streamed
+  - Grafana-style screen at `/logs`: time range, level, type, method, status, free text and minimum duration
+  - Stacked histogram over time, summary tiles and expandable detail with the proxied headers and bodies
+  - Live tail, per-filter clear and scoped clearing (only what the filters match)
+  - Bounded retention (`MOCK_SERVER_LOG_MAX_ROWS`, 50000 by default) so it cannot eat the volume
+  - Queryable over MCP with `query_logs` and `log_stats`
+
 - **MCP Server** - Let an AI assistant build your mock flows
   - Create a connection from **Tools → MCP Connection**, copy the command, paste it into your terminal
   - Streamable HTTP endpoint at `/mcp` with Bearer token auth
@@ -186,6 +193,8 @@ podman compose up -d --build
 |----------|---------|-------------|
 | `PORT` | 3880 | Server port |
 | `TZ` | Europe/Madrid | Timezone |
+| `MOCK_SERVER_LOG_ENABLED` | true | Set to `false` to stop recording traffic |
+| `MOCK_SERVER_LOG_MAX_ROWS` | 50000 | Oldest entries are pruned past this |
 
 ### Data Persistence
 
@@ -252,6 +261,14 @@ volumes:
 | POST | `/api/validateRegex` | Validate regex patterns |
 | POST | `/api/validateScript` | Validate (and optionally dry-run) a proxy transform script |
 | GET | `/api/script-api-reference` | List the `ms.*` calls available to scripts |
+
+### MCP
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/logs` | Query the log (range, level, type, method, status, text, duration) |
+| GET | `/api/logs/stats` | Totals, top status codes and the histogram |
+| DELETE | `/api/logs` | Clear the log, entirely or just what the filters match |
 
 ### MCP
 

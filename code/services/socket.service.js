@@ -1,5 +1,6 @@
 const { Server } = require('socket.io');
 const moment = require("moment");
+const logService = require('./log.service');
 
 let io;
 
@@ -46,11 +47,38 @@ const sendData = (route, data) => {
 
 const getTimestamp = () => moment().format("HH:mm:ss.SSS");
 
-const emitLog = (texto, type = LogType.INFO) => {
+const emitLog = (texto, type = LogType.INFO, extra = null) => {
     io.emit("console", {
         texto: `[${getTimestamp()}] ${texto}`,
         type: type
     });
+    // Todo lo que se enseña en la consola se guarda también, para poder
+    // consultarlo luego desde la pantalla de logs o por MCP
+    logService.record({
+        type,
+        level: nivelDeEntrada(type, extra),
+        message: texto,
+        ...(extra || {})
+    });
+};
+
+/**
+ * La consola pinta por tipo; el log se filtra por gravedad.
+ *
+ * Cuando hay código de respuesta manda el código: un mock configurado para
+ * devolver un 500 es del tipo "mock", pero quien mira la pantalla de logs
+ * buscando qué va mal espera encontrarlo filtrando por errores.
+ */
+const nivelDeEntrada = (type, extra) => {
+    const status = extra && extra.status;
+    if (status) {
+        if (status >= 500) return 'error';
+        if (status >= 400) return 'warning';
+    }
+    if (type === LogType.ERROR) return 'error';
+    if (type === LogType.WARNING) return 'warning';
+    if (type === LogType.SUCCESS) return 'success';
+    return 'info';
 };
 
 // ===== API DE LOGGING =====
@@ -64,7 +92,8 @@ const log = {
     // Logs de request con formato estructurado
     request: (method, url, statusCode, duration, type = LogType.INFO) => {
         const icon = getIconForType(type);
-        emitLog(`${icon} ${method} ${url} ${statusCode} ${duration}ms`, type);
+        emitLog(`${icon} ${method} ${url} ${statusCode} ${duration}ms`, type,
+            { method, url, status: statusCode, duration });
     },
 
     // Logs específicos por tipo de respuesta
@@ -73,10 +102,28 @@ const log = {
     },
 
     proxy: (method, url, target, statusCode, duration) => {
-        emitLog(`🔀 ${method} ${url} → ${target} ${statusCode} ${duration}ms`, LogType.PROXY);
+        emitLog(`🔀 ${method} ${url} → ${target} ${statusCode} ${duration}ms`, LogType.PROXY,
+            { method, url, target, status: statusCode, duration });
     },
 
     proxyDetailed: (data) => {
+        // El detalle completo se guarda tal cual: es lo que hace que el log
+        // sirva para depurar después, no solo para ver que algo pasó
+        logService.record({
+            type: LogType.PROXY_DETAILED,
+            level: data.statusCode >= 500 ? 'error' : (data.statusCode >= 400 ? 'warning' : 'info'),
+            method: data.method,
+            url: data.url,
+            target: data.targetFull || data.target,
+            status: data.statusCode,
+            duration: data.duration,
+            message: `🔀 ${data.method} ${data.url} → ${data.target} ${data.statusCode} ${data.duration}ms`,
+            details: {
+                request: { headers: data.requestHeaders, body: data.requestBody, target: data.targetFull },
+                response: { headers: data.responseHeaders, body: data.responseBody }
+            }
+        });
+
         // Envía log detallado con información colapsable
         io.emit("console", {
             texto: `[${getTimestamp()}] 🔀 ${data.method} ${data.url} → ${data.target} ${data.statusCode} ${data.duration}ms`,
@@ -100,7 +147,8 @@ const log = {
     },
 
     proxyError: (method, url, target, errorMsg) => {
-        emitLog(`❌ Proxy error: ${method} ${url} → ${target} - ${errorMsg}`, LogType.ERROR);
+        emitLog(`❌ Proxy error: ${method} ${url} → ${target} - ${errorMsg}`, LogType.ERROR,
+            { method, url, target });
     },
 
     redirect: (method, url, statusCode, duration) => {
@@ -116,11 +164,12 @@ const log = {
     },
 
     wait: (method, url) => {
-        emitLog(`⏸️ Espera activa: ${method} ${url}`, LogType.WAIT);
+        emitLog(`⏸️ Espera activa: ${method} ${url}`, LogType.WAIT, { method, url });
     },
 
     notConfigured: (method, url, statusCode, duration) => {
-        emitLog(`🔶 ${method} ${url} ${statusCode} ${duration}ms (sin configurar)`, LogType.WARNING);
+        emitLog(`🔶 ${method} ${url} ${statusCode} ${duration}ms (sin configurar)`, LogType.WARNING,
+            { method, url, status: statusCode, duration, type: 'notConfigured' });
     }
 };
 

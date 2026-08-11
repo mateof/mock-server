@@ -11,6 +11,7 @@ const criteriaService = require('../services/criteria-evaluator.service');
 const graphqlService = require('../services/graphql.service');
 const scriptRunner = require('../services/script-runner.service');
 const routesService = require('../services/routes.service');
+const logService = require('../services/log.service');
 
 // Configuración de multer para subida de archivos
 const UPLOADS_DIR = path.join(__dirname, '..', 'data', 'uploads');
@@ -73,93 +74,15 @@ router.post('/create', upload.single('file'), async function(req, res, next) {
 
 /* Duplicar ruta existente */
 router.post('/duplicate/:id', async function(req, res) {
-    const db = sqliteService.getDatabase();
-    const id = req.params.id;
-    const newRoute = req.body.newRoute;
-
-    if (!newRoute) {
-        return res.status(400).json({ error: 'New route is required' });
-    }
-
-    if (routesService.isReservedRoute(newRoute)) {
-        return res.status(400).json({ error: `Routes starting with ${routesService.RESERVED_PREFIXES.join(' or ')} are reserved for internal use` });
-    }
-
+    // El servicio copia también condiciones, fallbacks y mensajes WebSocket,
+    // que antes se perdían al duplicar
     try {
-        // Obtener la ruta original
-        const original = await new Promise((resolve, reject) => {
-            db.get('SELECT * FROM rutas WHERE id = ?', [id], (err, row) => {
-                if (err) reject(err);
-                else resolve(row);
-            });
-        });
-
-        if (!original) {
-            return res.status(404).json({ error: 'Route not found' });
-        }
-
-        const isProxy = original.tiporespuesta === 'proxy';
-        const orden = await getNextOrder(db, isProxy);
-
-        // Determinar si la nueva ruta necesita ser regex
-        const isRegex = original.isRegex;
-
-        // Copiar archivo si existe
-        let fileName = original.fileName;
-        let filePath = original.filePath;
-        let fileMimeType = original.fileMimeType;
-
-        if (original.filePath) {
-            const ext = path.extname(original.filePath);
-            const newFileName = `${Date.now()}${ext}`;
-            const srcPath = path.join(UPLOADS_DIR, original.filePath);
-            const destPath = path.join(UPLOADS_DIR, newFileName);
-            try {
-                fs.copyFileSync(srcPath, destPath);
-                filePath = newFileName;
-            } catch (e) {
-                console.log(`[API] No se pudo copiar archivo: ${e.message}`);
-                fileName = null;
-                filePath = null;
-                fileMimeType = null;
-            }
-        }
-
-        const result = await new Promise((resolve, reject) => {
-            db.run(`INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders, activo, orden, fileName, filePath, fileMimeType, tags, operationId, summary, description, requestBodyExample, proxy_timeout, proxy_request_headers, proxy_request_params, proxy_pre_script, proxy_post_script) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-                [original.tipo, newRoute, original.codigo, original.respuesta, original.tiporespuesta, original.esperaActiva, isRegex, original.customHeaders, original.activo, orden, fileName, filePath, fileMimeType, original.tags, original.operationId, original.summary, original.description, original.requestBodyExample, original.proxy_timeout, original.proxy_request_headers, original.proxy_request_params, original.proxy_pre_script, original.proxy_post_script],
-                function(err) {
-                    if (err) reject(err);
-                    else resolve({ lastID: this.lastID });
-                });
-        });
-
-        console.log(`Ruta duplicada: ${original.ruta} -> ${newRoute} (nuevo id: ${result.lastID})`);
-
-        // Duplicar operaciones GraphQL y schema si es tipo graphql
-        if (original.tiporespuesta === 'graphql') {
-            const gqlOps = await sqliteService.getAllGraphQLOperations(id);
-            if (gqlOps && gqlOps.length > 0) {
-                await sqliteService.saveGraphQLOperations(result.lastID, gqlOps);
-                console.log(`[API] Duplicadas ${gqlOps.length} operaciones GraphQL`);
-            }
-            if (original.graphql_schema || original.graphql_proxy_url) {
-                const db = sqliteService.getDatabase();
-                await new Promise((resolve, reject) => {
-                    db.run('UPDATE rutas SET graphql_schema = ?, graphql_proxy_url = ? WHERE id = ?',
-                        [original.graphql_schema, original.graphql_proxy_url, result.lastID],
-                        (err) => { if (err) reject(err); else resolve(); }
-                    );
-                });
-            }
-        }
-
-        if (isProxy) {
-            await pm.reloadProxyConfigs();
-        }
-
-        res.json({ id: result.lastID });
+        const id = await routesService.duplicateRoute(req.params.id, req.body.newRoute);
+        res.json({ id });
     } catch (err) {
+        if (err.validation) {
+            return res.status(400).json({ error: err.message });
+        }
         console.error(`[API] Error duplicando ruta: ${err.message}`);
         res.status(500).json({ error: err.message });
     }
@@ -368,6 +291,70 @@ router.post('/validateScript', function(req, res) {
     res.json({ valid: true, testResult: outcome });
 });
 
+// ===== LOG =====
+
+/* Consultar el log con filtros */
+router.get('/logs', async function(req, res) {
+    try {
+        const resultado = await logService.query({
+            from: req.query.from,
+            to: req.query.to,
+            type: req.query.type ? String(req.query.type).split(',') : null,
+            level: req.query.level ? String(req.query.level).split(',') : null,
+            method: req.query.method,
+            status: req.query.status,
+            url: req.query.url,
+            search: req.query.search,
+            routeId: req.query.routeId,
+            minDuration: req.query.minDuration,
+            limit: req.query.limit,
+            offset: req.query.offset
+        });
+        res.json(resultado);
+    } catch (err) {
+        console.error(`[API] Error consultando el log: ${err.message}`);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/* Resumen y histograma, con los mismos filtros que la consulta */
+router.get('/logs/stats', async function(req, res) {
+    try {
+        const resumen = await logService.stats({
+            from: req.query.from,
+            to: req.query.to,
+            type: req.query.type ? String(req.query.type).split(',') : null,
+            level: req.query.level ? String(req.query.level).split(',') : null,
+            method: req.query.method,
+            status: req.query.status,
+            url: req.query.url,
+            search: req.query.search,
+            routeId: req.query.routeId,
+            minDuration: req.query.minDuration
+        });
+        res.json({ ...resumen, storage: logService.estado() });
+    } catch (err) {
+        console.error(`[API] Error calculando estadísticas del log: ${err.message}`);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/* Vaciar el log, entero o solo lo que casa con los filtros */
+router.delete('/logs', async function(req, res) {
+    try {
+        const eliminados = await logService.clear({
+            from: req.query.from,
+            to: req.query.to,
+            level: req.query.level ? String(req.query.level).split(',') : null,
+            type: req.query.type ? String(req.query.type).split(',') : null
+        });
+        res.json({ success: true, deleted: eliminados });
+    } catch (err) {
+        console.error(`[API] Error vaciando el log: ${err.message}`);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ===== CONEXIONES MCP =====
 
 /* Listar conexiones MCP */
@@ -494,72 +481,20 @@ router.get('/fallbacks/:routeId', async function(req, res) {
 
 /* Guardar fallbacks de una ruta proxy */
 router.put('/fallbacks/:routeId', async function(req, res) {
-    const { fallbacks } = req.body;
-
-    if (!Array.isArray(fallbacks)) {
-        return res.status(400).json({ success: false, error: 'fallbacks debe ser un array' });
-    }
-
-    const validErrorTypes = ['timeout', 'connection', 'http5xx', 'all'];
-
-    // Validar cada fallback
-    for (let i = 0; i < fallbacks.length; i++) {
-        const f = fallbacks[i];
-
-        // Validar path_pattern es regex válido
-        if (!f.path_pattern || !f.path_pattern.trim()) {
-            return res.status(400).json({
-                success: false,
-                error: `El fallback ${i + 1} no tiene path_pattern definido`
-            });
-        }
-
-        try {
-            new RegExp(f.path_pattern);
-        } catch (regexErr) {
-            return res.status(400).json({
-                success: false,
-                error: `Fallback "${f.nombre || i + 1}": regex inválido - ${regexErr.message}`
-            });
-        }
-
-        // Validar error_types
-        if (!f.error_types || !Array.isArray(f.error_types) || f.error_types.length === 0) {
-            return res.status(400).json({
-                success: false,
-                error: `El fallback ${i + 1} debe tener al menos un tipo de error`
-            });
-        }
-
-        for (const errorType of f.error_types) {
-            if (!validErrorTypes.includes(errorType)) {
-                return res.status(400).json({
-                    success: false,
-                    error: `Fallback "${f.nombre || i + 1}": tipo de error inválido "${errorType}"`
-                });
-            }
-        }
-    }
-
+    // La validación, el guardado de condiciones anidadas y la recarga del
+    // proxy viven en routes.service, compartidos con MCP
     try {
-        await sqliteService.saveProxyFallbacks(req.params.routeId, fallbacks);
-
-        // Recargar configuración de proxies
-        const pm = req.app.get('proxyMiddleware');
-        if (pm && pm.reloadProxyConfigs) {
-            await pm.reloadProxyConfigs();
-        }
-
+        await routesService.saveFallbacks(req.params.routeId, req.body.fallbacks);
         res.json({ success: true });
     } catch (err) {
+        if (err.validation) {
+            return res.status(400).json({ success: false, error: err.message });
+        }
         console.error(`[API] Error guardando fallbacks: ${err.message}`);
         res.status(500).json({ success: false, error: err.message });
     }
 });
 
-// ===== FALLBACK CONDITIONS API =====
-
-/* Obtener condiciones de un fallback */
 router.get('/fallback-conditions/:fallbackId', async function(req, res) {
     try {
         const conditions = await sqliteService.getAllFallbackConditions(req.params.fallbackId);
@@ -572,43 +507,18 @@ router.get('/fallback-conditions/:fallbackId', async function(req, res) {
 
 /* Guardar condiciones de un fallback */
 router.put('/fallback-conditions/:fallbackId', async function(req, res) {
-    const { conditions } = req.body;
-
-    if (!Array.isArray(conditions)) {
-        return res.status(400).json({ success: false, error: 'conditions debe ser un array' });
-    }
-
-    // Validar cada condición
-    for (let i = 0; i < conditions.length; i++) {
-        const c = conditions[i];
-
-        if (!c.criteria || !c.criteria.trim()) {
-            return res.status(400).json({
-                success: false,
-                error: `La condición ${i + 1} no tiene criteria definido`
-            });
-        }
-    }
-
     try {
-        await sqliteService.saveFallbackConditions(req.params.fallbackId, conditions);
-
-        // Recargar configuración de proxies
-        const pm = req.app.get('proxyMiddleware');
-        if (pm && pm.reloadProxyConfigs) {
-            await pm.reloadProxyConfigs();
-        }
-
+        await routesService.saveFallbackConditions(req.params.fallbackId, req.body.conditions);
         res.json({ success: true });
     } catch (err) {
+        if (err.validation) {
+            return res.status(400).json({ success: false, error: err.message });
+        }
         console.error(`[API] Error guardando condiciones de fallback: ${err.message}`);
         res.status(500).json({ success: false, error: err.message });
     }
 });
 
-// ===== GRAPHQL OPERATIONS API =====
-
-/* Obtener operaciones GraphQL de una ruta */
 router.get('/graphql-operations/:routeId', async function(req, res) {
     try {
         const operations = await sqliteService.getAllGraphQLOperations(req.params.routeId);

@@ -25,6 +25,7 @@ const sqliteService = require('./sqlite.service');
 const routesService = require('./routes.service');
 const criteriaService = require('./criteria-evaluator.service');
 const scriptRunner = require('./script-runner.service');
+const logService = require('./log.service');
 const { log } = require('./socket.service');
 const { version } = require('../package.json');
 
@@ -232,8 +233,17 @@ function buildServer() {
                 'The /api and /mcp prefixes are reserved: a route there never answers.',
                 'Exact matching ignores the query string; regex routes are tested against the full URL.',
                 'Proxy routes are always evaluated after mocks, whatever their order.',
-                'On a proxy route, response is the target URL.'
-            ]
+                'On a proxy route, response is the target URL.',
+                'A graphql route needs set_graphql_operations (or import_graphql_schema) to answer anything.',
+                'A websocket route needs set_websocket_messages to do anything.',
+                'When several routes match, the lowest order wins; reorder_routes decides it.'
+            ],
+            workflow: {
+                mock: 'create_route -> set_route_conditions',
+                proxy: 'create_route (response = target URL) -> set_proxy_transform -> set_proxy_fallbacks',
+                graphql: 'create_route -> import_graphql_schema or set_graphql_operations',
+                websocket: 'create_route -> set_websocket_messages'
+            }
         });
     }));
 
@@ -402,6 +412,213 @@ function buildServer() {
         return ok({ updated: true, route: toRouteView(actualizada, { detailed: true }) });
     }));
 
+    server.registerTool('set_proxy_fallbacks', {
+        title: 'Set proxy fallbacks',
+        description: 'Replaces the fallbacks of a proxy route: canned answers for when the backend times out, refuses the connection or returns 5xx. Each one can carry its own conditions. Proxy routes only.',
+        inputSchema: {
+            id: z.number(),
+            fallbacks: z.array(z.object({
+                name: z.string().optional(),
+                path_pattern: z.string().describe('Regex against the path sent to the backend. Use .* for everything'),
+                error_types: z.array(z.enum(['timeout', 'connection', 'http5xx', 'all'])).describe('Which failures trigger it'),
+                status_code: z.string().optional().describe("Status code to answer with (200 by default)"),
+                response_type: z.enum(RESPONSE_TYPES).optional(),
+                response: z.string().optional(),
+                conditions: z.array(conditionSchema).optional().describe('Refines the answer depending on the request')
+            })).describe('The full list; an empty list removes all of them')
+        }
+    }, async ({ id, fallbacks }) => run('set_proxy_fallbacks', async () => {
+        const ruta = await routesService.getRoute(id);
+        if (!ruta) return fail(`Route ${id} not found`);
+        if (ruta.tiporespuesta !== 'proxy') {
+            return fail(`Route ${id} is of type "${ruta.tiporespuesta}"; fallbacks only exist on proxy routes`);
+        }
+
+        await routesService.saveFallbacks(id, fallbacks.map((f, i) => ({
+            nombre: f.name || `fallback ${i + 1}`,
+            path_pattern: f.path_pattern,
+            error_types: f.error_types,
+            codigo: f.status_code || '200',
+            tiporespuesta: f.response_type || 'json',
+            respuesta: f.response || '',
+            activo: true,
+            conditions: (f.conditions || []).map(c => ({
+                nombre: c.name || null,
+                criteria: c.criteria,
+                codigo: c.status_code || null,
+                tiporespuesta: c.response_type || null,
+                respuesta: c.response || null,
+                activo: 1
+            }))
+        })));
+
+        log.success(`🤖 MCP: ${fallbacks.length} fallback(s) en la ruta ${id}`);
+        const actualizada = await routesService.getRoute(id);
+        return ok({ updated: true, route: toRouteView(actualizada, { detailed: true }) });
+    }));
+
+    server.registerTool('set_graphql_operations', {
+        title: 'Set GraphQL operations',
+        description: 'Replaces the operations of a GraphQL route. Each operation answers a query or mutation by name, either with mock data or by forwarding to the real server.',
+        inputSchema: {
+            id: z.number(),
+            operations: z.array(z.object({
+                name: z.string().describe('Operation or root field name, e.g. characters'),
+                type: z.enum(['query', 'mutation']).default('query'),
+                response: z.string().optional().describe('JSON body returned in mock mode'),
+                use_proxy: z.boolean().optional().describe('Forward this operation to the real server instead of mocking it'),
+                active: z.boolean().optional()
+            })).describe('The full list; an empty list removes all of them')
+        }
+    }, async ({ id, operations }) => run('set_graphql_operations', async () => {
+        const ruta = await routesService.getRoute(id);
+        if (!ruta) return fail(`Route ${id} not found`);
+        if (ruta.tiporespuesta !== 'graphql') {
+            return fail(`Route ${id} is of type "${ruta.tiporespuesta}"; operations only exist on graphql routes`);
+        }
+
+        await routesService.saveGraphQLOperations(id, operations.map(op => ({
+            operationName: op.name,
+            operationType: op.type || 'query',
+            respuesta: op.response || null,
+            useProxy: op.use_proxy ? 1 : 0,
+            activo: op.active === false ? 0 : 1
+        })));
+
+        log.success(`🤖 MCP: ${operations.length} operacion(es) GraphQL en la ruta ${id}`);
+        const actualizada = await routesService.getRoute(id);
+        return ok({ updated: true, route: toRouteView(actualizada, { detailed: true }) });
+    }));
+
+    server.registerTool('import_graphql_schema', {
+        title: 'Import a GraphQL schema',
+        description: 'Reads a real GraphQL endpoint by introspection and generates the mock operations automatically. The fastest way to get a usable GraphQL route.',
+        inputSchema: {
+            id: z.number(),
+            url: z.string().describe('Endpoint to introspect, e.g. https://rickandmortyapi.com/graphql')
+        }
+    }, async ({ id, url }) => run('import_graphql_schema', async () => {
+        const ruta = await routesService.getRoute(id);
+        if (!ruta) return fail(`Route ${id} not found`);
+        if (ruta.tiporespuesta !== 'graphql') {
+            return fail(`Route ${id} is of type "${ruta.tiporespuesta}"; the schema only applies to graphql routes`);
+        }
+
+        const operations = await routesService.importGraphQLSchema(id, url);
+        log.success(`🤖 MCP: esquema GraphQL importado en la ruta ${id} (${operations.length} operaciones)`);
+        return ok({
+            imported: true,
+            operation_count: operations.length,
+            operations: operations.map(o => ({ name: o.operationName, type: o.operationType }))
+        });
+    }));
+
+    server.registerTool('set_websocket_messages', {
+        title: 'Set WebSocket messages',
+        description: 'Replaces the handlers of a WebSocket route: what to send on connect, what to answer to an incoming message, and what to send periodically.',
+        inputSchema: {
+            id: z.number(),
+            messages: z.array(z.object({
+                name: z.string().optional(),
+                event_type: z.enum(['onConnect', 'onMessage', 'periodic']),
+                match_pattern: z.string().optional().describe('For onMessage: text or regex to match. Empty matches everything'),
+                is_regex: z.boolean().optional(),
+                response: z.string().describe('Message sent to the client'),
+                delay: z.number().optional().describe('Milliseconds to wait before sending'),
+                interval: z.number().optional().describe('For periodic: milliseconds between sends')
+            })).describe('The full list; an empty list removes all of them')
+        }
+    }, async ({ id, messages }) => run('set_websocket_messages', async () => {
+        const ruta = await routesService.getRoute(id);
+        if (!ruta) return fail(`Route ${id} not found`);
+        if (ruta.tiporespuesta !== 'websocket') {
+            return fail(`Route ${id} is of type "${ruta.tiporespuesta}"; messages only exist on websocket routes`);
+        }
+
+        await routesService.saveWebSocketMessages(id, messages.map(m => ({
+            nombre: m.name || null,
+            event_type: m.event_type,
+            match_pattern: m.match_pattern || null,
+            is_regex: m.is_regex ? 1 : 0,
+            respuesta: m.response,
+            delay: m.delay || 0,
+            send_interval: m.interval || 0,
+            activo: 1
+        })));
+
+        log.success(`🤖 MCP: ${messages.length} mensaje(s) WebSocket en la ruta ${id}`);
+        const actualizada = await routesService.getRoute(id);
+        return ok({ updated: true, route: toRouteView(actualizada, { detailed: true }) });
+    }));
+
+    server.registerTool('reorder_routes', {
+        title: 'Reorder routes',
+        description: 'Sets the priority of the given routes. When several routes could answer the same request, the lowest order wins, so this decides which mock takes precedence.',
+        inputSchema: {
+            order: z.array(z.number()).describe('Route ids in the desired priority order, highest priority first')
+        }
+    }, async ({ order }) => run('reorder_routes', async () => {
+        const rutas = await routesService.listRoutes();
+        const existentes = new Set(rutas.map(r => r.id));
+        const desconocidas = order.filter(id => !existentes.has(id));
+        if (desconocidas.length) {
+            return fail(`These routes do not exist: ${desconocidas.join(', ')}`);
+        }
+
+        // Los proxies viven en su propio rango alto para quedar siempre por
+        // detrás de los mocks: se respeta numerándolos aparte
+        const porId = new Map(rutas.map(r => [r.id, r]));
+        const orders = [];
+        let mock = 1;
+        let proxy = 99999999;
+        for (const id of order) {
+            if (porId.get(id).tiporespuesta === 'proxy') {
+                orders.push({ id, orden: proxy-- });
+            } else {
+                orders.push({ id, orden: mock++ });
+            }
+        }
+
+        await routesService.reorderRoutes(orders);
+        log.success(`🤖 MCP: ${orders.length} rutas reordenadas`);
+        return ok({ reordered: orders.length, order: orders });
+    }));
+
+    server.registerTool('duplicate_route', {
+        title: 'Duplicate a route',
+        description: 'Copies a route to a new path, including its conditions, fallbacks, GraphQL operations and WebSocket messages. Handy for building variants of a flow.',
+        inputSchema: {
+            id: z.number(),
+            new_path: z.string().describe('Path for the copy')
+        }
+    }, async ({ id, new_path }) => run('duplicate_route', async () => {
+        const nuevoId = await routesService.duplicateRoute(id, new_path);
+        log.success(`🤖 MCP: ruta ${id} duplicada en ${new_path}`);
+        const copia = await routesService.getRoute(nuevoId);
+        return ok({ created: true, route: toRouteView(copia, { detailed: true }) });
+    }));
+
+    server.registerTool('create_tag', {
+        title: 'Create a tag',
+        description: 'Creates a tag (or returns the existing one with that name) to classify routes.',
+        inputSchema: {
+            name: z.string(),
+            color: z.string().optional().describe('Hex colour, e.g. #6366f1')
+        }
+    }, async ({ name, color }) => run('create_tag', async () => {
+        const tag = await sqliteService.getOrCreateTag(name, color);
+        return ok({ tag });
+    }));
+
+    server.registerTool('delete_tag', {
+        title: 'Delete a tag',
+        description: 'Deletes a tag and removes it from every route carrying it.',
+        inputSchema: { id: z.string() }
+    }, async ({ id }) => run('delete_tag', async () => {
+        await sqliteService.deleteTag(id);
+        return ok({ deleted: true, id });
+    }));
+
     server.registerTool('validate_script', {
         title: 'Validate a transform script',
         description: 'Checks an ms.* script without saving it. With test_context it also runs it and returns the result.',
@@ -477,6 +694,88 @@ function buildServer() {
         } catch (e) {
             return ok({ valid: false, error: e.message });
         }
+    }));
+
+    // Filtros del log, compartidos por las dos herramientas para que el resumen
+    // y el detalle no puedan contar cosas distintas
+    const logFilters = {
+        from: z.number().optional().describe('Start of the range, epoch milliseconds'),
+        to: z.number().optional().describe('End of the range, epoch milliseconds'),
+        minutes: z.number().optional().describe('Shortcut: only the last N minutes. Ignored if from is given'),
+        level: z.array(z.enum(['info', 'success', 'warning', 'error'])).optional(),
+        type: z.array(z.string()).optional().describe('Entry type: mock, proxy, proxy-detailed, error, wait...'),
+        method: z.string().optional(),
+        status: z.string().optional().describe("Exact code ('404') or family ('4xx')"),
+        url: z.string().optional().describe('Substring of the requested URL'),
+        search: z.string().optional().describe('Free text over message, URL and details'),
+        min_duration: z.number().optional().describe('Only entries slower than this, in ms')
+    };
+
+    const toLogFilters = (args) => ({
+        from: args.minutes && !args.from ? Date.now() - args.minutes * 60000 : args.from,
+        to: args.to,
+        level: args.level,
+        type: args.type,
+        method: args.method,
+        status: args.status,
+        url: args.url,
+        search: args.search,
+        minDuration: args.min_duration
+    });
+
+    server.registerTool('query_logs', {
+        title: 'Query the log',
+        description: 'Reads the recorded traffic: which requests arrived, what was answered, how long it took and, for proxied requests, the full headers and bodies. This is how you find out what actually happened instead of guessing.',
+        inputSchema: {
+            ...logFilters,
+            limit: z.number().optional().describe('Entries to return, 100 by default, 1000 max'),
+            offset: z.number().optional(),
+            include_details: z.boolean().optional().describe('Include headers and bodies. Off by default because they are big')
+        }
+    }, async (args) => run('query_logs', async () => {
+        const resultado = await logService.query({
+            ...toLogFilters(args),
+            limit: args.limit,
+            offset: args.offset
+        });
+
+        return ok({
+            total: resultado.total,
+            returned: resultado.count,
+            entries: resultado.entries.map(e => {
+                const vista = {
+                    id: e.id,
+                    at: e.ts,
+                    level: e.level,
+                    type: e.type,
+                    message: e.message
+                };
+                if (e.method) vista.method = e.method;
+                if (e.url) vista.url = e.url;
+                if (e.status !== null) vista.status = e.status;
+                if (e.duration !== null) vista.duration_ms = e.duration;
+                if (e.target) vista.target = e.target;
+                if (args.include_details && e.details) vista.details = e.details;
+                return vista;
+            })
+        });
+    }));
+
+    server.registerTool('log_stats', {
+        title: 'Log summary',
+        description: 'Totals by level, by type and by status code, average and worst duration, and a histogram over time. Use it to spot what is failing before pulling the individual entries.',
+        inputSchema: logFilters
+    }, async (args) => run('log_stats', async () => {
+        const resumen = await logService.stats(toLogFilters(args));
+        return ok({
+            total: resumen.total,
+            range: resumen.range,
+            by_level: resumen.by_level,
+            by_type: resumen.by_type,
+            top_status: resumen.top_status,
+            duration: resumen.duration,
+            storage: logService.estado()
+        });
     }));
 
     server.registerTool('list_tags', {

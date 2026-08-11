@@ -14,6 +14,9 @@ const path = require('path');
 const fs = require('fs');
 const sqliteService = require('./sqlite.service');
 const scriptRunner = require('./script-runner.service');
+const criteriaService = require('./criteria-evaluator.service');
+const graphqlService = require('./graphql.service');
+const websocketService = require('./websocket.service');
 const proxyMiddleware = require('../middlewares/proxy.middleware');
 
 const UPLOADS_DIR = path.join(__dirname, '..', 'data', 'uploads');
@@ -317,9 +320,271 @@ async function deleteRoute(id) {
     return true;
 }
 
+// ===== FALLBACKS DE PROXY =====
+
+const ERROR_TYPES = ['timeout', 'connection', 'http5xx', 'all'];
+
+/**
+ * Sustituye los fallbacks de una ruta, con sus condiciones.
+ *
+ * Van juntos a propósito: guardar los fallbacks los borra y los reinserta, así
+ * que sus ids cambian y las condiciones tienen que reasignarse después. Si el
+ * llamante tuviera que hacerlo en dos pasos, cualquier despiste dejaría
+ * condiciones colgando de un fallback que ya no existe.
+ */
+async function saveFallbacks(routeId, fallbacks) {
+    if (!Array.isArray(fallbacks)) {
+        throw new RouteValidationError('fallbacks must be an array');
+    }
+
+    fallbacks.forEach((f, i) => {
+        if (!f.path_pattern || !String(f.path_pattern).trim()) {
+            throw new RouteValidationError(`Fallback ${i + 1} has no path_pattern`);
+        }
+        try {
+            new RegExp(f.path_pattern);
+        } catch (e) {
+            throw new RouteValidationError(`Fallback "${f.nombre || i + 1}": invalid regex - ${e.message}`);
+        }
+        if (!Array.isArray(f.error_types) || f.error_types.length === 0) {
+            throw new RouteValidationError(`Fallback ${i + 1} needs at least one error type`);
+        }
+        for (const tipo of f.error_types) {
+            if (!ERROR_TYPES.includes(tipo)) {
+                throw new RouteValidationError(`Fallback "${f.nombre || i + 1}": invalid error type "${tipo}"`);
+            }
+        }
+        (f.conditions || []).forEach(c => {
+            const check = criteriaService.validateCriteria(c.criteria);
+            if (!check.valid) {
+                throw new RouteValidationError(`Condition "${c.nombre || c.criteria}": ${check.error}`);
+            }
+        });
+    });
+
+    const id = Number(routeId);
+    await sqliteService.saveProxyFallbacks(id, fallbacks);
+
+    // Los ids son nuevos tras el borrado e inserción, así que se releen
+    const guardados = await sqliteService.getAllProxyFallbacks(id);
+    for (let i = 0; i < guardados.length; i++) {
+        const condiciones = fallbacks[i] && fallbacks[i].conditions;
+        if (Array.isArray(condiciones)) {
+            await sqliteService.saveFallbackConditions(guardados[i].id, condiciones);
+        }
+    }
+
+    await proxyMiddleware.reloadProxyConfigs();
+    console.log(`[ROUTES] Guardados ${fallbacks.length} fallbacks en la ruta ${id}`);
+    return guardados.length;
+}
+
+/**
+ * Sustituye las condiciones de un fallback concreto
+ */
+async function saveFallbackConditions(fallbackId, conditions) {
+    if (!Array.isArray(conditions)) {
+        throw new RouteValidationError('conditions must be an array');
+    }
+    for (const c of conditions) {
+        const check = criteriaService.validateCriteria(c.criteria);
+        if (!check.valid) {
+            throw new RouteValidationError(`Condition "${c.nombre || c.criteria}": ${check.error}`);
+        }
+    }
+
+    await sqliteService.saveFallbackConditions(Number(fallbackId), conditions);
+    await proxyMiddleware.reloadProxyConfigs();
+    return conditions.length;
+}
+
+// ===== GRAPHQL =====
+
+async function saveGraphQLOperations(routeId, operations) {
+    if (!Array.isArray(operations)) {
+        throw new RouteValidationError('operations must be an array');
+    }
+    operations.forEach((op, i) => {
+        if (!op.operationName || !String(op.operationName).trim()) {
+            throw new RouteValidationError(`Operation ${i + 1} has no name`);
+        }
+        if (op.operationType && !['query', 'mutation'].includes(op.operationType)) {
+            throw new RouteValidationError(`Operation "${op.operationName}": type must be query or mutation`);
+        }
+    });
+
+    await sqliteService.saveGraphQLOperations(Number(routeId), operations);
+    console.log(`[ROUTES] Guardadas ${operations.length} operaciones GraphQL en la ruta ${routeId}`);
+    return operations.length;
+}
+
+async function saveGraphQLProxyUrl(routeId, url) {
+    await dbRun('UPDATE rutas SET graphql_proxy_url = ? WHERE id = ?', [url || null, Number(routeId)]);
+    return true;
+}
+
+/**
+ * Importa el esquema por introspección y genera las operaciones simuladas
+ */
+async function importGraphQLSchema(routeId, url) {
+    if (!url || !String(url).trim()) {
+        throw new RouteValidationError('The GraphQL endpoint URL is required');
+    }
+
+    const introspection = await graphqlService.fetchIntrospectionFromUrl(url);
+    const { operations } = graphqlService.generateMockFromIntrospection(introspection);
+
+    const id = Number(routeId);
+    await sqliteService.saveGraphQLOperations(id, operations);
+    await dbRun('UPDATE rutas SET graphql_schema = ?, graphql_proxy_url = ? WHERE id = ?',
+        [JSON.stringify(introspection), url, id]);
+
+    console.log(`[ROUTES] Esquema GraphQL importado en la ruta ${id}: ${operations.length} operaciones`);
+    return operations;
+}
+
+// ===== WEBSOCKET =====
+
+const WS_EVENT_TYPES = ['onConnect', 'onMessage', 'periodic'];
+
+async function saveWebSocketMessages(routeId, messages) {
+    if (!Array.isArray(messages)) {
+        throw new RouteValidationError('messages must be an array');
+    }
+    messages.forEach((m, i) => {
+        if (!WS_EVENT_TYPES.includes(m.event_type)) {
+            throw new RouteValidationError(`Message ${i + 1}: invalid event_type "${m.event_type}"`);
+        }
+        if (m.is_regex && m.match_pattern) {
+            try {
+                new RegExp(m.match_pattern);
+            } catch (e) {
+                throw new RouteValidationError(`Message ${i + 1}: invalid regex - ${e.message}`);
+            }
+        }
+    });
+
+    const id = Number(routeId);
+    await sqliteService.saveWebSocketMessages(id, messages);
+    // Sin esto los clientes ya conectados seguirían con la configuración vieja
+    await websocketService.reloadRouteConfig(id);
+    console.log(`[ROUTES] Guardados ${messages.length} mensajes WebSocket en la ruta ${id}`);
+    return messages.length;
+}
+
+// ===== ORDEN =====
+
+/**
+ * Asigna órdenes explícitos. El orden decide qué ruta gana cuando varias
+ * podrían atender la misma petición, así que es parte de configurar un flujo.
+ */
+async function reorderRoutes(orders) {
+    if (!Array.isArray(orders) || orders.length === 0) {
+        throw new RouteValidationError('An array of { id, order } is required');
+    }
+
+    for (const { id, orden } of orders) {
+        await dbRun('UPDATE rutas SET orden = ? WHERE id = ?', [orden, Number(id)]);
+    }
+
+    await proxyMiddleware.reloadProxyConfigs();
+    console.log(`[ROUTES] Reordenadas ${orders.length} rutas`);
+    return orders.length;
+}
+
+// ===== DUPLICAR =====
+
+async function duplicateRoute(id, newPath) {
+    if (!newPath) {
+        throw new RouteValidationError('The new path is required');
+    }
+    if (isReservedRoute(newPath)) {
+        throw new RouteValidationError(`Routes starting with ${RESERVED_PREFIXES.join(' or ')} are reserved for internal use`);
+    }
+
+    const original = await dbGet('SELECT * FROM rutas WHERE id = ?', [Number(id)]);
+    if (!original) {
+        throw new RouteValidationError(`Route ${id} not found`);
+    }
+
+    const isProxy = original.tiporespuesta === 'proxy';
+    const orden = await getNextOrder(isProxy);
+
+    // El fichero se copia: dos rutas apuntando al mismo no pueden borrarlo por
+    // separado sin dejar a la otra sin nada
+    let fileName = original.fileName, filePath = original.filePath, fileMimeType = original.fileMimeType;
+    if (original.filePath) {
+        const ext = path.extname(original.filePath);
+        const nuevo = `${Date.now()}${ext}`;
+        try {
+            fs.copyFileSync(path.join(UPLOADS_DIR, original.filePath), path.join(UPLOADS_DIR, nuevo));
+            filePath = nuevo;
+        } catch (e) {
+            console.log(`[ROUTES] No se pudo copiar el fichero: ${e.message}`);
+            fileName = filePath = fileMimeType = null;
+        }
+    }
+
+    const result = await dbRun(
+        `INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders,
+            activo, orden, fileName, filePath, fileMimeType, tags, operationId, summary, description,
+            requestBodyExample, proxy_timeout, proxy_request_headers, proxy_request_params, proxy_pre_script,
+            proxy_post_script, graphql_schema, graphql_proxy_url)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [original.tipo, newPath, original.codigo, original.respuesta, original.tiporespuesta,
+         original.esperaActiva, original.isRegex, original.customHeaders, original.activo, orden,
+         fileName, filePath, fileMimeType, original.tags, original.operationId, original.summary,
+         original.description, original.requestBodyExample, original.proxy_timeout,
+         original.proxy_request_headers, original.proxy_request_params, original.proxy_pre_script,
+         original.proxy_post_script, original.graphql_schema, original.graphql_proxy_url]
+    );
+
+    const nuevoId = result.lastID;
+
+    // Lo que cuelga de la ruta se copia también, o el duplicado sería una
+    // carcasa vacía justo en los tipos que más configuración llevan
+    const condiciones = await sqliteService.getConditionalResponses(Number(id));
+    if (condiciones.length) await sqliteService.saveConditionalResponses(nuevoId, condiciones);
+
+    if (isProxy) {
+        const fallbacks = await sqliteService.getAllProxyFallbacks(Number(id));
+        if (fallbacks.length) {
+            for (const f of fallbacks) {
+                f.conditions = await sqliteService.getAllFallbackConditions(f.id);
+            }
+            await sqliteService.saveProxyFallbacks(nuevoId, fallbacks);
+            const nuevos = await sqliteService.getAllProxyFallbacks(nuevoId);
+            for (let i = 0; i < nuevos.length; i++) {
+                if (fallbacks[i] && fallbacks[i].conditions.length) {
+                    await sqliteService.saveFallbackConditions(nuevos[i].id, fallbacks[i].conditions);
+                }
+            }
+        }
+        await proxyMiddleware.reloadProxyConfigs();
+    }
+
+    if (original.tiporespuesta === 'graphql') {
+        const ops = await sqliteService.getAllGraphQLOperations(Number(id));
+        if (ops.length) await sqliteService.saveGraphQLOperations(nuevoId, ops);
+    }
+
+    if (original.tiporespuesta === 'websocket') {
+        const msgs = await sqliteService.getAllWebSocketMessages(Number(id));
+        if (msgs.length) {
+            await sqliteService.saveWebSocketMessages(nuevoId, msgs);
+            await websocketService.reloadRouteConfig(nuevoId);
+        }
+    }
+
+    console.log(`[ROUTES] Ruta duplicada: ${original.ruta} -> ${newPath} (id ${nuevoId})`);
+    return nuevoId;
+}
+
 module.exports = {
     UPLOADS_DIR,
     RESERVED_PREFIXES,
+    ERROR_TYPES,
+    WS_EVENT_TYPES,
     RouteValidationError,
     isReservedRoute,
     asJsonText,
@@ -328,5 +593,13 @@ module.exports = {
     getRoute,
     createRoute,
     updateRoute,
-    deleteRoute
+    deleteRoute,
+    saveFallbacks,
+    saveFallbackConditions,
+    saveGraphQLOperations,
+    saveGraphQLProxyUrl,
+    importGraphQLSchema,
+    saveWebSocketMessages,
+    reorderRoutes,
+    duplicateRoute
 };
