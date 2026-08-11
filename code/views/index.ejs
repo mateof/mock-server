@@ -49,7 +49,7 @@
       <!-- Filtros de tabla -->
       <div class="table-filters">
         <div class="filter-group">
-          <label class="filter-label" for="filterMethod"><%= __('filters.method') %></label>
+          <label class="filter-label" for="filterMethod"><%= __('filters.method') %><button type="button" class="btn-filter-clear-one" id="clear-filterMethod" style="display: none;" onclick="clearFilter('filterMethod')" title="<%= __('filters.clearOne') %>"><i class="fa fa-times"></i></button></label>
           <select id="filterMethod" name="filterMethod" class="filter-select" onchange="applyFilters()">
             <option value=""><%= __('filters.all') %></option>
             <option value="get">GET</option>
@@ -63,7 +63,7 @@
           </select>
         </div>
         <div class="filter-group filter-group-large">
-          <label class="filter-label" for="filterRouteValue"><%= __('filters.route') %></label>
+          <label class="filter-label" for="filterRouteValue"><%= __('filters.route') %><button type="button" class="btn-filter-clear-one" id="clear-filterRouteValue" style="display: none;" onclick="clearFilter('filterRouteValue')" title="<%= __('filters.clearOne') %>"><i class="fa fa-times"></i></button></label>
           <div class="filter-route-wrapper">
             <select id="filterRouteType" name="filterRouteType" class="filter-select filter-route-type" onchange="applyFilters()">
               <option value="contains"><%= __('filters.contains') %></option>
@@ -76,7 +76,7 @@
           </div>
         </div>
         <div class="filter-group">
-          <label class="filter-label" for="filterType"><%= __('filters.responseType') %></label>
+          <label class="filter-label" for="filterType"><%= __('filters.responseType') %><button type="button" class="btn-filter-clear-one" id="clear-filterType" style="display: none;" onclick="clearFilter('filterType')" title="<%= __('filters.clearOne') %>"><i class="fa fa-times"></i></button></label>
           <select id="filterType" name="filterType" class="filter-select" onchange="applyFilters()">
             <option value=""><%= __('filters.all') %></option>
             <option value="json">JSON</option>
@@ -92,7 +92,7 @@
           </select>
         </div>
         <div class="filter-group">
-          <label class="filter-label" for="filterCode"><%= __('filters.code') %></label>
+          <label class="filter-label" for="filterCode"><%= __('filters.code') %><button type="button" class="btn-filter-clear-one" id="clear-filterCode" style="display: none;" onclick="clearFilter('filterCode')" title="<%= __('filters.clearOne') %>"><i class="fa fa-times"></i></button></label>
           <select id="filterCode" name="filterCode" class="filter-select" onchange="applyFilters()">
             <option value=""><%= __('filters.all') %></option>
             <option value="2xx"><%= __('filters.success2xx') %></option>
@@ -102,7 +102,7 @@
           </select>
         </div>
         <div class="filter-group">
-          <label class="filter-label" for="filterRegex"><%= __('filters.regex') %></label>
+          <label class="filter-label" for="filterRegex"><%= __('filters.regex') %><button type="button" class="btn-filter-clear-one" id="clear-filterRegex" style="display: none;" onclick="clearFilter('filterRegex')" title="<%= __('filters.clearOne') %>"><i class="fa fa-times"></i></button></label>
           <select id="filterRegex" name="filterRegex" class="filter-select" onchange="applyFilters()">
             <option value=""><%= __('filters.all') %></option>
             <option value="1"><%= __('filters.yes') %></option>
@@ -110,7 +110,7 @@
           </select>
         </div>
         <div class="filter-group">
-          <label class="filter-label" for="filterWait"><%= __('filters.wait') %></label>
+          <label class="filter-label" for="filterWait"><%= __('filters.wait') %><button type="button" class="btn-filter-clear-one" id="clear-filterWait" style="display: none;" onclick="clearFilter('filterWait')" title="<%= __('filters.clearOne') %>"><i class="fa fa-times"></i></button></label>
           <select id="filterWait" name="filterWait" class="filter-select" onchange="applyFilters()">
             <option value=""><%= __('filters.all') %></option>
             <option value="1"><%= __('filters.yes') %></option>
@@ -118,7 +118,7 @@
           </select>
         </div>
         <div class="filter-group">
-          <label class="filter-label" for="filterActivo"><%= __('filters.active') %></label>
+          <label class="filter-label" for="filterActivo"><%= __('filters.active') %><button type="button" class="btn-filter-clear-one" id="clear-filterActivo" style="display: none;" onclick="clearFilter('filterActivo')" title="<%= __('filters.clearOne') %>"><i class="fa fa-times"></i></button></label>
           <select id="filterActivo" name="filterActivo" class="filter-select" onchange="applyFilters()">
             <option value=""><%= __('filters.all') %></option>
             <option value="1"><%= __('filters.yes') %></option>
@@ -126,7 +126,7 @@
           </select>
         </div>
         <div class="filter-group">
-          <label class="filter-label"><%= __('filters.tags') %></label>
+          <label class="filter-label"><%= __('filters.tags') %><button type="button" class="btn-filter-clear-one" id="clear-tags" style="display: none;" onclick="clearFilter('tags')" title="<%= __('filters.clearOne') %>"><i class="fa fa-times"></i></button></label>
           <div class="tags-filter-dropdown" id="tagsFilterDropdown">
             <button type="button" class="tags-filter-button" onclick="toggleTagsFilterDropdown()">
               <span id="tagsFilterLabel"><%= __('filters.all') %></span>
@@ -652,6 +652,11 @@
   });
 
   // ===== DATATABLE =====
+  // Estado del filtro de tags. Va antes de la tabla porque el render de cada
+  // fila lo consulta para marcar los tags activos.
+  let selectedFilterTags = [];
+  let allFilterTags = [];
+
   let tabla = $('#dtList').DataTable({
     ajax: {
       type: "GET",
@@ -721,7 +726,12 @@
             if (tags.length > 0) {
               html += `<div class="route-tags">`;
               tags.forEach(tag => {
-                html += `<span class="badge-tag badge-tag-sm" style="background: ${tag.color};">${escapeHtml(tag.name)}</span>`;
+                // Pulsar un tag lo añade al filtro; pulsarlo otra vez lo quita
+                const activo = selectedFilterTags.includes(tag.id);
+                html += `<span class="badge-tag badge-tag-sm badge-tag-clickable${activo ? ' badge-tag-active' : ''}"
+                               style="background: ${tag.color};"
+                               title="${activo ? t('filters.tagRemoveFromFilter') : t('filters.tagAddToFilter')}"
+                               onclick="event.stopPropagation(); toggleTagFilter('${tag.id}')">${escapeHtml(tag.name)}</span>`;
               });
               html += `</div>`;
             }
@@ -875,45 +885,66 @@
     updateActiveFiltersCount();
   }
 
+  // Filtros de la tabla y el valor que significa "sin filtrar" en cada uno
+  const FILTROS_TABLA = {
+    filterMethod: '',
+    filterRouteValue: '',
+    filterType: '',
+    filterCode: '',
+    filterRegex: '',
+    filterWait: '',
+    filterActivo: ''
+  };
+
   function clearFilters() {
-    document.getElementById('filterMethod').value = '';
+    Object.entries(FILTROS_TABLA).forEach(([id, vacio]) => {
+      document.getElementById(id).value = vacio;
+    });
     document.getElementById('filterRouteType').value = 'contains';
-    document.getElementById('filterRouteValue').value = '';
-    document.getElementById('filterType').value = '';
-    document.getElementById('filterCode').value = '';
-    document.getElementById('filterRegex').value = '';
-    document.getElementById('filterWait').value = '';
-    document.getElementById('filterActivo').value = '';
-    // Clear tags filter dropdown
     clearTagFilter();
+    applyFilters();
+  }
+
+  // Limpia un filtro suelto sin tocar los demás
+  function clearFilter(id) {
+    if (id === 'tags') {
+      clearTagFilter();
+    } else {
+      document.getElementById(id).value = FILTROS_TABLA[id];
+      // El tipo de comparación solo tiene sentido con un valor al lado
+      if (id === 'filterRouteValue') {
+        document.getElementById('filterRouteType').value = 'contains';
+      }
+    }
     applyFilters();
   }
 
   function updateActiveFiltersCount() {
     let count = 0;
-    if (document.getElementById('filterMethod').value) count++;
-    if (document.getElementById('filterRouteValue').value) count++;
-    if (document.getElementById('filterType').value) count++;
-    if (document.getElementById('filterCode').value) count++;
-    if (document.getElementById('filterRegex').value) count++;
-    if (document.getElementById('filterWait').value) count++;
-    if (document.getElementById('filterActivo').value) count++;
-    // Count selected tags from dropdown
-    if (getSelectedFilterTags().length > 0) count++;
+
+    // Cada filtro con valor enseña su propia aspa
+    Object.keys(FILTROS_TABLA).forEach(id => {
+      const activo = document.getElementById(id).value !== FILTROS_TABLA[id];
+      if (activo) count++;
+      const boton = document.getElementById(`clear-${id}`);
+      if (boton) boton.style.display = activo ? 'inline-flex' : 'none';
+    });
+
+    const conTags = getSelectedFilterTags().length > 0;
+    if (conTags) count++;
+    const botonTags = document.getElementById('clear-tags');
+    if (botonTags) botonTags.style.display = conTags ? 'inline-flex' : 'none';
 
     const btn = document.querySelector('.btn-filter-clear');
     if (count > 0) {
-      btn.innerHTML = `<i class="fa fa-times"></i> Limpiar (${count})`;
+      btn.innerHTML = `<i class="fa fa-times"></i> ${t('filters.clearAll')} (${count})`;
       btn.classList.add('has-filters');
     } else {
-      btn.innerHTML = `<i class="fa fa-times"></i> Limpiar`;
+      btn.innerHTML = `<i class="fa fa-times"></i> ${t('filters.clearAll')}`;
       btn.classList.remove('has-filters');
     }
   }
 
-  // Tags filter state
-  let selectedFilterTags = [];
-  let allFilterTags = [];
 
   // Initialize tag filter options
   async function initTagFilter() {
@@ -933,23 +964,68 @@
     }
   }
 
+  let tagFilterSearch = '';
+
   function renderTagFilterMenu() {
     const menu = document.getElementById('tagsFilterMenu');
     if (!menu) return;
 
     if (allFilterTags.length === 0) {
-      menu.innerHTML = '<div style="padding: 0.75rem; color: var(--text-muted); text-align: center;">No tags</div>';
+      menu.innerHTML = `<div class="tags-filter-empty">${t('filters.noTags')}</div>`;
       return;
     }
 
-    menu.innerHTML = allFilterTags.map(tag => `
-      <label class="tags-filter-option">
-        <input type="checkbox" value="${tag.id}"
-          ${selectedFilterTags.includes(tag.id) ? 'checked' : ''}
-          onchange="toggleTagFilter('${tag.id}')">
-        <span class="badge-tag badge-tag-sm" style="background: ${tag.color};">${escapeHtml(tag.name)}</span>
-      </label>
-    `).join('');
+    // Buscador: con muchos tags, ir a ojo por la lista no es viable
+    const buscados = tagFilterSearch
+      ? allFilterTags.filter(tag => tag.name.toLowerCase().includes(tagFilterSearch.toLowerCase()))
+      : allFilterTags;
+
+    // Los seleccionados suben arriba para no perderlos de vista al buscar
+    const ordenados = [...buscados].sort((a, b) => {
+      const sa = selectedFilterTags.includes(a.id) ? 0 : 1;
+      const sb = selectedFilterTags.includes(b.id) ? 0 : 1;
+      return sa - sb || a.name.localeCompare(b.name);
+    });
+
+    const opciones = ordenados.length === 0
+      ? `<div class="tags-filter-empty">${t('filters.noTagsFound')}</div>`
+      : ordenados.map(tag => `
+          <label class="tags-filter-option">
+            <input type="checkbox" value="${tag.id}"
+              ${selectedFilterTags.includes(tag.id) ? 'checked' : ''}
+              onchange="toggleTagFilter('${tag.id}')">
+            <span class="badge-tag badge-tag-sm" style="background: ${tag.color};">${escapeHtml(tag.name)}</span>
+          </label>
+        `).join('');
+
+    menu.innerHTML = `
+      <div class="tags-filter-search">
+        <i class="fa fa-search"></i>
+        <input type="text" id="tagsFilterSearchInput" placeholder="${t('filters.searchTags')}"
+               value="${escapeHtml(tagFilterSearch)}" oninput="onTagFilterSearch(this.value)"
+               onclick="event.stopPropagation()">
+        ${tagFilterSearch ? `<button type="button" class="tags-filter-search-clear" onclick="event.stopPropagation(); onTagFilterSearch('')" title="${t('filters.clearOne')}"><i class="fa fa-times"></i></button>` : ''}
+      </div>
+      ${selectedFilterTags.length > 0 ? `
+        <button type="button" class="tags-filter-clear-all" onclick="event.stopPropagation(); clearTagFilter(); applyFilters();">
+          <i class="fa fa-times"></i> ${t('filters.clearTags')}
+        </button>` : ''}
+      <div class="tags-filter-options">${opciones}</div>
+    `;
+
+    // Reponer el foco y el cursor: re-renderizar lo pierde y se corta al teclear
+    if (tagFilterSearch) {
+      const input = document.getElementById('tagsFilterSearchInput');
+      if (input) {
+        input.focus();
+        input.setSelectionRange(input.value.length, input.value.length);
+      }
+    }
+  }
+
+  function onTagFilterSearch(valor) {
+    tagFilterSearch = valor;
+    renderTagFilterMenu();
   }
 
   function toggleTagsFilterDropdown() {
@@ -957,6 +1033,8 @@
     menu.classList.toggle('show');
   }
 
+  // Se llama tanto desde el desplegable como al pulsar un tag en la tabla, y
+  // es acumulativo: cada pulsación añade o quita ese tag del filtro
   function toggleTagFilter(tagId) {
     const index = selectedFilterTags.indexOf(tagId);
     if (index >= 0) {
@@ -964,6 +1042,7 @@
     } else {
       selectedFilterTags.push(tagId);
     }
+    renderTagFilterMenu();
     updateTagFilterLabel();
     applyFilters();
   }
@@ -974,9 +1053,17 @@
 
     if (selectedFilterTags.length === 0) {
       label.innerHTML = '<%= __("filters.all") %>';
-    } else {
-      label.innerHTML = `${selectedFilterTags.length} <span class="selected-count">${selectedFilterTags.length}</span>`;
+      return;
     }
+
+    // Con pocos tags se enseñan sus nombres, que es más útil que un número
+    const nombres = selectedFilterTags
+      .map(id => (allFilterTags.find(tag => tag.id === id) || {}).name)
+      .filter(Boolean);
+
+    label.innerHTML = nombres.length <= 2
+      ? escapeHtml(nombres.join(', '))
+      : `${escapeHtml(nombres[0])} <span class="selected-count">+${nombres.length - 1}</span>`;
   }
 
   function getSelectedFilterTags() {

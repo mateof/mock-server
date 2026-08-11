@@ -1246,6 +1246,117 @@ body {
   white-space: pre;
 }
 
+/* ===== FILTROS: LIMPIAR UNO A UNO Y BUSCADOR DE TAGS ===== */
+.filter-label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.btn-filter-clear-one {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--bg-card-hover);
+  color: var(--text-secondary);
+  font-size: 0.6rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.btn-filter-clear-one:hover {
+  background: var(--danger);
+  color: #fff;
+}
+
+.tags-filter-search {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.65rem;
+  border-bottom: 1px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  background: var(--bg-card);
+  z-index: 1;
+}
+
+.tags-filter-search i {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.tags-filter-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  outline: none;
+}
+
+.tags-filter-search-clear {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+}
+
+.tags-filter-search-clear:hover {
+  color: var(--danger);
+}
+
+.tags-filter-clear-all {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  text-align: left;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.tags-filter-clear-all:hover {
+  color: var(--danger);
+  background: var(--bg-card-hover);
+}
+
+.tags-filter-options {
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.tags-filter-empty {
+  padding: 0.75rem;
+  color: var(--text-muted);
+  text-align: center;
+  font-size: 0.85rem;
+}
+
+/* Tags de la tabla: pulsarlos filtra */
+.badge-tag-clickable {
+  cursor: pointer;
+  transition: transform 0.12s, box-shadow 0.12s, opacity 0.12s;
+}
+
+.badge-tag-clickable:hover {
+  transform: translateY(-1px);
+  opacity: 0.85;
+}
+
+.badge-tag-active {
+  box-shadow: 0 0 0 2px var(--text-primary);
+}
+
 /* ===== CONEXIONES MCP ===== */
 .mcp-command {
   background: var(--surface-secondary);

@@ -58,7 +58,15 @@
     "serverError5xx": "5xx (Error servidor)",
     "yes": "Si",
     "no": "No",
-    "tags": "Tags"
+    "tags": "Tags",
+    "clearOne": "Limpiar este filtro",
+    "clearAll": "Limpiar",
+    "clearTags": "Quitar los tags seleccionados",
+    "searchTags": "Buscar tag...",
+    "noTags": "No hay tags",
+    "noTagsFound": "Ningún tag coincide",
+    "tagAddToFilter": "Filtrar por este tag",
+    "tagRemoveFromFilter": "Quitar este tag del filtro"
   },
   "form": {
     "responseType": "Tipo de Respuesta",
