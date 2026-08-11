@@ -66,7 +66,12 @@
     "noTags": "No tags",
     "noTagsFound": "No tag matches",
     "tagAddToFilter": "Filter by this tag",
-    "tagRemoveFromFilter": "Remove this tag from the filter"
+    "tagRemoveFromFilter": "Remove this tag from the filter",
+    "tagMode": "Match",
+    "tagModeAny": "Any",
+    "tagModeAll": "All",
+    "tagModeAnyHelp": "The route has any of the selected tags",
+    "tagModeAllHelp": "The route has all the selected tags"
   },
   "form": {
     "responseType": "Response Type",
@@ -662,6 +667,9 @@
     "avgDuration": "Average",
     "maxDuration": "Max",
     "stored": "Stored",
-    "confirmClear": "Clear the entries matching the current filters?"
+    "confirmClear": "Clear the entries matching the current filters?",
+    "customRange": "Custom",
+    "from": "From",
+    "to": "To"
   }
 }

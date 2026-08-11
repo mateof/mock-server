@@ -1457,6 +1457,48 @@ body {
   color: #fff;
 }
 
+.tags-filter-mode {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0.65rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.tags-filter-mode-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.tags-filter-mode-options {
+  display: flex;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-xs);
+  overflow: hidden;
+}
+
+.tags-filter-mode-options button {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 0.2rem 0.6rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.tags-filter-mode-options button:hover {
+  background: var(--bg-card-hover);
+}
+
+.tags-filter-mode-options button.is-active {
+  background: var(--primary);
+  color: #fff;
+}
+
 .tags-filter-search {
   display: flex;
   align-items: center;

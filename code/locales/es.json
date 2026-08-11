@@ -66,7 +66,12 @@
     "noTags": "No hay tags",
     "noTagsFound": "Ningún tag coincide",
     "tagAddToFilter": "Filtrar por este tag",
-    "tagRemoveFromFilter": "Quitar este tag del filtro"
+    "tagRemoveFromFilter": "Quitar este tag del filtro",
+    "tagMode": "Coincidencia",
+    "tagModeAny": "Cualquiera",
+    "tagModeAll": "Todos",
+    "tagModeAnyHelp": "La ruta lleva alguno de los tags seleccionados",
+    "tagModeAllHelp": "La ruta lleva todos los tags seleccionados"
   },
   "form": {
     "responseType": "Tipo de Respuesta",
@@ -662,6 +667,9 @@
     "avgDuration": "Media",
     "maxDuration": "Máximo",
     "stored": "Guardadas",
-    "confirmClear": "¿Vaciar las entradas que coinciden con los filtros actuales?"
+    "confirmClear": "¿Vaciar las entradas que coinciden con los filtros actuales?",
+    "customRange": "A medida",
+    "from": "Desde",
+    "to": "Hasta"
   }
 }
