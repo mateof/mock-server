@@ -13,6 +13,11 @@ router.post('/', function(req, res, next) {
   res.render('index', { title: 'Mock Server', listaEspera: semaphore.getList(), version });
 });
 
+/* Pantalla de logs */
+router.get('/logs', function(req, res, next) {
+  res.render('logs', { title: 'Mock Server - Logs', version });
+});
+
 /* Cambio de idioma */
 router.get('/lang/:locale', function(req, res) {
   const locale = req.params.locale;

@@ -1246,6 +1246,189 @@ body {
   white-space: pre;
 }
 
+/* ===== PANTALLA DE LOGS ===== */
+.logs-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.logs-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.6rem 1rem;
+  min-width: 110px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  background: var(--bg-card);
+}
+
+.logs-stat-value {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.logs-stat-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.logs-stat.is-error .logs-stat-value { color: var(--danger); }
+.logs-stat.is-warning .logs-stat-value { color: var(--warning); }
+
+.logs-histogram-wrapper {
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  background: var(--bg-card);
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.logs-histogram {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 110px;
+}
+
+.logs-bar {
+  flex: 1;
+  display: flex;
+  flex-direction: column-reverse;
+  min-height: 0;
+  border-radius: 2px 2px 0 0;
+  overflow: hidden;
+  background: transparent;
+  transition: opacity 0.15s;
+}
+
+.logs-bar:hover { opacity: 0.75; }
+
+.logs-bar-part.is-error { background: var(--danger); }
+.logs-bar-part.is-warning { background: var(--warning); }
+.logs-bar-part.is-success { background: var(--success); }
+.logs-bar-part.is-info { background: var(--primary); }
+
+.logs-histogram-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.4rem;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.logs-table-wrapper {
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  overflow: hidden;
+}
+
+.logs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.logs-table thead th {
+  background: var(--bg-dark);
+  color: var(--text-secondary);
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.logs-row td {
+  padding: 0.4rem 0.75rem;
+  border-top: 1px solid var(--border-color);
+  color: var(--text-primary);
+  vertical-align: middle;
+}
+
+.logs-row:hover td { background: var(--bg-card-hover); }
+
+/* Una franja de color a la izquierda para localizar los fallos de un vistazo */
+.logs-row-error td:first-child { box-shadow: inset 3px 0 0 var(--danger); }
+.logs-row-warning td:first-child { box-shadow: inset 3px 0 0 var(--warning); }
+.logs-row-success td:first-child { box-shadow: inset 3px 0 0 var(--success); }
+
+.logs-time {
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.logs-url {
+  font-family: 'JetBrains Mono', monospace;
+  max-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.logs-level {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: var(--border-radius-xs);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.logs-level-error { background: var(--danger-light); color: var(--danger); }
+.logs-level-warning { background: var(--warning-light); color: var(--warning); }
+.logs-level-success { background: var(--success-light); color: var(--success); }
+.logs-level-info { background: var(--primary-light); color: var(--primary); }
+
+.logs-status {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+}
+
+.logs-status-2xx { color: var(--success); }
+.logs-status-3xx { color: var(--primary); }
+.logs-status-4xx { color: var(--warning); }
+.logs-status-5xx { color: var(--danger); }
+
+.logs-detail-row td { padding: 0; border-top: none; }
+
+.logs-detail {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  background: var(--bg-dark);
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.logs-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.75rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+#logsLiveBtn.is-live {
+  border-color: var(--success);
+  color: var(--success);
+}
+
 /* ===== FILTROS: LIMPIAR UNO A UNO Y BUSCADOR DE TAGS ===== */
 .filter-label {
   display: flex;

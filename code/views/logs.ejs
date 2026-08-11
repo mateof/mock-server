@@ -1,0 +1,383 @@
+<div class="main-container">
+  <div class="card-modern animate-fade-in">
+    <div class="card-header-modern">
+      <h2><i class="fa fa-stream"></i> <%= __('logs.title') %></h2>
+      <div class="d-flex gap-2">
+        <button type="button" class="btn-modern btn-modern-secondary" id="logsLiveBtn" onclick="LogsView.toggleLive()">
+          <i class="fa fa-play"></i> <span id="logsLiveLabel"><%= __('logs.live') %></span>
+        </button>
+        <button type="button" class="btn-modern btn-modern-secondary" onclick="LogsView.refresh()">
+          <i class="fa fa-refresh"></i> <%= __('logs.refresh') %>
+        </button>
+        <button type="button" class="btn-modern btn-modern-danger" onclick="LogsView.clear()">
+          <i class="fa fa-trash"></i> <%= __('logs.clear') %>
+        </button>
+        <a class="btn-modern btn-modern-primary" href="/">
+          <i class="fa fa-sitemap"></i> <%= __('logs.backToRoutes') %>
+        </a>
+      </div>
+    </div>
+
+    <div class="card-body-modern">
+      <!-- Filtros -->
+      <div class="table-filters">
+        <div class="filter-group">
+          <label class="filter-label" for="logRange"><%= __('logs.range') %></label>
+          <select id="logRange" class="filter-select" onchange="LogsView.apply()">
+            <option value="15"><%= __('logs.last15m') %></option>
+            <option value="60" selected><%= __('logs.last1h') %></option>
+            <option value="360"><%= __('logs.last6h') %></option>
+            <option value="1440"><%= __('logs.last24h') %></option>
+            <option value="10080"><%= __('logs.last7d') %></option>
+            <option value=""><%= __('logs.allTime') %></option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label class="filter-label" for="logLevel"><%= __('logs.level') %>
+            <button type="button" class="btn-filter-clear-one" id="clear-logLevel" style="display: none;"
+                    onclick="LogsView.clearOne('logLevel')" title="<%= __('filters.clearOne') %>"><i class="fa fa-times"></i></button>
+          </label>
+          <select id="logLevel" class="filter-select" onchange="LogsView.apply()">
+            <option value=""><%= __('filters.all') %></option>
+            <option value="error"><%= __('logs.levelError') %></option>
+            <option value="warning"><%= __('logs.levelWarning') %></option>
+            <option value="success"><%= __('logs.levelSuccess') %></option>
+            <option value="info"><%= __('logs.levelInfo') %></option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label class="filter-label" for="logType"><%= __('logs.type') %>
+            <button type="button" class="btn-filter-clear-one" id="clear-logType" style="display: none;"
+                    onclick="LogsView.clearOne('logType')" title="<%= __('filters.clearOne') %>"><i class="fa fa-times"></i></button>
+          </label>
+          <select id="logType" class="filter-select" onchange="LogsView.apply()">
+            <option value=""><%= __('filters.all') %></option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label class="filter-label" for="logMethod"><%= __('logs.method') %>
+            <button type="button" class="btn-filter-clear-one" id="clear-logMethod" style="display: none;"
+                    onclick="LogsView.clearOne('logMethod')" title="<%= __('filters.clearOne') %>"><i class="fa fa-times"></i></button>
+          </label>
+          <select id="logMethod" class="filter-select" onchange="LogsView.apply()">
+            <option value=""><%= __('filters.all') %></option>
+            <option value="GET">GET</option>
+            <option value="POST">POST</option>
+            <option value="PUT">PUT</option>
+            <option value="DELETE">DELETE</option>
+            <option value="PATCH">PATCH</option>
+            <option value="OPTIONS">OPTIONS</option>
+            <option value="HEAD">HEAD</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label class="filter-label" for="logStatus"><%= __('logs.status') %>
+            <button type="button" class="btn-filter-clear-one" id="clear-logStatus" style="display: none;"
+                    onclick="LogsView.clearOne('logStatus')" title="<%= __('filters.clearOne') %>"><i class="fa fa-times"></i></button>
+          </label>
+          <input type="text" id="logStatus" class="filter-input" placeholder="<%= __('logs.statusPlaceholder') %>"
+                 oninput="LogsView.applyDebounced()" style="width: 110px;">
+        </div>
+
+        <div class="filter-group filter-group-large">
+          <label class="filter-label" for="logSearch"><%= __('logs.search') %>
+            <button type="button" class="btn-filter-clear-one" id="clear-logSearch" style="display: none;"
+                    onclick="LogsView.clearOne('logSearch')" title="<%= __('filters.clearOne') %>"><i class="fa fa-times"></i></button>
+          </label>
+          <input type="text" id="logSearch" class="filter-input" placeholder="<%= __('logs.searchPlaceholder') %>"
+                 oninput="LogsView.applyDebounced()">
+        </div>
+
+        <div class="filter-group">
+          <label class="filter-label" for="logMinDuration"><%= __('logs.minDuration') %>
+            <button type="button" class="btn-filter-clear-one" id="clear-logMinDuration" style="display: none;"
+                    onclick="LogsView.clearOne('logMinDuration')" title="<%= __('filters.clearOne') %>"><i class="fa fa-times"></i></button>
+          </label>
+          <input type="number" id="logMinDuration" class="filter-input" placeholder="ms"
+                 oninput="LogsView.applyDebounced()" style="width: 90px;" min="0">
+        </div>
+
+        <div class="filter-group filter-actions">
+          <button class="btn-filter-clear" onclick="LogsView.clearAll()">
+            <i class="fa fa-times"></i> <%= __('filters.clearAll') %>
+          </button>
+        </div>
+      </div>
+
+      <!-- Resumen -->
+      <div class="logs-summary" id="logsSummary"></div>
+
+      <!-- Histograma -->
+      <div class="logs-histogram-wrapper">
+        <div class="logs-histogram" id="logsHistogram"></div>
+        <div class="logs-histogram-axis" id="logsHistogramAxis"></div>
+      </div>
+
+      <!-- Entradas -->
+      <div class="logs-table-wrapper">
+        <table class="logs-table">
+          <thead>
+            <tr>
+              <th style="width: 130px;"><%= __('logs.time') %></th>
+              <th style="width: 70px;"><%= __('logs.level') %></th>
+              <th style="width: 70px;"><%= __('logs.method') %></th>
+              <th><%= __('logs.url') %></th>
+              <th style="width: 70px;"><%= __('logs.status') %></th>
+              <th style="width: 80px;"><%= __('logs.duration') %></th>
+              <th style="width: 40px;"></th>
+            </tr>
+          </thead>
+          <tbody id="logsBody"></tbody>
+        </table>
+        <div id="logsEmpty" class="empty-state" style="display: none;">
+          <i class="fa fa-inbox"></i>
+          <p><%= __('logs.empty') %></p>
+        </div>
+      </div>
+
+      <div class="logs-footer">
+        <span id="logsCount"></span>
+        <button type="button" class="btn-modern btn-modern-secondary" id="logsMoreBtn" onclick="LogsView.more()" style="display: none;">
+          <%= __('logs.loadMore') %>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const LogsView = {
+    offset: 0,
+    limit: 100,
+    total: 0,
+    live: false,
+    timer: null,
+    debounce: null,
+    entradas: [],
+    expandidas: new Set(),
+
+    // Los filtros de la pantalla y su valor "sin filtrar"
+    FILTROS: { logLevel: '', logType: '', logMethod: '', logStatus: '', logSearch: '', logMinDuration: '' },
+
+    valor(id) {
+      const el = document.getElementById(id);
+      return el ? el.value.trim() : '';
+    },
+
+    parametros() {
+      const p = new URLSearchParams();
+      const minutos = this.valor('logRange');
+      if (minutos) p.set('from', String(Date.now() - Number(minutos) * 60000));
+      if (this.valor('logLevel')) p.set('level', this.valor('logLevel'));
+      if (this.valor('logType')) p.set('type', this.valor('logType'));
+      if (this.valor('logMethod')) p.set('method', this.valor('logMethod'));
+      if (this.valor('logStatus')) p.set('status', this.valor('logStatus'));
+      if (this.valor('logSearch')) p.set('search', this.valor('logSearch'));
+      if (this.valor('logMinDuration')) p.set('minDuration', this.valor('logMinDuration'));
+      return p;
+    },
+
+    async apply() {
+      this.offset = 0;
+      this.entradas = [];
+      await this.cargar();
+    },
+
+    // Escribir en un campo de texto no debe disparar una consulta por tecla
+    applyDebounced() {
+      clearTimeout(this.debounce);
+      this.debounce = setTimeout(() => this.apply(), 350);
+    },
+
+    async refresh() { await this.apply(); },
+
+    async more() {
+      this.offset += this.limit;
+      await this.cargar({ anexar: true });
+    },
+
+    async cargar({ anexar = false } = {}) {
+      const p = this.parametros();
+      p.set('limit', String(this.limit));
+      p.set('offset', String(this.offset));
+
+      try {
+        const [datos, stats] = await Promise.all([
+          fetch(`/api/logs?${p}`).then(r => r.json()),
+          anexar ? Promise.resolve(null) : fetch(`/api/logs/stats?${this.parametros()}`).then(r => r.json())
+        ]);
+
+        this.entradas = anexar ? this.entradas.concat(datos.entries) : datos.entries;
+        this.pintarTabla(datos);
+        if (stats) {
+          this.pintarResumen(stats);
+          this.pintarHistograma(stats);
+          this.rellenarTipos(stats);
+        }
+        this.actualizarAspas();
+      } catch (e) {
+        console.error('[logs]', e);
+      }
+    },
+
+    rellenarTipos(stats) {
+      const select = document.getElementById('logType');
+      const actual = select.value;
+      const tipos = Object.keys(stats.by_type || {}).sort();
+      // Se conserva el tipo elegido aunque el filtro actual lo deje sin entradas
+      if (actual && !tipos.includes(actual)) tipos.push(actual);
+      select.innerHTML = `<option value="">${t('filters.all')}</option>` +
+        tipos.map(tipo => `<option value="${tipo}" ${tipo === actual ? 'selected' : ''}>${tipo}</option>`).join('');
+    },
+
+    pintarResumen(stats) {
+      const nivel = stats.by_level || {};
+      const dur = stats.duration || {};
+      const tarjeta = (etiqueta, valor, clase) =>
+        `<div class="logs-stat ${clase || ''}"><span class="logs-stat-value">${valor}</span><span class="logs-stat-label">${etiqueta}</span></div>`;
+
+      document.getElementById('logsSummary').innerHTML =
+        tarjeta(t('logs.total'), stats.total || 0) +
+        tarjeta(t('logs.levelError'), nivel.error || 0, 'is-error') +
+        tarjeta(t('logs.levelWarning'), nivel.warning || 0, 'is-warning') +
+        tarjeta(t('logs.avgDuration'), dur.avg ? Math.round(dur.avg) + ' ms' : '-') +
+        tarjeta(t('logs.maxDuration'), dur.max ? dur.max + ' ms' : '-') +
+        (stats.storage ? tarjeta(t('logs.stored'), `${stats.storage.written}/${stats.storage.max_rows}`) : '');
+    },
+
+    pintarHistograma(stats) {
+      const cont = document.getElementById('logsHistogram');
+      const eje = document.getElementById('logsHistogramAxis');
+      const barras = stats.histogram || [];
+
+      if (barras.length === 0 || !stats.total) {
+        cont.innerHTML = '';
+        eje.innerHTML = '';
+        return;
+      }
+
+      const maximo = Math.max(...barras.map(b => b.total)) || 1;
+      cont.innerHTML = barras.map(b => {
+        const alto = Math.round((b.total / maximo) * 100);
+        const trozo = (n, clase) => n > 0
+          ? `<div class="logs-bar-part ${clase}" style="flex: ${n};"></div>` : '';
+        const titulo = `${new Date(b.from).toLocaleTimeString()} · ${b.total}`;
+        return `<div class="logs-bar" style="height: ${Math.max(alto, b.total > 0 ? 4 : 0)}%;" title="${titulo}">
+                  ${trozo(b.error, 'is-error')}${trozo(b.warning, 'is-warning')}${trozo(b.success, 'is-success')}${trozo(b.info, 'is-info')}
+                </div>`;
+      }).join('');
+
+      const desde = new Date(barras[0].from);
+      const hasta = new Date(barras[barras.length - 1].to);
+      eje.innerHTML = `<span>${desde.toLocaleString()}</span><span>${hasta.toLocaleTimeString()}</span>`;
+    },
+
+    pintarTabla(datos) {
+      // Se guarda para repintar sin volver a consultar (al abrir un detalle)
+      if (datos && datos.total !== undefined) this.total = datos.total;
+
+      const cuerpo = document.getElementById('logsBody');
+      const vacio = document.getElementById('logsEmpty');
+
+      if (this.entradas.length === 0) {
+        cuerpo.innerHTML = '';
+        vacio.style.display = 'block';
+      } else {
+        vacio.style.display = 'none';
+        cuerpo.innerHTML = this.entradas.map(e => this.fila(e)).join('');
+      }
+
+      document.getElementById('logsCount').textContent =
+        t('logs.showing').replace('{{shown}}', this.entradas.length).replace('{{total}}', this.total);
+      document.getElementById('logsMoreBtn').style.display =
+        this.entradas.length < this.total ? 'inline-flex' : 'none';
+    },
+
+    fila(e) {
+      const hora = new Date(e.ts_ms).toLocaleTimeString(undefined, { hour12: false }) +
+        '.' + String(e.ts_ms % 1000).padStart(3, '0');
+      const detalle = e.details
+        ? `<button class="btn-icon" onclick="LogsView.toggleDetalle(${e.id})" title="${t('logs.details')}"><i class="fa fa-chevron-down"></i></button>`
+        : '';
+      const abierta = this.expandidas.has(e.id);
+
+      return `
+        <tr class="logs-row logs-row-${e.level}">
+          <td class="logs-time">${hora}</td>
+          <td><span class="logs-level logs-level-${e.level}">${e.level}</span></td>
+          <td>${e.method ? `<span class="badge-method">${e.method}</span>` : ''}</td>
+          <td class="logs-url" title="${this.esc(e.message || '')}">${this.esc(e.url || e.message || '')}</td>
+          <td>${e.status !== null && e.status !== undefined ? `<span class="logs-status logs-status-${String(e.status)[0]}xx">${e.status}</span>` : ''}</td>
+          <td>${e.duration !== null && e.duration !== undefined ? e.duration + ' ms' : ''}</td>
+          <td>${detalle}</td>
+        </tr>
+        ${abierta ? `<tr class="logs-detail-row"><td colspan="7"><pre class="logs-detail">${this.esc(JSON.stringify(e.details, null, 2))}</pre></td></tr>` : ''}
+      `;
+    },
+
+    toggleDetalle(id) {
+      if (this.expandidas.has(id)) this.expandidas.delete(id);
+      else this.expandidas.add(id);
+      // Repinta con el total ya conocido, sin volver a consultar
+      this.pintarTabla();
+    },
+
+    toggleLive() {
+      this.live = !this.live;
+      const btn = document.getElementById('logsLiveBtn');
+      const etiqueta = document.getElementById('logsLiveLabel');
+
+      if (this.live) {
+        btn.classList.add('is-live');
+        etiqueta.textContent = t('logs.livePause');
+        btn.querySelector('i').className = 'fa fa-pause';
+        this.timer = setInterval(() => this.apply(), 3000);
+      } else {
+        btn.classList.remove('is-live');
+        etiqueta.textContent = t('logs.live');
+        btn.querySelector('i').className = 'fa fa-play';
+        clearInterval(this.timer);
+      }
+    },
+
+    clearOne(id) {
+      document.getElementById(id).value = this.FILTROS[id];
+      this.apply();
+    },
+
+    clearAll() {
+      Object.entries(this.FILTROS).forEach(([id, vacio]) => {
+        document.getElementById(id).value = vacio;
+      });
+      this.apply();
+    },
+
+    actualizarAspas() {
+      Object.keys(this.FILTROS).forEach(id => {
+        const activo = this.valor(id) !== this.FILTROS[id];
+        const boton = document.getElementById(`clear-${id}`);
+        if (boton) boton.style.display = activo ? 'inline-flex' : 'none';
+      });
+    },
+
+    async clear() {
+      if (!confirm(t('logs.confirmClear'))) return;
+      // Borra solo lo que se está viendo, que es menos sorprendente que
+      // vaciarlo todo cuando hay filtros puestos
+      await fetch(`/api/logs?${this.parametros()}`, { method: 'DELETE' });
+      await this.apply();
+    },
+
+    esc(texto) {
+      return String(texto === null || texto === undefined ? '' : texto)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+  };
+
+  document.addEventListener('DOMContentLoaded', () => LogsView.apply());
+</script>

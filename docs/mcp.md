@@ -38,6 +38,8 @@ The server is stateless on purpose. A tool-only server needs nothing between cal
 | `list_routes` | Routes in priority order, filterable by method, response type, state and free text |
 | `get_route` | Full detail of one route, including conditions, fallbacks and transforms |
 | `list_tags` | Tags available to classify routes |
+| `query_logs` | The recorded traffic: what arrived, what was answered, how long it took |
+| `log_stats` | Totals by level, type and status, durations and a histogram |
 
 ### Writing
 

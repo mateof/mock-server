@@ -25,6 +25,7 @@ const sqliteService = require('./sqlite.service');
 const routesService = require('./routes.service');
 const criteriaService = require('./criteria-evaluator.service');
 const scriptRunner = require('./script-runner.service');
+const logService = require('./log.service');
 const { log } = require('./socket.service');
 const { version } = require('../package.json');
 
@@ -693,6 +694,88 @@ function buildServer() {
         } catch (e) {
             return ok({ valid: false, error: e.message });
         }
+    }));
+
+    // Filtros del log, compartidos por las dos herramientas para que el resumen
+    // y el detalle no puedan contar cosas distintas
+    const logFilters = {
+        from: z.number().optional().describe('Start of the range, epoch milliseconds'),
+        to: z.number().optional().describe('End of the range, epoch milliseconds'),
+        minutes: z.number().optional().describe('Shortcut: only the last N minutes. Ignored if from is given'),
+        level: z.array(z.enum(['info', 'success', 'warning', 'error'])).optional(),
+        type: z.array(z.string()).optional().describe('Entry type: mock, proxy, proxy-detailed, error, wait...'),
+        method: z.string().optional(),
+        status: z.string().optional().describe("Exact code ('404') or family ('4xx')"),
+        url: z.string().optional().describe('Substring of the requested URL'),
+        search: z.string().optional().describe('Free text over message, URL and details'),
+        min_duration: z.number().optional().describe('Only entries slower than this, in ms')
+    };
+
+    const toLogFilters = (args) => ({
+        from: args.minutes && !args.from ? Date.now() - args.minutes * 60000 : args.from,
+        to: args.to,
+        level: args.level,
+        type: args.type,
+        method: args.method,
+        status: args.status,
+        url: args.url,
+        search: args.search,
+        minDuration: args.min_duration
+    });
+
+    server.registerTool('query_logs', {
+        title: 'Query the log',
+        description: 'Reads the recorded traffic: which requests arrived, what was answered, how long it took and, for proxied requests, the full headers and bodies. This is how you find out what actually happened instead of guessing.',
+        inputSchema: {
+            ...logFilters,
+            limit: z.number().optional().describe('Entries to return, 100 by default, 1000 max'),
+            offset: z.number().optional(),
+            include_details: z.boolean().optional().describe('Include headers and bodies. Off by default because they are big')
+        }
+    }, async (args) => run('query_logs', async () => {
+        const resultado = await logService.query({
+            ...toLogFilters(args),
+            limit: args.limit,
+            offset: args.offset
+        });
+
+        return ok({
+            total: resultado.total,
+            returned: resultado.count,
+            entries: resultado.entries.map(e => {
+                const vista = {
+                    id: e.id,
+                    at: e.ts,
+                    level: e.level,
+                    type: e.type,
+                    message: e.message
+                };
+                if (e.method) vista.method = e.method;
+                if (e.url) vista.url = e.url;
+                if (e.status !== null) vista.status = e.status;
+                if (e.duration !== null) vista.duration_ms = e.duration;
+                if (e.target) vista.target = e.target;
+                if (args.include_details && e.details) vista.details = e.details;
+                return vista;
+            })
+        });
+    }));
+
+    server.registerTool('log_stats', {
+        title: 'Log summary',
+        description: 'Totals by level, by type and by status code, average and worst duration, and a histogram over time. Use it to spot what is failing before pulling the individual entries.',
+        inputSchema: logFilters
+    }, async (args) => run('log_stats', async () => {
+        const resumen = await logService.stats(toLogFilters(args));
+        return ok({
+            total: resumen.total,
+            range: resumen.range,
+            by_level: resumen.by_level,
+            by_type: resumen.by_type,
+            top_status: resumen.top_status,
+            duration: resumen.duration,
+            storage: logService.estado()
+        });
     }));
 
     server.registerTool('list_tags', {

@@ -11,6 +11,7 @@ const criteriaService = require('../services/criteria-evaluator.service');
 const graphqlService = require('../services/graphql.service');
 const scriptRunner = require('../services/script-runner.service');
 const routesService = require('../services/routes.service');
+const logService = require('../services/log.service');
 
 // Configuración de multer para subida de archivos
 const UPLOADS_DIR = path.join(__dirname, '..', 'data', 'uploads');
@@ -288,6 +289,70 @@ router.post('/validateScript', function(req, res) {
         });
 
     res.json({ valid: true, testResult: outcome });
+});
+
+// ===== LOG =====
+
+/* Consultar el log con filtros */
+router.get('/logs', async function(req, res) {
+    try {
+        const resultado = await logService.query({
+            from: req.query.from,
+            to: req.query.to,
+            type: req.query.type ? String(req.query.type).split(',') : null,
+            level: req.query.level ? String(req.query.level).split(',') : null,
+            method: req.query.method,
+            status: req.query.status,
+            url: req.query.url,
+            search: req.query.search,
+            routeId: req.query.routeId,
+            minDuration: req.query.minDuration,
+            limit: req.query.limit,
+            offset: req.query.offset
+        });
+        res.json(resultado);
+    } catch (err) {
+        console.error(`[API] Error consultando el log: ${err.message}`);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/* Resumen y histograma, con los mismos filtros que la consulta */
+router.get('/logs/stats', async function(req, res) {
+    try {
+        const resumen = await logService.stats({
+            from: req.query.from,
+            to: req.query.to,
+            type: req.query.type ? String(req.query.type).split(',') : null,
+            level: req.query.level ? String(req.query.level).split(',') : null,
+            method: req.query.method,
+            status: req.query.status,
+            url: req.query.url,
+            search: req.query.search,
+            routeId: req.query.routeId,
+            minDuration: req.query.minDuration
+        });
+        res.json({ ...resumen, storage: logService.estado() });
+    } catch (err) {
+        console.error(`[API] Error calculando estadísticas del log: ${err.message}`);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/* Vaciar el log, entero o solo lo que casa con los filtros */
+router.delete('/logs', async function(req, res) {
+    try {
+        const eliminados = await logService.clear({
+            from: req.query.from,
+            to: req.query.to,
+            level: req.query.level ? String(req.query.level).split(',') : null,
+            type: req.query.type ? String(req.query.type).split(',') : null
+        });
+        res.json({ success: true, deleted: eliminados });
+    } catch (err) {
+        console.error(`[API] Error vaciando el log: ${err.message}`);
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // ===== CONEXIONES MCP =====

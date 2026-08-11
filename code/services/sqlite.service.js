@@ -403,6 +403,35 @@ async function createTables(newdb) {
     };
     await addGqlColumn(newdb, 'useProxy', 'INTEGER DEFAULT 0');
 
+    // Log persistente. Los índices están pensados para las consultas de la
+    // pantalla: rango temporal siempre, y filtros por tipo, nivel y código.
+    await new Promise((resolve) => {
+        newdb.exec(`
+            CREATE TABLE IF NOT EXISTS logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ts TEXT NOT NULL,
+                ts_ms INTEGER NOT NULL,
+                type TEXT NOT NULL,
+                level TEXT NOT NULL,
+                method TEXT,
+                url TEXT,
+                status INTEGER,
+                duration INTEGER,
+                route_id INTEGER,
+                target TEXT,
+                message TEXT,
+                details TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_logs_ts ON logs(ts_ms DESC);
+            CREATE INDEX IF NOT EXISTS idx_logs_type ON logs(type);
+            CREATE INDEX IF NOT EXISTS idx_logs_level ON logs(level);
+            CREATE INDEX IF NOT EXISTS idx_logs_status ON logs(status);
+        `, (err) => {
+            if (!err) console.log('[DB] Tabla logs verificada');
+            resolve();
+        });
+    });
+
     // Tokens de conexión MCP.
     // El token se guarda en claro a propósito: el panel no tiene autenticación,
     // así que quien puede leer la tabla ya puede crear tokens nuevos, y en
