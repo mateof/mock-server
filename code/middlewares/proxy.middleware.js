@@ -612,16 +612,24 @@ async function configureProxy(app) {
                 }
             });
 
-            // Transmitir el body de la petición
-            if (req.body && Object.keys(req.body).length > 0) {
-                const bodyData = JSON.stringify(req.body);
-                console.log(`[PROXY] Enviando body: ${bodyData.substring(0, 200)}${bodyData.length > 200 ? '...' : ''}`);
-                proxyReq.setHeader('Content-Type', req.headers['content-type'] || 'application/json');
-                proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
-                proxyReq.write(bodyData);
+            // Transmitir el body de la petición.
+            // Si un parser de body consumió el stream dejó el original en
+            // req.rawBody (ver app.js): se reenvía tal cual, sin reserializar,
+            // para no convertir un formulario o un XML en JSON por el camino.
+            if (req.rawBody) {
+                if (req.rawBody.length > 0) {
+                    console.log(`[PROXY] Enviando body original (${req.rawBody.length} bytes, ${req.headers['content-type'] || 'sin content-type'})`);
+                    proxyReq.setHeader('Content-Length', req.rawBody.length);
+                    if (req.headers['content-type']) {
+                        proxyReq.setHeader('Content-Type', req.headers['content-type']);
+                    }
+                    proxyReq.write(req.rawBody);
+                } else {
+                    console.log(`[PROXY] Body vacío, cerrando petición`);
+                }
                 proxyReq.end();
             } else {
-                console.log(`[PROXY] Sin body, haciendo pipe del request`);
+                console.log(`[PROXY] Body sin parsear, haciendo pipe del request`);
                 req.pipe(proxyReq);
             }
 

@@ -96,8 +96,13 @@ app.use((req, res, next) => {
 
 app.use(expressLayouts);
 app.use(logger('dev'));
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// Guardamos el cuerpo original tal cual llega. Los parsers consumen el stream,
+// así que el proxy ya no puede hacer pipe: sin esto tendría que reconstruirlo
+// (y reconstruirlo como JSON rompe formularios y cualquier otro formato).
+const keepRawBody = (req, res, buf) => { req.rawBody = buf; };
+
+app.use(express.json({ limit: '50mb', verify: keepRawBody }));
+app.use(express.urlencoded({ extended: true, limit: '50mb', verify: keepRawBody }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 console.log('[APP] Express configurado');

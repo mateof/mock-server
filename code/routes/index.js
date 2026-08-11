@@ -1,17 +1,16 @@
 var express = require('express');
 var router = express.Router();
 const semaphore = require('../services/semaphore.service');
-const config = require('../services/config');
 const { version } = require('../package.json');
 const i18n = require('i18n');
 
 /* GET home page. */
 router.get('/', function(req, res, next) {
-  res.render('index', { title: 'Mock Server', listaEspera: semaphore.getList(), wsport: config.getConfig().wsport, version });
+  res.render('index', { title: 'Mock Server', listaEspera: semaphore.getList(), version });
 });
 
 router.post('/', function(req, res, next) {
-  res.render('index', { title: 'Mock Server', listaEspera: semaphore.getList(), wsport: config.getConfig().wsport, version });
+  res.render('index', { title: 'Mock Server', listaEspera: semaphore.getList(), version });
 });
 
 /* Cambio de idioma */

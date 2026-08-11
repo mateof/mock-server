@@ -2,7 +2,7 @@ version: '3.4'
 
 services:
   mockserver:
-    image: ghcr.io/mateof/mockserver:latest
+    image: ghcr.io/mateof/mock-server:latest
     container_name: mockserver
     restart: unless-stopped
     build:

@@ -9,6 +9,11 @@ FROM node:20-alpine
 ENV NODE_ENV=production
 WORKDIR /app
 
+# git es necesario para la auto-importación desde repositorio
+# (MOCK_SERVER_GIT_REPO), que hace `git clone` en tiempo de ejecución.
+# La imagen base no lo trae.
+RUN apk add --no-cache git
+
 # Copy only production dependencies from builder
 COPY --from=builder /app/node_modules ./node_modules
 
