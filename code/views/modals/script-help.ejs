@@ -1,4 +1,4 @@
-<!-- Modal Ayuda de Scripts de Proxy (API pm.*) -->
+<!-- Modal Ayuda de Scripts de Proxy (API ms.*) -->
 <div class="modal fade modal-modern" id="scriptHelpModal" tabindex="-1" aria-hidden="true" data-bs-focus="false" data-bs-backdrop="static">
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
@@ -12,45 +12,45 @@
 
           <h6><i class="fa fa-arrow-right"></i> <%= __('scriptHelp.requestTitle') %></h6>
           <pre><code>// <%= __('scriptHelp.addHeader') %>
-pm.request.headers.add({ key: 'x-api-key', value: 'abc123' });
-pm.request.headers.remove('authorization');
+ms.request.headers.add({ key: 'x-api-key', value: 'abc123' });
+ms.request.headers.remove('authorization');
 
 // <%= __('scriptHelp.queryParams') %>
-pm.request.url.query.add({ key: 'limit', value: '10' });
-pm.request.url.query.remove('debug');
+ms.request.url.query.add({ key: 'limit', value: '10' });
+ms.request.url.query.remove('debug');
 
 // <%= __('scriptHelp.changeBody') %>
-const body = pm.request.body.json();
+const body = ms.request.body.json();
 body.origen = 'mock-server';
 delete body.interno;
 
 // <%= __('scriptHelp.changePath') %>
-pm.request.path = '/v2' + pm.request.path;
-pm.request.method = 'POST';</code></pre>
+ms.request.path = '/v2' + ms.request.path;
+ms.request.method = 'POST';</code></pre>
 
           <h6><i class="fa fa-bolt"></i> <%= __('scriptHelp.shortCircuitTitle') %></h6>
           <pre><code>// <%= __('scriptHelp.shortCircuitDesc') %>
-if (!pm.request.headers.get('authorization')) {
-  pm.respond(401, { error: 'falta token' });
+if (!ms.request.headers.get('authorization')) {
+  ms.respond(401, { error: 'falta token' });
 }</code></pre>
 
           <h6><i class="fa fa-arrow-left"></i> <%= __('scriptHelp.responseTitle') %></h6>
           <pre><code>// <%= __('scriptHelp.transformResponse') %>
-const data = pm.response.json();
+const data = ms.response.json();
 data.items = data.items.slice(0, 5);
 data.total = data.items.length;
-pm.response.setBody(data);
+ms.response.setBody(data);
 
-pm.response.code = 200;
-pm.response.headers.add({ key: 'x-servido-por', value: 'mock-server' });
-pm.response.headers.remove('x-powered-by');</code></pre>
+ms.response.code = 200;
+ms.response.headers.add({ key: 'x-servido-por', value: 'mock-server' });
+ms.response.headers.remove('x-powered-by');</code></pre>
 
           <h6><i class="fa fa-exchange"></i> <%= __('scriptHelp.variablesTitle') %></h6>
           <pre><code>// <%= __('scriptHelp.variablesDesc') %>
 // request:
-pm.variables.set('inicio', String(new Date().getTime()));
+ms.variables.set('inicio', String(new Date().getTime()));
 // response:
-pm.response.headers.add({ key: 'x-inicio', value: pm.variables.get('inicio') });</code></pre>
+ms.response.headers.add({ key: 'x-inicio', value: ms.variables.get('inicio') });</code></pre>
 
           <h6><i class="fa fa-list"></i> <%= __('scriptHelp.apiTitle') %></h6>
           <div id="scriptApiReference" class="script-api-reference">

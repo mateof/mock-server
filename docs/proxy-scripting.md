@@ -5,7 +5,7 @@ Proxy routes can rewrite the request before it reaches the backend and the respo
 There are two layers, applied in this order:
 
 1. **Declarative rules** — add or remove request headers and query parameters from the form, no code involved.
-2. **Scripts** — JavaScript that runs in a sandbox with a `pm.*` API close to Postman's Scripts tab.
+2. **Scripts** — JavaScript that runs in a sandbox with a `ms.*` API close to Postman's Scripts tab.
 
 Rules run first and scripts run afterwards, so a script can always read and correct whatever the rules did.
 
@@ -29,99 +29,99 @@ Runs before the request is sent to the backend.
 
 ```js
 // Headers
-pm.request.headers.add({ key: 'x-api-key', value: 'abc123' });
-pm.request.headers.remove('authorization');
-const trace = pm.request.headers.get('x-trace-id');
+ms.request.headers.add({ key: 'x-api-key', value: 'abc123' });
+ms.request.headers.remove('authorization');
+const trace = ms.request.headers.get('x-trace-id');
 
 // Query parameters
-pm.request.url.query.add({ key: 'limit', value: '10' });
-pm.request.url.query.remove('debug');
+ms.request.url.query.add({ key: 'limit', value: '10' });
+ms.request.url.query.remove('debug');
 
 // Body
-const body = pm.request.body.json();
+const body = ms.request.body.json();
 body.source = 'mock-server';
 delete body.internalField;
 
 // Path and method
-pm.request.path = '/v2' + pm.request.path;
-pm.request.method = 'POST';
+ms.request.path = '/v2' + ms.request.path;
+ms.request.method = 'POST';
 ```
 
 ### Responding without calling the backend
 
-`pm.respond(code, body, headers)` stops the script and returns your own response. The backend is never called.
+`ms.respond(code, body, headers)` stops the script and returns your own response. The backend is never called.
 
 ```js
-if (!pm.request.headers.get('authorization')) {
-  pm.respond(401, { error: 'missing token' });
+if (!ms.request.headers.get('authorization')) {
+  ms.respond(401, { error: 'missing token' });
 }
 
-if (pm.request.url.query.get('simulate') === 'ratelimit') {
-  pm.respond(429, { error: 'slow down' }, { 'Retry-After': '30' });
+if (ms.request.url.query.get('simulate') === 'ratelimit') {
+  ms.respond(429, { error: 'slow down' }, { 'Retry-After': '30' });
 }
 ```
 
 The response carries an `X-Mock-Script: short-circuit` header so it is obvious from the outside that the script answered.
 
-`respond(...)` without the `pm.` prefix works too.
+`respond(...)` without the `ms.` prefix works too.
 
-> Do not wrap `pm.respond()` in a `try/catch`: it stops the script by throwing an internal marker, and catching it swallows the short-circuit.
+> Do not wrap `ms.respond()` in a `try/catch`: it stops the script by throwing an internal marker, and catching it swallows the short-circuit.
 
 ## Response script
 
 Runs after the backend replies and before the response reaches the client. The body arrives already decompressed, so gzip, deflate and brotli responses are handled transparently.
 
 ```js
-const data = pm.response.json();
+const data = ms.response.json();
 data.items = data.items.slice(0, 5);
 data.total = data.items.length;
-pm.response.setBody(data);
+ms.response.setBody(data);
 
-pm.response.code = 200;
-pm.response.headers.add({ key: 'x-served-by', value: 'mock-server' });
-pm.response.headers.remove('x-powered-by');
+ms.response.code = 200;
+ms.response.headers.add({ key: 'x-served-by', value: 'mock-server' });
+ms.response.headers.remove('x-powered-by');
 ```
 
-`pm.request` is available here too, read-only, holding the request that was actually sent (after the rules and the request script).
+`ms.request` is available here too, read-only, holding the request that was actually sent (after the rules and the request script).
 
 Transformed responses carry an `X-Mock-Script: response` header, and `Content-Length` is recalculated.
 
 ## Sharing data between the two scripts
 
-`pm.variables` is scoped to a single request and shared by both scripts:
+`ms.variables` is scoped to a single request and shared by both scripts:
 
 ```js
 // Request script
-pm.variables.set('startedAt', String(new Date().getTime()));
+ms.variables.set('startedAt', String(new Date().getTime()));
 
 // Response script
-const started = Number(pm.variables.get('startedAt'));
-pm.response.headers.add({ key: 'x-elapsed-ms', value: String(new Date().getTime() - started) });
+const started = Number(ms.variables.get('startedAt'));
+ms.response.headers.add({ key: 'x-elapsed-ms', value: String(new Date().getTime() - started) });
 ```
 
 ## Console
 
-`console.log(...)` and `pm.console.log(...)` write to the panel console, prefixed with `[request]` or `[response]`. Up to 100 entries per script are kept, so a runaway loop cannot flood the panel.
+`console.log(...)` and `ms.console.log(...)` write to the panel console, prefixed with `[request]` or `[response]`. Up to 100 entries per script are kept, so a runaway loop cannot flood the panel.
 
 ## Full API
 
 | Call | Description |
 |------|-------------|
-| `pm.request.method` | HTTP method, read and write |
-| `pm.request.path` | Path sent to the backend |
-| `pm.request.headers.get(k)` / `.has(k)` | Read a header |
-| `pm.request.headers.add({key, value})` / `.set(k, v)` | Add or replace |
-| `pm.request.headers.remove(k)` | Remove |
-| `pm.request.headers.all()` / `.toObject()` | List every header |
-| `pm.request.url.query.*` | Same API for query parameters |
-| `pm.request.body.json()` | Parsed body, editable in place |
-| `pm.request.body.text()` | Body as text |
-| `pm.request.body.set(v)` | Replace the whole body |
-| `pm.respond(code, body, headers)` | Answer without calling the backend |
-| `pm.response.code` | Status code, read and write |
-| `pm.response.json()` / `.text()` / `.setBody(v)` | Response body |
-| `pm.response.headers.*` | Same API as request headers |
-| `pm.variables.set/get/has/unset` | Data shared between both scripts |
+| `ms.request.method` | HTTP method, read and write |
+| `ms.request.path` | Path sent to the backend |
+| `ms.request.headers.get(k)` / `.has(k)` | Read a header |
+| `ms.request.headers.add({key, value})` / `.set(k, v)` | Add or replace |
+| `ms.request.headers.remove(k)` | Remove |
+| `ms.request.headers.all()` / `.toObject()` | List every header |
+| `ms.request.url.query.*` | Same API for query parameters |
+| `ms.request.body.json()` | Parsed body, editable in place |
+| `ms.request.body.text()` | Body as text |
+| `ms.request.body.set(v)` | Replace the whole body |
+| `ms.respond(code, body, headers)` | Answer without calling the backend |
+| `ms.response.code` | Status code, read and write |
+| `ms.response.json()` / `.text()` / `.setBody(v)` | Response body |
+| `ms.response.headers.*` | Same API as request headers |
+| `ms.variables.set/get/has/unset` | Data shared between both scripts |
 | `console.log/info/warn/error` | Panel console |
 | `atob()` / `btoa()` | Base64 |
 
@@ -132,8 +132,8 @@ The body is only re-serialized **if the script touches it**. Reading it with `js
 If the script creates a body where there was none and no `content-type` is set, the server labels it `application/json` when it parses as JSON and `text/plain` otherwise. Set the header explicitly if you need something else:
 
 ```js
-pm.request.headers.add({ key: 'content-type', value: 'application/xml' });
-pm.request.body.set('<order><id>7</id></order>');
+ms.request.headers.add({ key: 'content-type', value: 'application/xml' });
+ms.request.body.set('<order><id>7</id></order>');
 ```
 
 ## Limits and safety
@@ -156,22 +156,22 @@ The sandbox uses Node's `vm`, which is isolation for convenience, not a security
 Request script, to authenticate and narrow the query:
 
 ```js
-pm.request.headers.add({ key: 'x-api-key', value: 'internal-key' });
-pm.request.headers.remove('cookie');
-pm.request.url.query.add({ key: 'expand', value: 'customer' });
-pm.variables.set('tenant', pm.request.headers.get('x-tenant') || 'default');
+ms.request.headers.add({ key: 'x-api-key', value: 'internal-key' });
+ms.request.headers.remove('cookie');
+ms.request.url.query.add({ key: 'expand', value: 'customer' });
+ms.variables.set('tenant', ms.request.headers.get('x-tenant') || 'default');
 ```
 
 Response script, to reshape the payload for the client:
 
 ```js
-const data = pm.response.json();
+const data = ms.response.json();
 
-pm.response.setBody({
-  tenant: pm.variables.get('tenant'),
+ms.response.setBody({
+  tenant: ms.variables.get('tenant'),
   count: data.items.length,
   items: data.items.map(i => ({ id: i.id, name: i.displayName }))
 });
 
-pm.response.headers.add({ key: 'cache-control', value: 'no-store' });
+ms.response.headers.add({ key: 'cache-control', value: 'no-store' });
 ```

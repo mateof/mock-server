@@ -538,7 +538,7 @@
     "urlRequired": "Introduce unha URL de WebSocket"
   },
   "scriptHelp": {
-    "title": "Scripts de transformación (API pm.*)",
+    "title": "Scripts de transformación (API ms.*)",
     "intro": "Os scripts execútanse nun sandbox illado, cunha API semellante á pestana Scripts de Postman. O de petición corre antes de chamar ao backend; o de resposta, antes de devolver o resultado ao cliente.",
     "requestTitle": "Transformar a petición",
     "addHeader": "Engadir e quitar cabeceiras",
@@ -546,7 +546,7 @@
     "changeBody": "Modificar o corpo",
     "changePath": "Cambiar path e método",
     "shortCircuitTitle": "Responder sen chamar ao backend",
-    "shortCircuitDesc": "pm.respond() corta a execución e devolve a túa resposta",
+    "shortCircuitDesc": "ms.respond() corta a execución e devolve a túa resposta",
     "responseTitle": "Transformar a resposta",
     "transformResponse": "Recortar e enriquecer o resultado",
     "variablesTitle": "Compartir datos entre os dous scripts",

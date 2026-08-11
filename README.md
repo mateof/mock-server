@@ -72,9 +72,9 @@ A powerful HTTP mocking and proxying application built with Express.js and Node.
 
 - **Proxy Transforms & Scripting** - Turn a proxy route into a small BFF
   - Add or remove request headers and query parameters from the UI
-  - JavaScript request/response scripts with a Postman-like `pm.*` API
+  - JavaScript request/response scripts with a Postman-like `ms.*` API
   - Reshape bodies, rewrite paths, change status codes
-  - Short-circuit with `pm.respond()` to answer without calling the backend
+  - Short-circuit with `ms.respond()` to answer without calling the backend
   - Variables shared between the request and response scripts
   - See [Proxy Scripting Documentation](docs/proxy-scripting.md) for details
 
@@ -244,7 +244,7 @@ volumes:
 | POST | `/api/initTask` | Trigger a waiting request |
 | POST | `/api/validateRegex` | Validate regex patterns |
 | POST | `/api/validateScript` | Validate (and optionally dry-run) a proxy transform script |
-| GET | `/api/script-api-reference` | List the `pm.*` calls available to scripts |
+| GET | `/api/script-api-reference` | List the `ms.*` calls available to scripts |
 
 ## Usage Examples
 

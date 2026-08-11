@@ -2,11 +2,11 @@
  * Script Runner Service
  *
  * Ejecuta los scripts de transformación de las rutas proxy dentro de un
- * sandbox `vm`, con una API inspirada en la pestaña Scripts de Postman (`pm.*`).
+ * sandbox `vm`, con una API inspirada en la pestaña Scripts de Postman (`ms.*`).
  *
  * Hay dos momentos:
  *   - pre-request : transforma la petición antes de enviarla al backend y
- *                   puede cortocircuitarla con pm.respond(...)
+ *                   puede cortocircuitarla con ms.respond(...)
  *   - post-response: transforma la respuesta del backend antes de devolverla
  *
  * Las mismas advertencias que en criteria-evaluator.service.js: `vm` no es un
@@ -258,7 +258,7 @@ function runInSandbox(script, sandbox, logs) {
 }
 
 /**
- * Construye pm.respond / respond, que cortan la ejecución lanzando una marca
+ * Construye ms.respond / respond, que cortan la ejecución lanzando una marca
  */
 function createResponder() {
     return function respond(code, body, headers) {
@@ -302,7 +302,7 @@ function runRequestScript(script, ctx) {
     const consoleApi = createConsole(logs);
     const respond = createResponder();
 
-    const pm = {
+    const ms = {
         request: {
             get method() { return state.method; },
             set method(v) { state.method = String(v || '').toUpperCase(); },
@@ -321,7 +321,7 @@ function runRequestScript(script, ctx) {
         console: consoleApi
     };
 
-    const sandbox = { pm, console: consoleApi, respond, atob, btoa };
+    const sandbox = { ms, console: consoleApi, respond, atob, btoa };
 
     const outcome = runInSandbox(script, sandbox, logs);
     if (!outcome.success) return outcome;
@@ -367,7 +367,7 @@ function runResponseScript(script, ctx) {
     const consoleApi = createConsole(logs);
     const requestCtx = ctx.request || {};
 
-    const pm = {
+    const ms = {
         response: {
             get code() { return state.code; },
             set code(v) { state.code = Number(v) || state.code; },
@@ -393,7 +393,7 @@ function runResponseScript(script, ctx) {
         console: consoleApi
     };
 
-    const sandbox = { pm, console: consoleApi, atob, btoa };
+    const sandbox = { ms, console: consoleApi, atob, btoa };
 
     const outcome = runInSandbox(script, sandbox, logs);
     if (!outcome.success) return outcome;
@@ -455,30 +455,30 @@ function applyKeyValueRules(target, rules, { lowercase = false } = {}) {
 function getApiReference() {
     return {
         request: [
-            { call: 'pm.request.method', key: 'apiReqMethod' },
-            { call: 'pm.request.path', key: 'apiReqPath' },
-            { call: 'pm.request.headers.get(k) / .has(k)', key: 'apiReqHeaderGet' },
-            { call: 'pm.request.headers.add({key, value})', key: 'apiReqHeaderAdd' },
-            { call: 'pm.request.headers.remove(k)', key: 'apiReqHeaderRemove' },
-            { call: 'pm.request.headers.all() / .toObject()', key: 'apiReqHeaderAll' },
-            { call: 'pm.request.url.query.add({key, value})', key: 'apiReqQueryAdd' },
-            { call: 'pm.request.url.query.remove(k)', key: 'apiReqQueryRemove' },
-            { call: 'pm.request.body.json()', key: 'apiReqBodyJson' },
-            { call: 'pm.request.body.text()', key: 'apiReqBodyText' },
-            { call: 'pm.request.body.set(v)', key: 'apiReqBodySet' },
-            { call: 'pm.respond(code, body, headers)', key: 'apiRespond' }
+            { call: 'ms.request.method', key: 'apiReqMethod' },
+            { call: 'ms.request.path', key: 'apiReqPath' },
+            { call: 'ms.request.headers.get(k) / .has(k)', key: 'apiReqHeaderGet' },
+            { call: 'ms.request.headers.add({key, value})', key: 'apiReqHeaderAdd' },
+            { call: 'ms.request.headers.remove(k)', key: 'apiReqHeaderRemove' },
+            { call: 'ms.request.headers.all() / .toObject()', key: 'apiReqHeaderAll' },
+            { call: 'ms.request.url.query.add({key, value})', key: 'apiReqQueryAdd' },
+            { call: 'ms.request.url.query.remove(k)', key: 'apiReqQueryRemove' },
+            { call: 'ms.request.body.json()', key: 'apiReqBodyJson' },
+            { call: 'ms.request.body.text()', key: 'apiReqBodyText' },
+            { call: 'ms.request.body.set(v)', key: 'apiReqBodySet' },
+            { call: 'ms.respond(code, body, headers)', key: 'apiRespond' }
         ],
         response: [
-            { call: 'pm.response.code', key: 'apiResCode' },
-            { call: 'pm.response.json()', key: 'apiResJson' },
-            { call: 'pm.response.text()', key: 'apiResText' },
-            { call: 'pm.response.setBody(v)', key: 'apiResSetBody' },
-            { call: 'pm.response.headers.add({key, value})', key: 'apiResHeaderAdd' },
-            { call: 'pm.response.headers.remove(k)', key: 'apiResHeaderRemove' },
-            { call: 'pm.request.*', key: 'apiResRequest' }
+            { call: 'ms.response.code', key: 'apiResCode' },
+            { call: 'ms.response.json()', key: 'apiResJson' },
+            { call: 'ms.response.text()', key: 'apiResText' },
+            { call: 'ms.response.setBody(v)', key: 'apiResSetBody' },
+            { call: 'ms.response.headers.add({key, value})', key: 'apiResHeaderAdd' },
+            { call: 'ms.response.headers.remove(k)', key: 'apiResHeaderRemove' },
+            { call: 'ms.request.*', key: 'apiResRequest' }
         ],
         shared: [
-            { call: 'pm.variables.set(k, v) / .get(k)', key: 'apiVariables' },
+            { call: 'ms.variables.set(k, v) / .get(k)', key: 'apiVariables' },
             { call: 'console.log(...)', key: 'apiConsole' },
             { call: 'atob() / btoa()', key: 'apiBase64' }
         ]

@@ -546,7 +546,7 @@
     "urlRequired": "Please enter a WebSocket URL"
   },
   "scriptHelp": {
-    "title": "Transform scripts (pm.* API)",
+    "title": "Transform scripts (ms.* API)",
     "intro": "Scripts run in an isolated sandbox with an API close to Postman's Scripts tab. The request script runs before calling the backend; the response script runs before returning the result to the client.",
     "requestTitle": "Transform the request",
     "addHeader": "Add and remove headers",
@@ -554,7 +554,7 @@
     "changeBody": "Change the body",
     "changePath": "Change path and method",
     "shortCircuitTitle": "Respond without calling the backend",
-    "shortCircuitDesc": "pm.respond() stops execution and returns your response",
+    "shortCircuitDesc": "ms.respond() stops execution and returns your response",
     "responseTitle": "Transform the response",
     "transformResponse": "Trim and enrich the result",
     "variablesTitle": "Share data between both scripts",

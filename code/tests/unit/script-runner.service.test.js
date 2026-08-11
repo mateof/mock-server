@@ -32,7 +32,7 @@ describe('script-runner.service', () => {
         });
 
         it('acepta un script correcto', () => {
-            const result = validateScript("pm.request.headers.add({ key: 'x-a', value: '1' });");
+            const result = validateScript("ms.request.headers.add({ key: 'x-a', value: '1' });");
             expect(result.valid).toBe(true);
             expect(result.empty).toBe(false);
         });
@@ -72,9 +72,9 @@ describe('script-runner.service', () => {
     describe('runRequestScript: cabeceras', () => {
         it('añade, sustituye y elimina cabeceras', () => {
             const script = `
-                pm.request.headers.add({ key: 'X-Trace', value: 'abc' });
-                pm.request.headers.set('x-otro', 'valor');
-                pm.request.headers.remove('host');
+                ms.request.headers.add({ key: 'X-Trace', value: 'abc' });
+                ms.request.headers.set('x-otro', 'valor');
+                ms.request.headers.remove('host');
             `;
             const outcome = runRequestScript(script, requestCtx());
 
@@ -86,7 +86,7 @@ describe('script-runner.service', () => {
 
         it('trata las cabeceras sin distinguir mayúsculas', () => {
             const outcome = runRequestScript(
-                "pm.request.headers.remove('AUTHORIZATION'); pm.variables.set('tenia', String(pm.request.headers.has('Authorization')));",
+                "ms.request.headers.remove('AUTHORIZATION'); ms.variables.set('tenia', String(ms.request.headers.has('Authorization')));",
                 requestCtx({ headers: { authorization: 'Bearer x' } })
             );
 
@@ -96,7 +96,7 @@ describe('script-runner.service', () => {
 
         it('lee cabeceras existentes con get', () => {
             const outcome = runRequestScript(
-                "pm.request.headers.add({ key: 'x-copia', value: pm.request.headers.get('x-origen') });",
+                "ms.request.headers.add({ key: 'x-copia', value: ms.request.headers.get('x-origen') });",
                 requestCtx({ headers: { 'x-origen': 'valor-origen' } })
             );
 
@@ -107,8 +107,8 @@ describe('script-runner.service', () => {
     describe('runRequestScript: parámetros de query', () => {
         it('añade y elimina parámetros', () => {
             const script = `
-                pm.request.url.query.add({ key: 'limit', value: '10' });
-                pm.request.url.query.remove('debug');
+                ms.request.url.query.add({ key: 'limit', value: '10' });
+                ms.request.url.query.remove('debug');
             `;
             const outcome = runRequestScript(script, requestCtx({ query: { debug: 'true', page: '2' } }));
 
@@ -117,7 +117,7 @@ describe('script-runner.service', () => {
 
         it('los parámetros sí distinguen mayúsculas', () => {
             const outcome = runRequestScript(
-                "pm.request.url.query.add({ key: 'Token', value: 'A' });",
+                "ms.request.url.query.add({ key: 'Token', value: 'A' });",
                 requestCtx({ query: { token: 'b' } })
             );
 
@@ -128,7 +128,7 @@ describe('script-runner.service', () => {
     describe('runRequestScript: cuerpo', () => {
         it('no marca el cuerpo como cambiado si solo se lee', () => {
             const outcome = runRequestScript(
-                "pm.variables.set('nombre', pm.request.body.json().nombre);",
+                "ms.variables.set('nombre', ms.request.body.json().nombre);",
                 requestCtx({ bodyText: '{"nombre":"ana","edad":30}' })
             );
 
@@ -138,7 +138,7 @@ describe('script-runner.service', () => {
 
         it('detecta la mutación del objeto devuelto por json()', () => {
             const outcome = runRequestScript(
-                "const b = pm.request.body.json(); b.origen = 'mock'; delete b.interno;",
+                "const b = ms.request.body.json(); b.origen = 'mock'; delete b.interno;",
                 requestCtx({ bodyText: '{"id":1,"interno":true}' })
             );
 
@@ -148,14 +148,14 @@ describe('script-runner.service', () => {
 
         it('sustituye el cuerpo con set(), tanto objeto como texto', () => {
             const conObjeto = runRequestScript(
-                "pm.request.body.set({ nuevo: true });",
+                "ms.request.body.set({ nuevo: true });",
                 requestCtx({ bodyText: '{"viejo":true}' })
             );
             expect(conObjeto.result.body.changed).toBe(true);
             expect(JSON.parse(conObjeto.result.body.text)).toEqual({ nuevo: true });
 
             const conTexto = runRequestScript(
-                "pm.request.body.set('<xml>hola</xml>');",
+                "ms.request.body.set('<xml>hola</xml>');",
                 requestCtx({ bodyText: '<xml>adios</xml>' })
             );
             expect(conTexto.result.body.text).toBe('<xml>hola</xml>');
@@ -163,7 +163,7 @@ describe('script-runner.service', () => {
 
         it('devuelve null en json() cuando el cuerpo no es JSON, sin romper', () => {
             const outcome = runRequestScript(
-                "pm.variables.set('esNulo', String(pm.request.body.json() === null));",
+                "ms.variables.set('esNulo', String(ms.request.body.json() === null));",
                 requestCtx({ bodyText: 'esto no es json' })
             );
 
@@ -176,7 +176,7 @@ describe('script-runner.service', () => {
     describe('runRequestScript: método y path', () => {
         it('permite reescribirlos', () => {
             const outcome = runRequestScript(
-                "pm.request.method = 'post'; pm.request.path = '/v2' + pm.request.path;",
+                "ms.request.method = 'post'; ms.request.path = '/v2' + ms.request.path;",
                 requestCtx({ path: '/users' })
             );
 
@@ -186,12 +186,12 @@ describe('script-runner.service', () => {
     });
 
     describe('runRequestScript: cortocircuito', () => {
-        it('pm.respond corta y devuelve la respuesta indicada', () => {
+        it('ms.respond corta y devuelve la respuesta indicada', () => {
             const script = `
-                if (!pm.request.headers.get('authorization')) {
-                    pm.respond(401, { error: 'falta token' }, { 'x-motivo': 'sin-token' });
+                if (!ms.request.headers.get('authorization')) {
+                    ms.respond(401, { error: 'falta token' }, { 'x-motivo': 'sin-token' });
                 }
-                pm.request.headers.add({ key: 'x-no-deberia', value: 'llegar' });
+                ms.request.headers.add({ key: 'x-no-deberia', value: 'llegar' });
             `;
             const outcome = runRequestScript(script, requestCtx());
 
@@ -205,7 +205,7 @@ describe('script-runner.service', () => {
             expect(outcome.result).toBeUndefined();
         });
 
-        it('respond también está disponible sin el prefijo pm', () => {
+        it('respond también está disponible sin el prefijo ms', () => {
             const outcome = runRequestScript("respond(429, 'demasiadas peticiones');", requestCtx());
             expect(outcome.shortCircuit.code).toBe(429);
             expect(outcome.shortCircuit.body).toBe('demasiadas peticiones');
@@ -213,7 +213,7 @@ describe('script-runner.service', () => {
 
         it('no corta cuando la condición no se cumple', () => {
             const outcome = runRequestScript(
-                "if (!pm.request.headers.get('authorization')) { pm.respond(401, {}); }",
+                "if (!ms.request.headers.get('authorization')) { ms.respond(401, {}); }",
                 requestCtx({ headers: { authorization: 'Bearer x' } })
             );
 
@@ -247,7 +247,7 @@ describe('script-runner.service', () => {
         it('no expone require ni process dentro del sandbox', () => {
             // Sin disparar la lista negra: se comprueba que el contexto está limpio
             const outcome = runRequestScript(
-                "pm.variables.set('tipos', typeof requi" + "re + ',' + typeof proces" + "s);",
+                "ms.variables.set('tipos', typeof requi" + "re + ',' + typeof proces" + "s);",
                 requestCtx()
             );
 
@@ -281,13 +281,13 @@ describe('script-runner.service', () => {
 
     describe('runResponseScript', () => {
         it('cambia el código de estado', () => {
-            const outcome = runResponseScript('pm.response.code = 418;', responseCtx());
+            const outcome = runResponseScript('ms.response.code = 418;', responseCtx());
             expect(outcome.result.status).toBe(418);
         });
 
         it('transforma el cuerpo mutando el json', () => {
             const outcome = runResponseScript(
-                'const d = pm.response.json(); d.items = d.items.slice(0, 2); d.total = d.items.length;',
+                'const d = ms.response.json(); d.items = d.items.slice(0, 2); d.total = d.items.length;',
                 responseCtx({ bodyText: '{"items":[1,2,3,4,5]}' })
             );
 
@@ -297,7 +297,7 @@ describe('script-runner.service', () => {
 
         it('sustituye el cuerpo con setBody', () => {
             const outcome = runResponseScript(
-                "pm.response.setBody({ envuelto: pm.response.json() });",
+                "ms.response.setBody({ envuelto: ms.response.json() });",
                 responseCtx({ bodyText: '{"id":7}' })
             );
 
@@ -306,7 +306,7 @@ describe('script-runner.service', () => {
 
         it('añade y quita cabeceras de respuesta', () => {
             const outcome = runResponseScript(
-                "pm.response.headers.add({ key: 'X-Servido-Por', value: 'mock' }); pm.response.headers.remove('x-powered-by');",
+                "ms.response.headers.add({ key: 'X-Servido-Por', value: 'mock' }); ms.response.headers.remove('x-powered-by');",
                 responseCtx({ headers: { 'x-powered-by': 'Express' } })
             );
 
@@ -316,7 +316,7 @@ describe('script-runner.service', () => {
 
         it('da acceso de solo lectura a la petición enviada', () => {
             const outcome = runResponseScript(
-                "pm.response.headers.add({ key: 'x-eco-path', value: pm.request.path });",
+                "ms.response.headers.add({ key: 'x-eco-path', value: ms.request.path });",
                 responseCtx({ request: { method: 'POST', path: '/v2/users', headers: {}, query: {} } })
             );
 
@@ -325,7 +325,7 @@ describe('script-runner.service', () => {
 
         it('deja el cuerpo intacto si el script no lo toca', () => {
             const outcome = runResponseScript(
-                "pm.response.headers.add({ key: 'x-visto', value: '1' });",
+                "ms.response.headers.add({ key: 'x-visto', value: '1' });",
                 responseCtx({ bodyText: '{"a":  1}' })
             );
 
@@ -336,9 +336,9 @@ describe('script-runner.service', () => {
     describe('variables compartidas', () => {
         it('lo guardado en la petición llega a la respuesta', () => {
             const vars = {};
-            runRequestScript("pm.variables.set('inicio', '12345');", requestCtx({ vars }));
+            runRequestScript("ms.variables.set('inicio', '12345');", requestCtx({ vars }));
             const outcome = runResponseScript(
-                "pm.response.headers.add({ key: 'x-inicio', value: pm.variables.get('inicio') });",
+                "ms.response.headers.add({ key: 'x-inicio', value: ms.variables.get('inicio') });",
                 responseCtx({ vars })
             );
 

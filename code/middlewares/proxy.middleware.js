@@ -71,7 +71,7 @@ function dropStaleResponseHeaders(res, finalHeaders) {
     });
 }
 
-// Respuesta emitida por pm.respond(), sin llegar a llamar al backend
+// Respuesta emitida por ms.respond(), sin llegar a llamar al backend
 function sendScriptResponse(res, payload, req, requestPath, proxyConfig, requestStart) {
     const isObject = payload.body !== null && typeof payload.body === 'object';
     const bodyText = isObject
@@ -96,7 +96,7 @@ function sendScriptResponse(res, payload, req, requestPath, proxyConfig, request
         method: req.method,
         url: requestPath,
         target: proxyConfig.target,
-        targetFull: 'SCRIPT: pm.respond()',
+        targetFull: 'SCRIPT: ms.respond()',
         statusCode: payload.code,
         duration,
         requestHeaders: {},

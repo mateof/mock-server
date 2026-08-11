@@ -606,7 +606,7 @@ router.post('/validateScript', function(req, res) {
     res.json({ valid: true, testResult: outcome });
 });
 
-/* Referencia de la API pm.* para el modal de ayuda */
+/* Referencia de la API ms.* para el modal de ayuda */
 router.get('/script-api-reference', function(req, res) {
     res.json(scriptRunner.getApiReference());
 });
