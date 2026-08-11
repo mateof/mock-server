@@ -485,12 +485,139 @@ function getApiReference() {
     };
 }
 
+/**
+ * Definiciones TypeScript del API, para el autocompletado del editor.
+ *
+ * Viven aquí, pegadas a la implementación del sandbox, y no en el frontend:
+ * quien añada un método a `ms` tiene el tipo tres pantallas más arriba y no en
+ * otro fichero que se olvidará de tocar.
+ *
+ * Solo se declara lo que el sandbox ofrece de verdad. El editor se configura
+ * sin la librería del DOM, así que no sugerirá `document`, `fetch` ni
+ * `setTimeout`, que aquí no existen.
+ */
+function getTypeDefinitions() {
+    return `
+/** Lista de pares clave/valor (cabeceras o parámetros de query) */
+interface MsKeyValueList {
+    /** Devuelve el valor, o null si no está */
+    get(key: string): string | null;
+    /** ¿Existe la clave? */
+    has(key: string): boolean;
+    /** Fija el valor, creándolo si no existía */
+    set(key: string, value: string): MsKeyValueList;
+    /** Añade o sustituye. Al estilo Postman: add({ key, value }) */
+    add(item: { key: string; value: string }): MsKeyValueList;
+    add(key: string, value: string): MsKeyValueList;
+    /** Igual que add */
+    upsert(item: { key: string; value: string }): MsKeyValueList;
+    /** Elimina la clave */
+    remove(key: string): MsKeyValueList;
+    /** Vacía la lista entera */
+    clear(): MsKeyValueList;
+    /** Todas las entradas */
+    all(): Array<{ key: string; value: string }>;
+    /** Todas las entradas como objeto */
+    toObject(): { [key: string]: string };
+    /** Recorre las entradas */
+    each(fn: (item: { key: string; value: string }) => void): MsKeyValueList;
+    /** Número de entradas */
+    count(): number;
+}
+
+/** Cuerpo de la petición o de la respuesta */
+interface MsBody {
+    /** El cuerpo como texto */
+    text(): string;
+    /** El cuerpo parseado, o null si no es JSON. Modificar el objeto devuelto cambia el cuerpo */
+    json(): any;
+    /** Sustituye el cuerpo entero. Un objeto se serializa como JSON */
+    set(value: any): MsBody;
+    /** ¿El cuerpo es JSON válido? */
+    isJson(): boolean;
+}
+
+/** La petición que se enviará al backend */
+interface MsRequest {
+    /** Método HTTP en mayúsculas. Se puede cambiar */
+    method: string;
+    /** Path que se enviará, sin query string. Se puede cambiar */
+    path: string;
+    url: {
+        path: string;
+        /** Parámetros de query */
+        query: MsKeyValueList;
+    };
+    /** Cabeceras de la petición. No distinguen mayúsculas */
+    headers: MsKeyValueList;
+    /** Cuerpo de la petición. Solo se reserializa si lo tocas */
+    body: MsBody;
+}
+
+/** La respuesta del backend. Solo en el script de respuesta */
+interface MsResponse {
+    /** Código de estado. Se puede cambiar */
+    code: number;
+    /** Alias de code */
+    status: number;
+    /** Cabeceras de la respuesta */
+    headers: MsKeyValueList;
+    /** El cuerpo parseado. Modificar el objeto devuelto cambia la respuesta */
+    json(): any;
+    /** El cuerpo como texto */
+    text(): string;
+    /** Sustituye el cuerpo entero */
+    setBody(value: any): MsBody;
+    /** El cuerpo, con la misma API que el de la petición */
+    body: MsBody;
+}
+
+interface MsConsole {
+    log(...args: any[]): void;
+    info(...args: any[]): void;
+    warn(...args: any[]): void;
+    error(...args: any[]): void;
+}
+
+interface Ms {
+    /** La petición. En el script de respuesta es de solo lectura */
+    request: MsRequest;
+    /** La respuesta del backend. SOLO disponible en el script de respuesta */
+    response: MsResponse;
+    /** Datos compartidos entre el script de petición y el de respuesta */
+    variables: MsKeyValueList;
+    /** Escribe en la consola del panel */
+    console: MsConsole;
+    /**
+     * Responde sin llamar al backend y corta la ejecución.
+     * SOLO disponible en el script de petición.
+     * No lo envuelvas en try/catch: corta lanzando una marca interna.
+     */
+    respond(code: number, body?: any, headers?: { [key: string]: string }): never;
+}
+
+declare const ms: Ms;
+
+/** Atajo de ms.respond. Solo en el script de petición */
+declare function respond(code: number, body?: any, headers?: { [key: string]: string }): never;
+
+/** Escribe en la consola del panel */
+declare const console: MsConsole;
+
+/** Decodifica Base64 */
+declare function atob(encoded: string): string;
+/** Codifica en Base64 */
+declare function btoa(text: string): string;
+`.trim();
+}
+
 module.exports = {
     validateScript,
     runRequestScript,
     runResponseScript,
     applyKeyValueRules,
     getApiReference,
+    getTypeDefinitions,
     SCRIPT_TIMEOUT_MS,
     MAX_SCRIPT_LENGTH
 };

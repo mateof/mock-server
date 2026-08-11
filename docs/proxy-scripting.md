@@ -103,6 +103,21 @@ ms.response.headers.add({ key: 'x-elapsed-ms', value: String(new Date().getTime(
 
 `console.log(...)` and `ms.console.log(...)` write to the panel console, prefixed with `[request]` or `[response]`. Up to 100 entries per script are kept, so a runaway loop cannot flood the panel.
 
+## The editor
+
+The two script boxes are Monaco (the editor behind VS Code), with JavaScript syntax highlighting and real IntelliSense over the `ms.*` API: completions, documentation on hover and errors as you type.
+
+The type definitions come from `GET /api/script-types`, served by the same module that implements the sandbox, so they cannot drift from the API they describe.
+
+The editor is configured **without the DOM library**, matching what the sandbox actually provides. That means `document`, `fetch`, `setTimeout` and friends are reported as undefined while you type, instead of failing on the first request:
+
+```js
+ms.request.headr.add(...)     // Property 'headr' does not exist. Did you mean 'headers'?
+setTimeout(() => {}, 100)     // Cannot find name 'setTimeout'
+```
+
+Monaco is loaded from a CDN, on demand, only when you open a proxy route: it is about 4 MB and there is no reason to pay for it otherwise. **If the CDN is unreachable, the plain text boxes stay in place and everything keeps working**, just without completions.
+
 ## Full API
 
 | Call | Description |

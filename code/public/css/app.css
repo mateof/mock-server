@@ -1310,6 +1310,21 @@ body {
   overflow-x: auto;
 }
 
+/* Contenedor del editor Monaco. Altura fija: sin ella el editor colapsa a 0 */
+.monaco-host {
+  height: 180px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  overflow: hidden;
+  background: var(--bg-input);
+}
+
+/* El modal recorta los desplegables de sugerencias si no se elevan */
+.monaco-editor .suggest-widget,
+.monaco-editor .monaco-hover {
+  z-index: 1060;
+}
+
 .script-validation-result {
   margin-top: 0.5rem;
   font-size: 0.85rem;

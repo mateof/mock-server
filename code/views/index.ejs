@@ -1035,6 +1035,9 @@
       // servidor ya los aplicaba aunque el formulario los tuviera ocultos.
       hideElements(['#divtipo', '#divcodresp', '#divEsperaActiva', '#divresp', '#divFile', '#divMetadata', '#divConditions']);
       showElements(['#divDestino', '#divProxyTimeout', '#divFallbacks', '#divProxyTransform', '#divHeaders']);
+      // Se descarga aquí, no al cargar la página: solo lo necesita quien
+      // configura un proxy
+      ScriptEditors.montar().then(() => ScriptEditors.sincronizar());
       document.getElementById('navDividerConditions').style.display = 'none';
       document.getElementById('routeNavConditions').style.display = 'none';
       document.getElementById('navDividerFallbacks').style.display = '';
@@ -1635,6 +1638,7 @@
       document.getElementById('proxyPostScript').value = '';
       document.getElementById('proxyPreScriptResult').innerHTML = '';
       document.getElementById('proxyPostScriptResult').innerHTML = '';
+      ScriptEditors.sincronizar();
     },
 
     load(route) {
@@ -1644,6 +1648,7 @@
       ProxyTransform.setRules('param', route.proxy_request_params);
       document.getElementById('proxyPreScript').value = route.proxy_pre_script || '';
       document.getElementById('proxyPostScript').value = route.proxy_post_script || '';
+      ScriptEditors.sincronizar();
     },
 
     // Añade al FormData lo que haya configurado. Los campos van siempre, incluso
@@ -1655,6 +1660,150 @@
       formData.append('proxyRequestParams', params ? JSON.stringify(params) : '');
       formData.append('proxyPreScript', document.getElementById('proxyPreScript').value || '');
       formData.append('proxyPostScript', document.getElementById('proxyPostScript').value || '');
+    }
+  };
+
+  // ===== EDITOR DE SCRIPTS (Monaco) =====
+  // Se carga bajo demanda, solo al abrir una ruta proxy: son ~4 MB y no tiene
+  // sentido pagarlos si no vas a escribir un script. Si el CDN no responde, los
+  // textarea siguen ahí y todo funciona igual, solo que sin autocompletado.
+  const ScriptEditors = {
+    // 0.52.2 es la última versión con distribución AMD (min/vs) y workers; a
+    // partir de 0.53 Monaco es solo ESM y este montaje deja de existir.
+    BASE: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs',
+    IDS: ['proxyPreScript', 'proxyPostScript'],
+    promesa: null,
+    editores: {},
+    avisado: false,
+
+    cargar() {
+      if (this.promesa) return this.promesa;
+
+      this.promesa = new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = `${this.BASE}/loader.js`;
+        script.onerror = () => reject(new Error('no se pudo descargar el editor'));
+        script.onload = () => {
+          // El worker no se puede cargar desde otro origen directamente: se
+          // envuelve en un blob del mismo origen que hace importScripts
+          const raiz = this.BASE.replace(/\/vs$/, '');
+          window.MonacoEnvironment = {
+            getWorkerUrl: () => URL.createObjectURL(new Blob([
+              `self.MonacoEnvironment = { baseUrl: '${raiz}/' };\n` +
+              `importScripts('${this.BASE}/base/worker/workerMain.js');`
+            ], { type: 'text/javascript' }))
+          };
+
+          require.config({ paths: { vs: this.BASE } });
+          require(['vs/editor/editor.main'], () => this.configurar().then(resolve).catch(reject), reject);
+        };
+        document.head.appendChild(script);
+      });
+
+      return this.promesa;
+    },
+
+    async configurar() {
+      const ts = monaco.languages.typescript;
+
+      ts.javascriptDefaults.setCompilerOptions({
+        target: ts.ScriptTarget.ES2020,
+        // Sin la librería del DOM: el sandbox no tiene document, fetch ni
+        // setTimeout, así que tampoco deben aparecer sugeridos
+        lib: ['es2020'],
+        allowNonTsExtensions: true
+      });
+
+      ts.javascriptDefaults.setDiagnosticsOptions({
+        noSemanticValidation: false,
+        noSyntaxValidation: false,
+        // Los dos editores comparten ámbito global en el worker de TypeScript,
+        // así que declarar `const data` en ambos daría un falso "ya declarado"
+        diagnosticCodesToIgnore: [2451, 2393, 2300, 1108, 7027]
+      });
+
+      // Los tipos los sirve el propio servidor desde el módulo que implementa
+      // el sandbox, para que no se desfasen del API real
+      const tipos = await fetch('/api/script-types').then(r => r.text());
+      ts.javascriptDefaults.addExtraLib(tipos, 'ts:mock-server/ms-api.d.ts');
+
+      monaco.editor.defineTheme('mock-server', {
+        base: 'vs-dark',
+        inherit: true,
+        rules: [],
+        colors: {
+          'editor.background': '#1e293b',
+          'editor.lineHighlightBackground': '#0f172a',
+          'editorLineNumber.foreground': '#64748b',
+          'editorLineNumber.activeForeground': '#94a3b8',
+          'editorCursor.foreground': '#6366f1',
+          'editor.selectionBackground': '#33415580',
+          'editorSuggestWidget.background': '#0f172a',
+          'editorSuggestWidget.border': '#334155',
+          'editorSuggestWidget.selectedBackground': '#334155'
+        }
+      });
+
+      return monaco;
+    },
+
+    async montar() {
+      try {
+        await this.cargar();
+      } catch (e) {
+        if (!this.avisado) {
+          this.avisado = true;
+          console.warn('[scripts] editor no disponible, se usa el textarea:', e.message);
+          showToast(t('form.editorFallback'), 'warning');
+        }
+        return;
+      }
+
+      for (const id of this.IDS) {
+        if (this.editores[id]) continue;
+
+        const textarea = document.getElementById(id);
+        if (!textarea) continue;
+
+        const host = document.createElement('div');
+        host.className = 'monaco-host';
+        host.id = `${id}Host`;
+        textarea.parentNode.insertBefore(host, textarea);
+        textarea.style.display = 'none';
+
+        const editor = monaco.editor.create(host, {
+          value: textarea.value,
+          language: 'javascript',
+          theme: 'mock-server',
+          automaticLayout: true,
+          minimap: { enabled: false },
+          fontSize: 13,
+          lineHeight: 20,
+          tabSize: 2,
+          scrollBeyondLastLine: false,
+          renderLineHighlight: 'none',
+          padding: { top: 10, bottom: 10 },
+          scrollbar: { alwaysConsumeMouseWheel: false },
+          fixedOverflowWidgets: true
+        });
+
+        // El textarea sigue siendo la fuente de verdad para guardar y validar,
+        // así que no hubo que tocar nada del resto del formulario
+        editor.onDidChangeModelContent(() => { textarea.value = editor.getValue(); });
+
+        this.editores[id] = editor;
+      }
+    },
+
+    // Al cargar una ruta el valor lo pone el textarea; hay que llevarlo al editor
+    sincronizar() {
+      for (const id of this.IDS) {
+        const editor = this.editores[id];
+        const textarea = document.getElementById(id);
+        if (editor && textarea && editor.getValue() !== textarea.value) {
+          editor.setValue(textarea.value || '');
+        }
+      }
     }
   };
 

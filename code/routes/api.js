@@ -416,6 +416,14 @@ router.get('/script-api-reference', function(req, res) {
     res.json(scriptRunner.getApiReference());
 });
 
+/* Definiciones de tipos del API ms.*, para el autocompletado del editor */
+router.get('/script-types', function(req, res) {
+    res.type('text/plain; charset=utf-8');
+    // Cambian solo al cambiar la versión del servidor
+    res.set('Cache-Control', 'no-cache');
+    res.send(scriptRunner.getTypeDefinitions());
+});
+
 /* Obtener helpers y ejemplos disponibles para criterios */
 router.get('/criteria-helpers', function(req, res) {
     res.json({
