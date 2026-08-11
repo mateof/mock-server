@@ -590,5 +590,30 @@
     "apiVariables": "Share data between both scripts",
     "apiConsole": "Writes to the panel console",
     "apiBase64": "Base64 encode and decode"
+  },
+  "mcp": {
+    "title": "MCP Connection",
+    "intro": "Create a connection so an AI assistant can list, create and edit routes for you. Generate a token, copy the command and paste it into your terminal.",
+    "newConnection": "New connection",
+    "namePlaceholder": "e.g. Claude on my laptop",
+    "command": "Command to add it to Claude",
+    "url": "MCP server URL",
+    "token": "Token",
+    "existing": "Existing connections",
+    "empty": "No connections yet. Create one to get started.",
+    "created": "Connection created",
+    "revoked": "Connection revoked",
+    "revoke": "Revoke",
+    "showCommand": "Show the command",
+    "confirmRevoke": "Revoke this connection? Any assistant using it will lose access.",
+    "nameRequired": "Give the connection a name",
+    "lastUsed": "Last used: {{date}}",
+    "neverUsed": "Never used",
+    "securityTitle": "Before you share it",
+    "securityBody": "The token grants permission to create, modify and delete routes. Treat it like a password and revoke it when it is no longer needed.",
+    "help": {
+      "name": "It is only there to recognise the connection later; create one per machine or per assistant.",
+      "command": "Paste it as is into your terminal. The URL comes from the address you used to open this panel."
+    }
   }
 }

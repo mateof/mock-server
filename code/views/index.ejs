@@ -24,6 +24,9 @@
             <button type="button" class="dropdown-item-modern" onclick="openWSClientsModal(); closeToolsDropdown();">
               <i class="fa fa-plug"></i> <%= __('ws.clientsTitle') %> <span class="ws-clients-badge" id="wsClientsBadge" style="display: none;">0</span>
             </button>
+            <button type="button" class="dropdown-item-modern" onclick="openMcpModal(); closeToolsDropdown();">
+              <i class="fa fa-robot"></i> <%= __('mcp.title') %>
+            </button>
           </div>
         </div>
         <button type="button" class="btn-modern btn-modern-secondary" onclick="openList()" style="position: relative;">
@@ -208,6 +211,7 @@
 <%- include('modals/duplicate') %>
 <%- include('modals/criteria-help') %>
 <%- include('modals/script-help') %>
+<%- include('modals/mcp-connection') %>
 <%- include('modals/request-tester') %>
 <%- include('modals/graphiql-tester') %>
 <%- include('modals/tag-manager') %>
@@ -1396,6 +1400,145 @@
     document.getElementById('noHeadersMsg').style.display = 'block';
     headerCounter = 0;
   }
+
+  // ===== CONEXIONES MCP =====
+  // El host sale de window.location: el comando tiene que servir tal cual se
+  // copia, y quien abre el panel por una IP de la red o detrás de un proxy no
+  // llegaría con un localhost escrito a mano.
+  const McpModule = {
+    ultimoToken: null,
+
+    async open() {
+      document.getElementById('mcpTokenName').value = '';
+      document.getElementById('mcpCommandBlock').style.display = 'none';
+      await McpModule.loadTokens();
+      $('#mcpModal').modal('show');
+    },
+
+    async loadTokens() {
+      const lista = document.getElementById('mcpTokensList');
+      const vacio = document.getElementById('noMcpTokensMsg');
+      try {
+        const tokens = await fetch('/api/mcp/tokens').then(r => r.json());
+        // Ojo con el nombre de la variable: `t` es la función de traducción
+        lista.innerHTML = tokens.map(conexion => `
+          <div class="mcp-token-row" id="mcp-token-${conexion.id}">
+            <div class="mcp-token-info">
+              <strong>${escapeHtml(conexion.nombre)}</strong>
+              <small>${conexion.last_used_at
+                ? t('mcp.lastUsed').replace('{{date}}', new Date(conexion.last_used_at).toLocaleString())
+                : t('mcp.neverUsed')}</small>
+            </div>
+            <div class="d-flex gap-2">
+              <button class="btn-icon" title="${t('mcp.showCommand')}" onclick="McpModule.showCommand('${conexion.id}')">
+                <i class="fa fa-terminal"></i>
+              </button>
+              <button class="btn-icon btn-icon-danger" title="${t('mcp.revoke')}" onclick="McpModule.revoke('${conexion.id}')">
+                <i class="fa fa-trash"></i>
+              </button>
+            </div>
+          </div>
+        `).join('');
+        vacio.style.display = tokens.length === 0 ? 'block' : 'none';
+        McpModule.tokens = tokens;
+      } catch (e) {
+        lista.innerHTML = `<span class="text-danger">${escapeHtml(e.message)}</span>`;
+      }
+    },
+
+    buildCommand(token) {
+      // window.location.origin ya trae protocolo, host y puerto tal como el
+      // usuario ha llegado al panel
+      return `claude mcp add --scope user --transport http mock-server ${window.location.origin}/mcp --header "Authorization: Bearer ${token}"`;
+    },
+
+    render(nombre, token) {
+      document.getElementById('mcpCreatedName').textContent = nombre;
+      document.getElementById('mcpCommand').textContent = McpModule.buildCommand(token);
+      document.getElementById('mcpUrl').textContent = `${window.location.origin}/mcp`;
+      document.getElementById('mcpToken').textContent = token;
+      document.getElementById('mcpCommandBlock').style.display = 'block';
+      McpModule.ultimoToken = token;
+    },
+
+    showCommand(id) {
+      const registro = (McpModule.tokens || []).find(t => t.id === id);
+      if (registro) {
+        McpModule.render(registro.nombre, registro.token);
+        document.getElementById('mcpCommandBlock').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    },
+
+    async create() {
+      const nombre = document.getElementById('mcpTokenName').value.trim();
+      if (!nombre) {
+        showToast(t('mcp.nameRequired'), 'warning');
+        return;
+      }
+
+      try {
+        const respuesta = await fetch('/api/mcp/tokens', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nombre })
+        });
+        const creado = await respuesta.json();
+        if (!respuesta.ok) {
+          showToast(creado.error || t('errors.generic'), 'error');
+          return;
+        }
+        document.getElementById('mcpTokenName').value = '';
+        McpModule.render(creado.nombre, creado.token);
+        await McpModule.loadTokens();
+        showToast(t('mcp.created'), 'success');
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    },
+
+    async revoke(id) {
+      if (!confirm(t('mcp.confirmRevoke'))) return;
+      try {
+        await fetch(`/api/mcp/tokens/${id}`, { method: 'DELETE' });
+        await McpModule.loadTokens();
+        document.getElementById('mcpCommandBlock').style.display = 'none';
+        showToast(t('mcp.revoked'), 'success');
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    },
+
+    async copy(texto, etiquetaId) {
+      try {
+        await navigator.clipboard.writeText(texto);
+      } catch (e) {
+        // El portapapeles del navegador exige contexto seguro: por IP y sin
+        // HTTPS no está disponible, así que se copia por el camino antiguo
+        const area = document.createElement('textarea');
+        area.value = texto;
+        area.style.position = 'fixed';
+        area.style.opacity = '0';
+        document.body.appendChild(area);
+        area.select();
+        document.execCommand('copy');
+        document.body.removeChild(area);
+      }
+
+      if (etiquetaId) {
+        const etiqueta = document.getElementById(etiquetaId);
+        const original = etiqueta.textContent;
+        etiqueta.textContent = t('buttons.copied');
+        setTimeout(() => { etiqueta.textContent = original; }, 1500);
+      } else {
+        showToast(t('buttons.copied'), 'success');
+      }
+    }
+  };
+
+  function openMcpModal() { McpModule.open(); }
+  function createMcpToken() { McpModule.create(); }
+  function copyMcpCommand() { McpModule.copy(document.getElementById('mcpCommand').textContent, 'mcpCopyLabel'); }
+  function copyMcpField(id) { McpModule.copy(document.getElementById(id).textContent); }
 
   // ===== TRANSFORMACIONES DE PROXY =====
   // Cabeceras y parámetros declarativos + scripts ms.* de petición y respuesta.

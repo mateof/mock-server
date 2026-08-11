@@ -403,6 +403,27 @@ async function createTables(newdb) {
     };
     await addGqlColumn(newdb, 'useProxy', 'INTEGER DEFAULT 0');
 
+    // Tokens de conexión MCP.
+    // El token se guarda en claro a propósito: el panel no tiene autenticación,
+    // así que quien puede leer la tabla ya puede crear tokens nuevos, y en
+    // cambio poder volver a copiarlo evita tener que rehacer la conexión.
+    await new Promise((resolve) => {
+        newdb.exec(`
+            CREATE TABLE IF NOT EXISTS mcp_tokens (
+                id TEXT PRIMARY KEY,
+                nombre TEXT NOT NULL,
+                token TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL,
+                last_used_at TEXT,
+                activo INTEGER DEFAULT 1
+            );
+            CREATE INDEX IF NOT EXISTS idx_mcp_tokens_token ON mcp_tokens(token);
+        `, (err) => {
+            if (!err) console.log('[DB] Tabla mcp_tokens verificada');
+            resolve();
+        });
+    });
+
     // Crear tabla de mensajes WebSocket
     await new Promise((resolve) => {
         newdb.exec(`
@@ -917,6 +938,66 @@ async function getWebSocketRoutes() {
         });
     });
 }
+
+// ===== TOKENS MCP =====
+
+async function getMcpTokens() {
+    return new Promise((resolve, reject) => {
+        _db.all('SELECT * FROM mcp_tokens ORDER BY created_at DESC', [], (err, rows) => {
+            if (err) reject(err);
+            else resolve(rows || []);
+        });
+    });
+}
+
+async function createMcpToken(nombre) {
+    const crypto = require('crypto');
+    const id = crypto.randomUUID();
+    // 32 bytes en hex: suficiente para que no se adivine y cómodo de copiar
+    const token = crypto.randomBytes(32).toString('hex');
+    const createdAt = new Date().toISOString();
+
+    await new Promise((resolve, reject) => {
+        _db.run('INSERT INTO mcp_tokens (id, nombre, token, created_at, activo) VALUES (?, ?, ?, ?, 1)',
+            [id, nombre, token, createdAt],
+            (err) => {
+                if (err) reject(err);
+                else resolve();
+            });
+    });
+
+    console.log(`[DB] Token MCP creado: ${nombre}`);
+    return { id, nombre, token, created_at: createdAt, last_used_at: null, activo: 1 };
+}
+
+async function deleteMcpToken(id) {
+    return new Promise((resolve, reject) => {
+        _db.run('DELETE FROM mcp_tokens WHERE id = ?', [id], function(err) {
+            if (err) reject(err);
+            else resolve(this.changes > 0);
+        });
+    });
+}
+
+async function findMcpToken(token) {
+    return new Promise((resolve, reject) => {
+        _db.get('SELECT * FROM mcp_tokens WHERE token = ? AND (activo IS NULL OR activo = 1)', [token], (err, row) => {
+            if (err) reject(err);
+            else resolve(row);
+        });
+    });
+}
+
+function touchMcpToken(id) {
+    // Sin await: es telemetría de conveniencia, no debe frenar la petición
+    _db.run('UPDATE mcp_tokens SET last_used_at = ? WHERE id = ?', [new Date().toISOString(), id], () => {});
+}
+
+exports.getMcpTokens = getMcpTokens;
+exports.createMcpToken = createMcpToken;
+exports.deleteMcpToken = deleteMcpToken;
+exports.findMcpToken = findMcpToken;
+exports.touchMcpToken = touchMcpToken;
 
 exports.initSql = initSql;
 exports.getDatabase = getDatabase;

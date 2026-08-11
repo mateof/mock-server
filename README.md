@@ -70,6 +70,13 @@ A powerful HTTP mocking and proxying application built with Express.js and Node.
   - Request/response header modification
   - Automatic decompression of gzipped responses
 
+- **MCP Server** - Let an AI assistant build your mock flows
+  - Create a connection from **Tools → MCP Connection**, copy the command, paste it into your terminal
+  - Streamable HTTP endpoint at `/mcp` with Bearer token auth
+  - Tools to list, create, edit and delete routes, set conditions and proxy transforms
+  - Validation tools so the assistant can check scripts, criteria and regex before saving
+  - See [MCP Documentation](docs/mcp.md) for details
+
 - **Proxy Transforms & Scripting** - Turn a proxy route into a small BFF
   - Add or remove request headers and query parameters from the UI
   - JavaScript request/response scripts with a Postman-like `ms.*` API
@@ -245,6 +252,15 @@ volumes:
 | POST | `/api/validateRegex` | Validate regex patterns |
 | POST | `/api/validateScript` | Validate (and optionally dry-run) a proxy transform script |
 | GET | `/api/script-api-reference` | List the `ms.*` calls available to scripts |
+
+### MCP
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/mcp` | MCP endpoint (Streamable HTTP, `Authorization: Bearer <token>`) |
+| GET | `/api/mcp/tokens` | List MCP connections |
+| POST | `/api/mcp/tokens` | Create a connection and return its token |
+| DELETE | `/api/mcp/tokens/:id` | Revoke a connection |
 
 ## Usage Examples
 

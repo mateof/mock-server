@@ -1,6 +1,6 @@
 {
   "name": "mock-server",
-  "version": "0.14.1",
+  "version": "0.15.0",
   "private": true,
   "scripts": {
     "start": "node app.js",
@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@apidevtools/swagger-parser": "^12.1.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "archiver": "^7.0.1",
     "chalk": "^4.1.2",
     "cookie-parser": "^1.4.7",
@@ -31,7 +32,8 @@
     "sqlite3": "^5.1.6",
     "unzipper": "^0.12.3",
     "uuid": "^13.0.0",
-    "ws": "^8.20.0"
+    "ws": "^8.20.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "jest": "^30.2.0",

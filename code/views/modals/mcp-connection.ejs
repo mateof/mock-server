@@ -1,0 +1,85 @@
+<!-- Modal Conexiones MCP -->
+<div class="modal fade modal-modern" id="mcpModal" tabindex="-1" aria-hidden="true" data-bs-focus="false" data-bs-backdrop="static">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-robot me-2"></i><%= __('mcp.title') %></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p style="color: var(--text-muted);"><%= __('mcp.intro') %></p>
+
+        <!-- Crear una conexión -->
+        <div class="form-group-modern">
+          <label class="form-label-modern" for="mcpTokenName"><%= __('mcp.newConnection') %></label>
+          <div class="d-flex gap-2">
+            <input type="text" class="form-control-modern" id="mcpTokenName"
+                   placeholder="<%= __('mcp.namePlaceholder') %>" style="flex: 1;">
+            <button type="button" class="btn-modern btn-modern-primary" onclick="createMcpToken()">
+              <i class="fa fa-plus"></i> <%= __('buttons.create') %>
+            </button>
+          </div>
+          <small style="color: var(--text-muted); margin-top: 0.5rem; display: block;">
+            <%= __('mcp.help.name') %>
+          </small>
+        </div>
+
+        <!-- Comando listo para pegar -->
+        <div id="mcpCommandBlock" style="display: none; margin-top: 1.5rem;">
+          <div class="alert-modern alert-modern-success" style="padding: 1rem; display: block;">
+            <strong><i class="fa fa-check-circle"></i> <span id="mcpCreatedName"></span></strong>
+            <p style="margin: 0.5rem 0 0 0; color: var(--text-muted);"><%= __('mcp.help.command') %></p>
+          </div>
+
+          <div class="form-label-row" style="margin-top: 1rem;">
+            <label class="form-label-modern"><%= __('mcp.command') %></label>
+            <button type="button" class="btn-modern btn-modern-success btn-sm" onclick="copyMcpCommand()">
+              <i class="fa fa-copy"></i> <span id="mcpCopyLabel"><%= __('buttons.copy') %></span>
+            </button>
+          </div>
+          <pre class="mcp-command" id="mcpCommand"></pre>
+
+          <div class="mcp-details">
+            <div class="form-label-row">
+              <label class="form-label-modern"><%= __('mcp.url') %></label>
+              <button type="button" class="btn-icon" onclick="copyMcpField('mcpUrl')" title="<%= __('buttons.copy') %>">
+                <i class="fa fa-copy"></i>
+              </button>
+            </div>
+            <code class="mcp-field" id="mcpUrl"></code>
+
+            <div class="form-label-row" style="margin-top: 0.75rem;">
+              <label class="form-label-modern"><%= __('mcp.token') %></label>
+              <button type="button" class="btn-icon" onclick="copyMcpField('mcpToken')" title="<%= __('buttons.copy') %>">
+                <i class="fa fa-copy"></i>
+              </button>
+            </div>
+            <code class="mcp-field" id="mcpToken"></code>
+          </div>
+        </div>
+
+        <!-- Conexiones existentes -->
+        <h6 style="margin-top: 1.75rem; color: var(--primary);">
+          <i class="fa fa-plug"></i> <%= __('mcp.existing') %>
+        </h6>
+        <div id="mcpTokensList"></div>
+        <div id="noMcpTokensMsg" class="empty-state" style="padding: 1rem;">
+          <i class="fa fa-inbox"></i>
+          <p><%= __('mcp.empty') %></p>
+        </div>
+
+        <div class="alert-modern alert-modern-warning" style="margin-top: 1.25rem; padding: 0.75rem;">
+          <div>
+            <strong><%= __('mcp.securityTitle') %></strong>
+            <p style="margin: 0.35rem 0 0 0;"><%= __('mcp.securityBody') %></p>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-modern btn-modern-secondary" data-bs-dismiss="modal">
+          <%= __('buttons.close') %>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

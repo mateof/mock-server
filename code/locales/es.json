@@ -590,5 +590,30 @@
     "apiVariables": "Compartir datos entre los dos scripts",
     "apiConsole": "Escribe en la consola del panel",
     "apiBase64": "Codificar y decodificar Base64"
+  },
+  "mcp": {
+    "title": "Conexión MCP",
+    "intro": "Crea una conexión para que un asistente de IA pueda listar, crear y editar rutas por ti. Genera un token, copia el comando y pégalo en tu terminal.",
+    "newConnection": "Nueva conexión",
+    "namePlaceholder": "Ej: Claude en mi portátil",
+    "command": "Comando para añadirlo a Claude",
+    "url": "URL del servidor MCP",
+    "token": "Token",
+    "existing": "Conexiones existentes",
+    "empty": "No hay conexiones. Crea una para empezar.",
+    "created": "Conexión creada",
+    "revoked": "Conexión revocada",
+    "revoke": "Revocar",
+    "showCommand": "Ver el comando",
+    "confirmRevoke": "¿Revocar esta conexión? El asistente que la use dejará de tener acceso.",
+    "nameRequired": "Pon un nombre a la conexión",
+    "lastUsed": "Último uso: {{date}}",
+    "neverUsed": "Sin usar todavía",
+    "securityTitle": "Antes de compartirlo",
+    "securityBody": "El token da permiso para crear, modificar y borrar rutas. Trátalo como una contraseña y revócalo si deja de hacer falta.",
+    "help": {
+      "name": "Sirve para reconocer la conexión después; puedes crear una por equipo o por asistente.",
+      "command": "Pégalo tal cual en tu terminal. La URL se toma de la dirección por la que has abierto este panel."
+    }
   }
 }
