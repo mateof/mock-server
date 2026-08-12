@@ -628,6 +628,17 @@
     "help": {
       "name": "Sirve para reconocer la conexión después; puedes crear una por equipo o por asistente.",
       "command": "Pégalo tal cual en tu terminal. La URL se toma de la dirección por la que has abierto este panel."
+    },
+    "client": "Cliente de IA",
+    "config": "Configuración",
+    "otherClient": "Otro cliente MCP",
+    "hintTerminal": "Pégalo en tu terminal.",
+    "hintFile": "Añádelo a",
+    "hintGeneric": "Cualquier cliente que hable MCP por HTTP necesita esta URL y esta cabecera.",
+    "notes": {
+      "vscode": "Tiene que ir en .vscode/mcp.json. En un .mcp.json en la raíz del proyecto, VS Code descarta las cabeceras sin avisar y la conexión falla por falta de autenticación.",
+      "claudeDesktop": "Claude Desktop no habla MCP por HTTP directamente: el comando usa mcp-remote como puente, así que necesita Node instalado. En Windows hay un fallo conocido al escapar espacios en los argumentos.",
+      "codex": "Codex lee el token de una variable de entorno, no del fichero. Exporta MOCK_SERVER_TOKEN antes de arrancarlo."
     }
   },
   "logs": {

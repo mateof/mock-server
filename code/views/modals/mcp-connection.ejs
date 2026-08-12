@@ -31,13 +31,20 @@
             <p style="margin: 0.5rem 0 0 0; color: var(--text-muted);"><%= __('mcp.help.command') %></p>
           </div>
 
-          <div class="form-label-row" style="margin-top: 1rem;">
-            <label class="form-label-modern"><%= __('mcp.command') %></label>
+          <div class="form-group-modern" style="margin-top: 1rem;">
+            <label class="form-label-modern" for="mcpClient"><%= __('mcp.client') %></label>
+            <select id="mcpClient" class="form-control-modern form-select-modern" onchange="McpModule.renderComando()"></select>
+          </div>
+
+          <div class="form-label-row">
+            <label class="form-label-modern" id="mcpCommandLabel"><%= __('mcp.command') %></label>
             <button type="button" class="btn-modern btn-modern-success btn-sm" onclick="copyMcpCommand()">
               <i class="fa fa-copy"></i> <span id="mcpCopyLabel"><%= __('buttons.copy') %></span>
             </button>
           </div>
           <pre class="mcp-command" id="mcpCommand"></pre>
+          <small class="mcp-hint" id="mcpHint"></small>
+          <div class="alert-modern alert-modern-warning mcp-note" id="mcpNote" style="display: none; padding: 0.65rem; margin-top: 0.5rem;"></div>
 
           <div class="mcp-details">
             <div class="form-label-row">

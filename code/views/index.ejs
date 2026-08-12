@@ -1527,8 +1527,75 @@
   // El host sale de window.location: el comando tiene que servir tal cual se
   // copia, y quien abre el panel por una IP de la red o detrás de un proxy no
   // llegaría con un localhost escrito a mano.
+  // Clientes de IA que hablan MCP por HTTP. El formato de cada uno está sacado
+  // de su documentación, no de memoria: un comando que no funciona al pegarlo
+  // es peor que no ofrecerlo.
+  const CLIENTES_MCP = [
+    {
+      id: 'claude-code',
+      label: 'Claude Code',
+      destino: 'terminal',
+      texto: (url, token) => `claude mcp add --scope user --transport http mock-server ${url} --header "Authorization: Bearer ${token}"`
+    },
+    {
+      id: 'gemini-cli',
+      label: 'Gemini CLI',
+      destino: 'terminal',
+      texto: (url, token) => `gemini mcp add --transport http --header "Authorization: Bearer ${token}" mock-server ${url}`
+    },
+    {
+      id: 'cursor',
+      label: 'Cursor',
+      destino: 'fichero',
+      ruta: '~/.cursor/mcp.json',
+      texto: (url, token) => JSON.stringify({
+        mcpServers: { 'mock-server': { url, headers: { Authorization: `Bearer ${token}` } } }
+      }, null, 2)
+    },
+    {
+      id: 'vscode',
+      label: 'VS Code',
+      destino: 'fichero',
+      ruta: '.vscode/mcp.json',
+      nota: 'vscode',
+      texto: (url, token) => JSON.stringify({
+        servers: { 'mock-server': { type: 'http', url, headers: { Authorization: `Bearer ${token}` } } }
+      }, null, 2)
+    },
+    {
+      id: 'claude-desktop',
+      label: 'Claude Desktop',
+      destino: 'fichero',
+      ruta: 'claude_desktop_config.json',
+      nota: 'claudeDesktop',
+      texto: (url, token) => JSON.stringify({
+        mcpServers: {
+          'mock-server': {
+            command: 'npx',
+            args: ['-y', 'mcp-remote@latest', url, '--header', `Authorization: Bearer ${token}`]
+          }
+        }
+      }, null, 2)
+    },
+    {
+      id: 'codex',
+      label: 'Codex CLI',
+      destino: 'fichero',
+      ruta: '~/.codex/config.toml',
+      nota: 'codex',
+      texto: (url, token) => `[mcp_servers.mock-server]\nurl = "${url}"\nbearer_token_env_var = "MOCK_SERVER_TOKEN"\n\n# export MOCK_SERVER_TOKEN="${token}"`
+    },
+    {
+      id: 'generico',
+      label: 'Otro cliente MCP',
+      destino: 'generico',
+      texto: (url, token) => JSON.stringify({ url, headers: { Authorization: `Bearer ${token}` } }, null, 2)
+    }
+  ];
+
   const McpModule = {
     ultimoToken: null,
+    ultimoNombre: null,
 
     async open() {
       document.getElementById('mcpTokenName').value = '';
@@ -1568,19 +1635,65 @@
       }
     },
 
-    buildCommand(token) {
-      // window.location.origin ya trae protocolo, host y puerto tal como el
-      // usuario ha llegado al panel
-      return `claude mcp add --scope user --transport http mock-server ${window.location.origin}/mcp --header "Authorization: Bearer ${token}"`;
+    // window.location.origin ya trae protocolo, host y puerto tal como el
+    // usuario ha llegado al panel
+    url() {
+      return `${window.location.origin}/mcp`;
+    },
+
+    clienteActual() {
+      const id = document.getElementById('mcpClient').value;
+      return CLIENTES_MCP.find(c => c.id === id) || CLIENTES_MCP[0];
+    },
+
+    rellenarClientes() {
+      const select = document.getElementById('mcpClient');
+      if (select.options.length > 0) return;
+      select.innerHTML = CLIENTES_MCP.map(c =>
+        `<option value="${c.id}">${c.id === 'generico' ? escapeHtml(t('mcp.otherClient')) : escapeHtml(c.label)}</option>`
+      ).join('');
+    },
+
+    // Cada cliente tiene su formato: unos un comando de terminal, otros un
+    // fichero de configuración. Se enseña dónde va cada cosa.
+    renderComando() {
+      if (!McpModule.ultimoToken) return;
+
+      const cliente = McpModule.clienteActual();
+      document.getElementById('mcpCommand').textContent = cliente.texto(McpModule.url(), McpModule.ultimoToken);
+
+      const etiqueta = document.getElementById('mcpCommandLabel');
+      const pista = document.getElementById('mcpHint');
+
+      if (cliente.destino === 'terminal') {
+        etiqueta.textContent = t('mcp.command');
+        pista.textContent = t('mcp.hintTerminal');
+      } else if (cliente.destino === 'fichero') {
+        etiqueta.textContent = t('mcp.config');
+        pista.innerHTML = `${escapeHtml(t('mcp.hintFile'))} <code>${escapeHtml(cliente.ruta)}</code>`;
+      } else {
+        etiqueta.textContent = t('mcp.config');
+        pista.textContent = t('mcp.hintGeneric');
+      }
+
+      const nota = document.getElementById('mcpNote');
+      if (cliente.nota) {
+        nota.innerHTML = `<div>${escapeHtml(t('mcp.notes.' + cliente.nota))}</div>`;
+        nota.style.display = 'flex';
+      } else {
+        nota.style.display = 'none';
+      }
     },
 
     render(nombre, token) {
+      McpModule.ultimoToken = token;
+      McpModule.ultimoNombre = nombre;
       document.getElementById('mcpCreatedName').textContent = nombre;
-      document.getElementById('mcpCommand').textContent = McpModule.buildCommand(token);
-      document.getElementById('mcpUrl').textContent = `${window.location.origin}/mcp`;
+      document.getElementById('mcpUrl').textContent = McpModule.url();
       document.getElementById('mcpToken').textContent = token;
       document.getElementById('mcpCommandBlock').style.display = 'block';
-      McpModule.ultimoToken = token;
+      McpModule.rellenarClientes();
+      McpModule.renderComando();
     },
 
     showCommand(id) {

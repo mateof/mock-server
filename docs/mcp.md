@@ -6,13 +6,31 @@ Mock Server exposes an MCP (Model Context Protocol) endpoint so an AI assistant 
 
 1. Open the panel and go to **Tools → MCP Connection**
 2. Give the connection a name (for example, "Claude on my laptop") and click **Create**
-3. Copy the command shown and paste it into your terminal:
+3. Pick your client from the selector and copy what it shows:
 
 ```bash
 claude mcp add --scope user --transport http mock-server http://localhost:3880/mcp --header "Authorization: Bearer <token>"
 ```
 
 The URL is built from the address you used to open the panel, so it already points at the right host: open the panel on `http://192.168.1.50:3880` and the command carries that address, not `localhost`.
+
+### Supported clients
+
+| Client | What you get | Where it goes |
+|--------|--------------|---------------|
+| Claude Code | `claude mcp add` command | Your terminal |
+| Gemini CLI | `gemini mcp add` command | Your terminal |
+| Cursor | `mcpServers` entry with `url` and `headers` | `~/.cursor/mcp.json` or `.cursor/mcp.json` |
+| VS Code | `servers` entry with `type: http` | `.vscode/mcp.json` |
+| Claude Desktop | `mcpServers` entry going through `mcp-remote` | `claude_desktop_config.json` |
+| Codex CLI | `[mcp_servers.mock-server]` block | `~/.codex/config.toml` |
+| Any other | The raw URL and header | Wherever your client wants them |
+
+Three of them carry a warning in the panel, because they are the ones that fail confusingly:
+
+- **VS Code** drops the headers silently if the config sits in a `.mcp.json` at the project root instead of `.vscode/mcp.json`, and the connection then fails as unauthenticated.
+- **Claude Desktop** does not speak MCP over HTTP directly, so the snippet bridges through `mcp-remote` and needs Node installed.
+- **Codex** reads the token from an environment variable, not from the file.
 
 Connections are listed in the same modal, with their last use, a button to show the command again and one to revoke them.
 
