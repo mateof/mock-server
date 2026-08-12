@@ -1597,6 +1597,25 @@ body {
   word-break: break-all;
 }
 
+.mcp-hint {
+  display: block;
+  margin-top: 0.4rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.mcp-hint code {
+  color: var(--text-primary);
+  background: var(--bg-dark);
+  padding: 0.05rem 0.3rem;
+  border-radius: var(--border-radius-xs);
+}
+
+.mcp-note {
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
 .mcp-details {
   margin-top: 1rem;
 }
