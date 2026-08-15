@@ -3,6 +3,8 @@
         <div class="footer-brand">
             <img src="/images/favicon/favicon-32x32.png" alt="logo" width="24" height="24">
             <span><%= __('app.title') %> v<%= version %></span>
+            <!-- Solo aparece si hay una versión más nueva publicada -->
+            <a id="versionUpdate" class="version-update" style="display: none;" target="_blank" rel="noopener"></a>
         </div>
         <div class="footer-links">
             <a href="https://github.com/mateof/mock-server" target="_blank"><i class="fa fa-github"></i> <%= __('footer.github') %></a>
@@ -10,3 +12,37 @@
         </div>
     </div>
 </footer>
+
+<script>
+  // Comprobación de versión. La consulta al registro la hace el servidor, que
+  // además la cachea, así que preguntar cada hora es barato: casi siempre
+  // responde de caché sin salir a la red.
+  const VersionCheck = {
+    INTERVALO_MS: 60 * 60 * 1000,
+
+    async comprobar() {
+      try {
+        const estado = await fetch('/api/version').then(r => r.json());
+        const aviso = document.getElementById('versionUpdate');
+        if (!aviso) return;
+
+        if (estado.update_available && estado.latest) {
+          aviso.href = estado.package_url;
+          aviso.innerHTML = `<i class="fa fa-arrow-circle-up"></i> ` +
+            t('footer.updateAvailable').replace('{{version}}', estado.latest);
+          aviso.title = t('footer.updateHint');
+          aviso.style.display = 'inline-flex';
+        } else {
+          aviso.style.display = 'none';
+        }
+      } catch (e) {
+        // Sin conexión no se avisa de nada: no saberlo no es un problema
+      }
+    }
+  };
+
+  document.addEventListener('DOMContentLoaded', () => {
+    VersionCheck.comprobar();
+    setInterval(() => VersionCheck.comprobar(), VersionCheck.INTERVALO_MS);
+  });
+</script>

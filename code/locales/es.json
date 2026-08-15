@@ -341,7 +341,9 @@
   },
   "footer": {
     "github": "GitHub",
-    "docs": "Docs"
+    "docs": "Docs",
+    "updateAvailable": "Nueva versión {{version}}",
+    "updateHint": "Ver la imagen publicada en GitHub Packages"
   },
   "httpCodes": {
     "200": "OK",

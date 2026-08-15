@@ -12,6 +12,7 @@ const graphqlService = require('../services/graphql.service');
 const scriptRunner = require('../services/script-runner.service');
 const routesService = require('../services/routes.service');
 const logService = require('../services/log.service');
+const versionService = require('../services/version.service');
 
 // Configuración de multer para subida de archivos
 const UPLOADS_DIR = path.join(__dirname, '..', 'data', 'uploads');
@@ -289,6 +290,23 @@ router.post('/validateScript', function(req, res) {
         });
 
     res.json({ valid: true, testResult: outcome });
+});
+
+/* Versión en ejecución y si hay una más nueva publicada */
+router.get('/version', async function(req, res) {
+    try {
+        const estado = await versionService.getStatus({ force: req.query.force === 'true' });
+        res.json(estado);
+    } catch (err) {
+        // No poder comprobarlo no es un error para quien pregunta
+        console.log(`[API] Error comprobando la versión: ${err.message}`);
+        res.json({
+            current: versionService.VERSION_ACTUAL,
+            latest: null,
+            update_available: false,
+            package_url: versionService.URL_PAQUETE
+        });
+    }
 });
 
 // ===== LOG =====

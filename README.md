@@ -77,6 +77,12 @@ A powerful HTTP mocking and proxying application built with Express.js and Node.
   - Bounded retention (`MOCK_SERVER_LOG_MAX_ROWS`, 50000 by default) so it cannot eat the volume
   - Queryable over MCP with `query_logs` and `log_stats`
 
+- **Update Notice** - The footer shows the running version and tells you when a newer one is published
+  - The server queries GHCR, not the browser: no CORS trouble and one check per instance instead of one per tab
+  - Lazy with a cache, so an idle instance never contacts the registry
+  - Fails silently: an instance with no internet simply shows nothing
+  - Turn it off entirely with `MOCK_SERVER_UPDATE_CHECK=false`
+
 - **MCP Server** - Let an AI assistant build your mock flows
   - Create a connection from **Tools → MCP Connection**, copy the command, paste it into your terminal
   - Streamable HTTP endpoint at `/mcp` with Bearer token auth
@@ -195,6 +201,9 @@ podman compose up -d --build
 | `TZ` | Europe/Madrid | Timezone |
 | `MOCK_SERVER_LOG_ENABLED` | true | Set to `false` to stop recording traffic |
 | `MOCK_SERVER_LOG_MAX_ROWS` | 50000 | Oldest entries are pruned past this |
+| `MOCK_SERVER_UPDATE_CHECK` | true | Set to `false` to never contact the registry |
+| `MOCK_SERVER_UPDATE_CHECK_HOURS` | 6 | How long the registry answer is cached |
+| `MOCK_SERVER_IMAGE` | mateof/mock-server | Image to check for newer versions |
 
 ### Data Persistence
 
@@ -259,6 +268,7 @@ volumes:
 |--------|----------|-------------|
 | POST | `/api/initTask` | Trigger a waiting request |
 | POST | `/api/validateRegex` | Validate regex patterns |
+| GET | `/api/version` | Running version and whether a newer one is published |
 | POST | `/api/validateScript` | Validate (and optionally dry-run) a proxy transform script |
 | GET | `/api/script-api-reference` | List the `ms.*` calls available to scripts |
 
