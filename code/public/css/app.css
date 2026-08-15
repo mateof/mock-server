@@ -1246,6 +1246,27 @@ body {
   white-space: pre;
 }
 
+/* ===== AVISO DE NUEVA VERSIÓN ===== */
+.version-update {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: 0.6rem;
+  padding: 0.12rem 0.55rem;
+  border-radius: 999px;
+  background: var(--success-light);
+  color: var(--success);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+}
+
+.version-update:hover {
+  background: var(--success);
+  color: #fff;
+}
+
 /* ===== PANTALLA DE LOGS ===== */
 .logs-summary {
   display: flex;
@@ -1497,6 +1518,14 @@ body {
 .tags-filter-mode-options button.is-active {
   background: var(--primary);
   color: #fff;
+}
+
+.tags-filter-note {
+  padding: 0.4rem 0.65rem;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  background: var(--bg-dark);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .tags-filter-search {

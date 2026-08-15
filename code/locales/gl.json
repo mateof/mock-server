@@ -71,7 +71,8 @@
     "tagModeAny": "Calquera",
     "tagModeAll": "Todos",
     "tagModeAnyHelp": "A ruta leva algún dos tags seleccionados",
-    "tagModeAllHelp": "A ruta leva todos os tags seleccionados"
+    "tagModeAllHelp": "A ruta leva todos os tags seleccionados",
+    "tagsOnlyPresent": "Só se amosan os tags presentes no resultado"
   },
   "form": {
     "responseType": "Tipo de Resposta",
@@ -340,7 +341,9 @@
   },
   "footer": {
     "github": "GitHub",
-    "docs": "Docs"
+    "docs": "Docs",
+    "updateAvailable": "Nova versión {{version}}",
+    "updateHint": "Ver a imaxe publicada en GitHub Packages"
   },
   "httpCodes": {
     "200": "OK",

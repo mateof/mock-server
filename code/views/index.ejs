@@ -967,6 +967,12 @@
       if (data.success) {
         allFilterTags = data.tags;
         renderTagFilterMenu();
+
+        // Cada redibujado cambia las rutas visibles y, con ellas, los tags que
+        // siguen llevando a algún sitio
+        tabla.on('draw', () => {
+          if (tagFilterMode === 'and') renderTagFilterMenu();
+        });
       }
     } catch (e) {
       console.error('Error loading tag filter:', e);
@@ -974,6 +980,25 @@
   }
 
   let tagFilterSearch = '';
+
+  /**
+   * Tags que llevan las rutas actualmente visibles, o sea las que pasan TODOS
+   * los filtros, no solo el de tags. Si el filtro de método ya dejó fuera las
+   * rutas de un tag, ese tag tampoco lleva a ninguna parte.
+   */
+  function tagsPresentesEnResultado() {
+    const presentes = new Set();
+    if (typeof tabla === 'undefined' || !tabla) return presentes;
+
+    tabla.rows({ filter: 'applied' }).data().each(fila => {
+      if (!fila.tags) return;
+      try {
+        JSON.parse(fila.tags).forEach(tag => presentes.add(tag.id));
+      } catch (e) { /* tags corruptos: se ignoran */ }
+    });
+
+    return presentes;
+  }
 
   function renderTagFilterMenu() {
     const menu = document.getElementById('tagsFilterMenu');
@@ -984,10 +1009,18 @@
       return;
     }
 
+    // En modo "todos" cada tag que se añade estrecha el resultado, así que
+    // ofrecer uno que ya no está en ninguna ruta visible sería un callejón sin
+    // salida: solo se listan los que quedan presentes. En modo "cualquiera"
+    // añadir un tag amplía, así que se enseñan todos.
+    const candidatos = tagFilterMode === 'and'
+      ? allFilterTags.filter(tag => tagsPresentesEnResultado().has(tag.id) || selectedFilterTags.includes(tag.id))
+      : allFilterTags;
+
     // Buscador: con muchos tags, ir a ojo por la lista no es viable
     const buscados = tagFilterSearch
-      ? allFilterTags.filter(tag => tag.name.toLowerCase().includes(tagFilterSearch.toLowerCase()))
-      : allFilterTags;
+      ? candidatos.filter(tag => tag.name.toLowerCase().includes(tagFilterSearch.toLowerCase()))
+      : candidatos;
 
     // Los seleccionados suben arriba para no perderlos de vista al buscar
     const ordenados = [...buscados].sort((a, b) => {
@@ -1020,8 +1053,12 @@
         </div>
       </div>`;
 
+    const avisoAcotado = tagFilterMode === 'and'
+      ? `<div class="tags-filter-note">${t('filters.tagsOnlyPresent')}</div>` : '';
+
     menu.innerHTML = `
       ${selectorModo}
+      ${avisoAcotado}
       <div class="tags-filter-search">
         <i class="fa fa-search"></i>
         <input type="text" id="tagsFilterSearchInput" placeholder="${t('filters.searchTags')}"

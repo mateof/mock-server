@@ -71,7 +71,8 @@
     "tagModeAny": "Any",
     "tagModeAll": "All",
     "tagModeAnyHelp": "The route has any of the selected tags",
-    "tagModeAllHelp": "The route has all the selected tags"
+    "tagModeAllHelp": "The route has all the selected tags",
+    "tagsOnlyPresent": "Only tags present in the result are listed"
   },
   "form": {
     "responseType": "Response Type",
@@ -340,7 +341,9 @@
   },
   "footer": {
     "github": "GitHub",
-    "docs": "Docs"
+    "docs": "Docs",
+    "updateAvailable": "New version {{version}}",
+    "updateHint": "See the published image on GitHub Packages"
   },
   "httpCodes": {
     "200": "OK",
