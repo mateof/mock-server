@@ -1499,6 +1499,14 @@ body {
   color: #fff;
 }
 
+.tags-filter-note {
+  padding: 0.4rem 0.65rem;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  background: var(--bg-dark);
+  border-bottom: 1px solid var(--border-color);
+}
+
 .tags-filter-search {
   display: flex;
   align-items: center;

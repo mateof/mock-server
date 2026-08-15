@@ -71,7 +71,8 @@
     "tagModeAny": "Any",
     "tagModeAll": "All",
     "tagModeAnyHelp": "The route has any of the selected tags",
-    "tagModeAllHelp": "The route has all the selected tags"
+    "tagModeAllHelp": "The route has all the selected tags",
+    "tagsOnlyPresent": "Only tags present in the result are listed"
   },
   "form": {
     "responseType": "Response Type",

@@ -71,7 +71,8 @@
     "tagModeAny": "Cualquiera",
     "tagModeAll": "Todos",
     "tagModeAnyHelp": "La ruta lleva alguno de los tags seleccionados",
-    "tagModeAllHelp": "La ruta lleva todos los tags seleccionados"
+    "tagModeAllHelp": "La ruta lleva todos los tags seleccionados",
+    "tagsOnlyPresent": "Solo se muestran los tags presentes en el resultado"
   },
   "form": {
     "responseType": "Tipo de Respuesta",
