@@ -1,5 +1,13 @@
 # MockServer
 
+<p align="center">
+  <a href="https://github.com/mateof/mock-server/actions/workflows/test.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/mateof/mock-server/test.yml?branch=main&amp;label=CI&amp;logo=github"></a>
+  <a href="https://github.com/mateof/mock-server/pkgs/container/mock-server"><img alt="GHCR image" src="https://img.shields.io/badge/ghcr.io-image-2496ED?logo=docker&amp;logoColor=white"></a>
+  <a href="https://nodejs.org/"><img alt="Node.js" src="https://img.shields.io/badge/Node.js-Express-339933?logo=nodedotjs&amp;logoColor=white"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/mateof/mock-server"></a>
+  <a href="https://github.com/mateof/mock-server/commits/main"><img alt="Last commit" src="https://img.shields.io/github/last-commit/mateof/mock-server"></a>
+</p>
+
 A powerful HTTP mocking and proxying application built with Express.js and Node.js. It provides a web-based interface for configuring dynamic mock routes, managing HTTP requests, and proxying traffic to backend servers.
 
 <img width="2974" height="1459" alt="image" src="https://github.com/user-attachments/assets/f40d6512-2237-4898-9741-1d1b9c335bce" />
