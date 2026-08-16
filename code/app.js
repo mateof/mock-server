@@ -22,6 +22,7 @@ const semaphore = require('./services/semaphore.service');
 const autoImportService = require('./services/auto-import.service');
 const websocketService = require('./services/websocket.service');
 const mcpService = require('./services/mcp.service');
+const traceService = require('./services/trace.service');
 
 // ===== MIDDLEWARES =====
 const routesMiddleware = require('./middlewares/routes.middleware');
@@ -132,6 +133,10 @@ console.log('[APP] Rutas registradas');
 // ============================================
 // MIDDLEWARE DE RUTAS MOCK
 // ============================================
+
+// Abre la traza. Va aquí y no antes: las llamadas del panel a /api y las del
+// asistente a /mcp no son tráfico simulado y llenarían el log de trazas vacías.
+app.use(traceService.middleware);
 
 app.use(routesMiddleware.checkRoute);
 

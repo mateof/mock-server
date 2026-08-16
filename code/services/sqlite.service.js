@@ -420,9 +420,13 @@ async function createTables(newdb) {
                 route_id INTEGER,
                 target TEXT,
                 message TEXT,
-                details TEXT
+                details TEXT,
+                trace_id TEXT,
+                step TEXT,
+                seq INTEGER
             );
             CREATE INDEX IF NOT EXISTS idx_logs_ts ON logs(ts_ms DESC);
+            CREATE INDEX IF NOT EXISTS idx_logs_trace ON logs(trace_id, seq);
             CREATE INDEX IF NOT EXISTS idx_logs_type ON logs(type);
             CREATE INDEX IF NOT EXISTS idx_logs_level ON logs(level);
             CREATE INDEX IF NOT EXISTS idx_logs_status ON logs(status);
@@ -430,6 +434,21 @@ async function createTables(newdb) {
             if (!err) console.log('[DB] Tabla logs verificada');
             resolve();
         });
+    });
+
+    // Columnas de traza para bases que ya existían
+    for (const columna of [['trace_id', 'TEXT'], ['step', 'TEXT'], ['seq', 'INTEGER']]) {
+        await new Promise((resolve) => {
+            newdb.run(`ALTER TABLE logs ADD COLUMN ${columna[0]} ${columna[1]}`, (err) => {
+                if (err && !err.message.includes('duplicate column')) {
+                    console.error(`[DB] Error añadiendo logs.${columna[0]}: ${err.message}`);
+                }
+                resolve();
+            });
+        });
+    }
+    await new Promise((resolve) => {
+        newdb.run('CREATE INDEX IF NOT EXISTS idx_logs_trace ON logs(trace_id, seq)', () => resolve());
     });
 
     // Tokens de conexión MCP.

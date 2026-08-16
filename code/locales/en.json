@@ -684,6 +684,13 @@
     "confirmClear": "Clear the entries matching the current filters?",
     "customRange": "Custom",
     "from": "From",
-    "to": "To"
+    "to": "To",
+    "trace": "Trace",
+    "traceTitle": "Request walkthrough",
+    "traceOpen": "Show the walkthrough",
+    "traceFilter": "Filter by this trace",
+    "traceFilterHint": "Click to see only the lines of this request",
+    "traceSteps": "steps",
+    "traceRoute": "route"
   }
 }

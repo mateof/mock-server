@@ -684,6 +684,13 @@
     "confirmClear": "¿Vaciar las entradas que coinciden con los filtros actuales?",
     "customRange": "A medida",
     "from": "Desde",
-    "to": "Hasta"
+    "to": "Hasta",
+    "trace": "Traza",
+    "traceTitle": "Recorrido de la petición",
+    "traceOpen": "Ver el recorrido",
+    "traceFilter": "Filtrar por esta traza",
+    "traceFilterHint": "Pulsa para ver solo las líneas de esta petición",
+    "traceSteps": "pasos",
+    "traceRoute": "ruta"
   }
 }

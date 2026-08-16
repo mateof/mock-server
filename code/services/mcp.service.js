@@ -708,7 +708,8 @@ function buildServer() {
         status: z.string().optional().describe("Exact code ('404') or family ('4xx')"),
         url: z.string().optional().describe('Substring of the requested URL'),
         search: z.string().optional().describe('Free text over message, URL and details'),
-        min_duration: z.number().optional().describe('Only entries slower than this, in ms')
+        min_duration: z.number().optional().describe('Only entries slower than this, in ms'),
+        trace_id: z.string().optional().describe('Only entries of one request, as returned by X-Mock-Trace-Id')
     };
 
     const toLogFilters = (args) => ({
@@ -720,7 +721,8 @@ function buildServer() {
         status: args.status,
         url: args.url,
         search: args.search,
-        minDuration: args.min_duration
+        minDuration: args.min_duration,
+        traceId: args.trace_id
     });
 
     server.registerTool('query_logs', {
@@ -759,6 +761,18 @@ function buildServer() {
                 return vista;
             })
         });
+    }));
+
+    server.registerTool('get_trace', {
+        title: 'Get a request trace',
+        description: 'The full story of one request in order: which route matched, which condition won, what each script did, what was asked of the backend and what came back. This is how you find out why a request answered what it answered instead of guessing from the final line.',
+        inputSchema: {
+            trace_id: z.string().describe('Trace id. Every answer carries it in the X-Mock-Trace-Id header, and query_logs returns it')
+        }
+    }, async ({ trace_id }) => run('get_trace', async () => {
+        const traza = await logService.getTrace(trace_id);
+        if (!traza) return fail(`Trace ${trace_id} not found. It may have been pruned by the log retention.`);
+        return ok(traza);
     }));
 
     server.registerTool('log_stats', {

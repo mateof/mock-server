@@ -119,6 +119,15 @@
                  oninput="LogsView.applyDebounced()" style="width: 90px;" min="0">
         </div>
 
+        <div class="filter-group" id="logTraceGroup" style="display: none;">
+          <label class="filter-label"><%= __('logs.trace') %>
+            <button type="button" class="btn-filter-clear-one" id="clear-logTraceId" style="display: none;"
+                    onclick="LogsView.clearOne('logTraceId')" title="<%= __('filters.clearOne') %>"><i class="fa fa-times"></i></button>
+          </label>
+          <code class="logs-trace-chip" id="logTraceChip"></code>
+          <input type="hidden" id="logTraceId">
+        </div>
+
         <div class="filter-group filter-actions">
           <button class="btn-filter-clear" onclick="LogsView.clearAll()">
             <i class="fa fa-times"></i> <%= __('filters.clearAll') %>
@@ -167,8 +176,31 @@
   </div>
 </div>
 
+<!-- Modal con el recorrido de una petición -->
+<div class="modal fade modal-modern" id="traceModal" tabindex="-1" aria-hidden="true" data-bs-focus="false">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-project-diagram me-2"></i><%= __('logs.traceTitle') %></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="traceSummary" class="trace-summary"></div>
+        <div id="traceTimeline" class="trace-timeline"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-modern btn-modern-secondary" onclick="LogsView.filterByTrace(LogsView.trazaAbierta)">
+          <i class="fa fa-filter"></i> <%= __('logs.traceFilter') %>
+        </button>
+        <button type="button" class="btn-modern btn-modern-secondary" data-bs-dismiss="modal"><%= __('buttons.close') %></button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
   const LogsView = {
+    trazaAbierta: null,
     offset: 0,
     limit: 100,
     total: 0,
@@ -179,7 +211,7 @@
     expandidas: new Set(),
 
     // Los filtros de la pantalla y su valor "sin filtrar"
-    FILTROS: { logLevel: '', logType: '', logMethod: '', logStatus: '', logSearch: '', logMinDuration: '', logFrom: '', logTo: '' },
+    FILTROS: { logLevel: '', logType: '', logMethod: '', logStatus: '', logSearch: '', logMinDuration: '', logFrom: '', logTo: '', logTraceId: '' },
 
     valor(id) {
       const el = document.getElementById(id);
@@ -206,11 +238,90 @@
       if (this.valor('logStatus')) p.set('status', this.valor('logStatus'));
       if (this.valor('logSearch')) p.set('search', this.valor('logSearch'));
       if (this.valor('logMinDuration')) p.set('minDuration', this.valor('logMinDuration'));
+      if (this.valor('logTraceId')) p.set('traceId', this.valor('logTraceId'));
       return p;
+    },
+
+    // Filtrar por traza abre el rango temporal a todo: si la petición es de
+    // hace dos horas, el preajuste de una hora la escondería y parecería que
+    // la traza no existe
+    filterByTrace(traceId) {
+      if (!traceId) return;
+      document.getElementById('logTraceId').value = traceId;
+      document.getElementById('logRange').value = '';
+      $('#traceModal').modal('hide');
+      this.apply();
+    },
+
+    async openTrace(traceId) {
+      this.trazaAbierta = traceId;
+      try {
+        const traza = await fetch(`/api/logs/trace/${traceId}`).then(r => r.json());
+        if (traza.error) { showToast(traza.error, 'warning'); return; }
+        this.pintarTraza(traza);
+        $('#traceModal').modal('show');
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    },
+
+    pintarTraza(traza) {
+      const esc = (v) => this.esc(v);
+      document.getElementById('traceSummary').innerHTML = `
+        <div class="trace-summary-main">
+          <span class="badge-method">${esc(traza.method || '')}</span>
+          <code class="trace-url">${esc(traza.url || '')}</code>
+          ${traza.status ? `<span class="logs-status logs-status-${String(traza.status)[0]}xx">${traza.status}</span>` : ''}
+        </div>
+        <div class="trace-summary-meta">
+          <span><i class="fa fa-clock-o"></i> ${traza.duration} ms</span>
+          <span><i class="fa fa-list-ol"></i> ${traza.steps} ${t('logs.traceSteps')}</span>
+          ${traza.route_id ? `<span><i class="fa fa-sitemap"></i> ${t('logs.traceRoute')} ${traza.route_id}</span>` : ''}
+          <code class="trace-id">${esc(traza.trace_id)}</code>
+        </div>`;
+
+      // El ancho de cada barra es el hueco hasta el paso siguiente: así se ve
+      // dónde se fue el tiempo, que casi siempre es esperando al backend
+      const total = Math.max(traza.duration || 0, 1);
+      const iconos = {
+        request: 'fa-sign-in', route: 'fa-sitemap', condition: 'fa-code-fork',
+        wait: 'fa-pause', script: 'fa-magic', 'proxy-request': 'fa-arrow-right',
+        'proxy-response': 'fa-arrow-left', fallback: 'fa-life-ring', response: 'fa-sign-out'
+      };
+
+      document.getElementById('traceTimeline').innerHTML = traza.entries.map((e, i) => {
+        const siguiente = traza.entries[i + 1];
+        const hasta = siguiente ? siguiente.offset : (traza.duration || e.offset);
+        const ancho = Math.max(1.5, ((hasta - e.offset) / total) * 100);
+        const desde = Math.min(98.5, (e.offset / total) * 100);
+        const lapso = hasta - e.offset;
+
+        return `
+          <div class="trace-step trace-step-${esc(e.level)}">
+            <div class="trace-step-head" onclick="LogsView.toggleTraceDetail(${e.id})">
+              <span class="trace-step-icon"><i class="fa ${iconos[e.step] || 'fa-circle-o'}"></i></span>
+              <span class="trace-step-name">${esc(e.step || e.type)}</span>
+              <span class="trace-step-message">${esc(e.message || '')}</span>
+              <span class="trace-step-time">+${e.offset} ms</span>
+              ${e.details ? '<i class="fa fa-chevron-down trace-step-toggle"></i>' : ''}
+            </div>
+            <div class="trace-step-bar-rail">
+              <div class="trace-step-bar" style="margin-left: ${desde}%; width: ${ancho}%;"
+                   title="${lapso} ms"></div>
+            </div>
+            ${e.details ? `<pre class="trace-step-detail" id="trace-detail-${e.id}" style="display: none;">${esc(JSON.stringify(e.details, null, 2))}</pre>` : ''}
+          </div>`;
+      }).join('');
+    },
+
+    toggleTraceDetail(id) {
+      const el = document.getElementById(`trace-detail-${id}`);
+      if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
     },
 
     async apply() {
       this.sincronizarRango();
+      this.sincronizarTraza();
       this.offset = 0;
       this.entradas = [];
       await this.cargar();
@@ -232,6 +343,12 @@
         document.getElementById('logFrom').value = this.paraInput(antes);
         document.getElementById('logTo').value = this.paraInput(ahora);
       }
+    },
+
+    sincronizarTraza() {
+      const traza = this.valor('logTraceId');
+      document.getElementById('logTraceGroup').style.display = traza ? '' : 'none';
+      document.getElementById('logTraceChip').textContent = traza;
     },
 
     // datetime-local espera hora local en formato YYYY-MM-DDTHH:mm:ss
@@ -355,19 +472,23 @@
       const hora = new Date(e.ts_ms).toLocaleTimeString(undefined, { hour12: false }) +
         '.' + String(e.ts_ms % 1000).padStart(3, '0');
       const detalle = e.details
-        ? `<button class="btn-icon" onclick="LogsView.toggleDetalle(${e.id})" title="${t('logs.details')}"><i class="fa fa-chevron-down"></i></button>`
+        ? `<button class="btn-icon" onclick="event.stopPropagation(); LogsView.toggleDetalle(${e.id})" title="${t('logs.details')}"><i class="fa fa-chevron-down"></i></button>`
+        : '';
+      const botonTraza = e.trace_id
+        ? `<button class="btn-icon" onclick="event.stopPropagation(); LogsView.openTrace('${e.trace_id}')" title="${t('logs.traceOpen')}"><i class="fa fa-project-diagram"></i></button>`
         : '';
       const abierta = this.expandidas.has(e.id);
 
       return `
-        <tr class="logs-row logs-row-${e.level}">
+        <tr class="logs-row logs-row-${e.level}${e.trace_id ? ' logs-row-traceable' : ''}"
+            ${e.trace_id ? `onclick="LogsView.filterByTrace('${e.trace_id}')" title="${t('logs.traceFilterHint')}"` : ''}>
           <td class="logs-time">${hora}</td>
           <td><span class="logs-level logs-level-${e.level}">${e.level}</span></td>
           <td>${e.method ? `<span class="badge-method">${e.method}</span>` : ''}</td>
           <td class="logs-url" title="${this.esc(e.message || '')}">${this.esc(e.url || e.message || '')}</td>
           <td>${e.status !== null && e.status !== undefined ? `<span class="logs-status logs-status-${String(e.status)[0]}xx">${e.status}</span>` : ''}</td>
           <td>${e.duration !== null && e.duration !== undefined ? e.duration + ' ms' : ''}</td>
-          <td>${detalle}</td>
+          <td class="logs-actions">${botonTraza}${detalle}</td>
         </tr>
         ${abierta ? `<tr class="logs-detail-row"><td colspan="7"><pre class="logs-detail">${this.esc(JSON.stringify(e.details, null, 2))}</pre></td></tr>` : ''}
       `;

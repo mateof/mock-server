@@ -676,6 +676,13 @@
     "confirmClear": "Baleirar as entradas que coinciden cos filtros actuais?",
     "customRange": "A medida",
     "from": "Dende",
-    "to": "Ata"
+    "to": "Ata",
+    "trace": "Traza",
+    "traceTitle": "Percorrido da petición",
+    "traceOpen": "Ver o percorrido",
+    "traceFilter": "Filtrar por esta traza",
+    "traceFilterHint": "Preme para ver só as liñas desta petición",
+    "traceSteps": "pasos",
+    "traceRoute": "ruta"
   }
 }

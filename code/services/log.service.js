@@ -15,6 +15,7 @@
  */
 
 const sqliteService = require('./sqlite.service');
+const traceContext = require('./trace-context');
 
 const HABILITADO = process.env.MOCK_SERVER_LOG_ENABLED !== 'false';
 const MAX_FILAS = parseInt(process.env.MOCK_SERVER_LOG_MAX_ROWS) || 50000;
@@ -37,6 +38,10 @@ function record(entrada) {
     if (!HABILITADO) return;
 
     const ahora = new Date();
+    // La traza sale del contexto de la petición, así que TODA línea escrita
+    // durante ella queda asociada sin que quien la escribe tenga que saberlo
+    const trazaId = entrada.traceId || traceContext.traceId();
+
     cola.push({
         ts: ahora.toISOString(),
         ts_ms: ahora.getTime(),
@@ -49,7 +54,10 @@ function record(entrada) {
         route_id: entrada.routeId || null,
         target: entrada.target || null,
         message: entrada.message || null,
-        details: entrada.details ? recortar(entrada.details) : null
+        details: entrada.details ? recortar(entrada.details) : null,
+        trace_id: trazaId,
+        step: entrada.step || null,
+        seq: trazaId ? traceContext.siguienteOrden() : null
     });
 
     if (cola.length >= TAMANO_LOTE) {
@@ -93,15 +101,16 @@ function flush() {
     const lote = cola;
     cola = [];
 
-    const sql = `INSERT INTO logs (ts, ts_ms, type, level, method, url, status, duration, route_id, target, message, details)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`;
+    const sql = `INSERT INTO logs (ts, ts_ms, type, level, method, url, status, duration, route_id, target, message, details, trace_id, step, seq)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`;
 
     db.serialize(() => {
         db.run('BEGIN TRANSACTION');
         const stmt = db.prepare(sql);
         for (const e of lote) {
             stmt.run([e.ts, e.ts_ms, e.type, e.level, e.method, e.url, e.status,
-                      e.duration, e.route_id, e.target, e.message, e.details]);
+                      e.duration, e.route_id, e.target, e.message, e.details,
+                      e.trace_id, e.step, e.seq]);
         }
         stmt.finalize();
         db.run('COMMIT', (err) => {
@@ -212,6 +221,15 @@ function construirWhere(filtros = {}) {
         where.push('route_id = ?');
         params.push(Number(filtros.routeId));
     }
+    if (filtros.traceId) {
+        where.push('trace_id = ?');
+        params.push(filtros.traceId);
+    }
+    if (filtros.step) {
+        const pasos = Array.isArray(filtros.step) ? filtros.step : [filtros.step];
+        where.push(`step IN (${pasos.map(() => '?').join(',')})`);
+        params.push(...pasos);
+    }
     if (filtros.minDuration) {
         where.push('duration >= ?');
         params.push(Number(filtros.minDuration));
@@ -303,6 +321,56 @@ async function stats(filtros = {}) {
     };
 }
 
+/**
+ * Traza completa y ordenada, con un resumen calculado.
+ *
+ * Se ordena por seq y no por tiempo: varios pasos caen en el mismo
+ * milisegundo con facilidad y quedarían barajados.
+ */
+async function getTrace(traceId) {
+    const filas = await dbAll(
+        'SELECT * FROM logs WHERE trace_id = ? ORDER BY COALESCE(seq, 0) ASC, id ASC',
+        [traceId]
+    );
+    if (filas.length === 0) return null;
+
+    const entradas = filas.map(f => ({ ...f, details: f.details ? seguroParse(f.details) : null }));
+    const inicio = Math.min(...entradas.map(e => e.ts_ms));
+    const fin = Math.max(...entradas.map(e => e.ts_ms));
+
+    // El paso de respuesta es el que lleva el código y la duración total
+    const respuesta = entradas.find(e => e.step === 'response');
+    const peticion = entradas.find(e => e.step === 'request') || entradas[0];
+
+    return {
+        trace_id: traceId,
+        method: peticion.method,
+        url: peticion.url,
+        route_id: entradas.map(e => e.route_id).find(Boolean) || null,
+        status: respuesta ? respuesta.status : null,
+        started_at: new Date(inicio).toISOString(),
+        duration: respuesta && respuesta.duration !== null ? respuesta.duration : (fin - inicio),
+        steps: entradas.length,
+        has_error: entradas.some(e => e.level === 'error'),
+        entries: entradas.map(e => ({
+            id: e.id,
+            at: e.ts,
+            offset: e.ts_ms - inicio,
+            seq: e.seq,
+            step: e.step,
+            type: e.type,
+            level: e.level,
+            message: e.message,
+            method: e.method,
+            url: e.url,
+            status: e.status,
+            duration: e.duration,
+            target: e.target,
+            details: e.details
+        }))
+    };
+}
+
 async function clear(filtros = {}) {
     // Sin filtros borra todo; con ellos, solo lo que se está viendo
     const { clausula, params } = construirWhere(filtros);
@@ -331,6 +399,7 @@ module.exports = {
     record,
     flush,
     query,
+    getTrace,
     stats,
     clear,
     estado,

@@ -324,6 +324,8 @@ router.get('/logs', async function(req, res) {
             url: req.query.url,
             search: req.query.search,
             routeId: req.query.routeId,
+            traceId: req.query.traceId,
+            step: req.query.step ? String(req.query.step).split(',') : null,
             minDuration: req.query.minDuration,
             limit: req.query.limit,
             offset: req.query.offset
@@ -348,11 +350,26 @@ router.get('/logs/stats', async function(req, res) {
             url: req.query.url,
             search: req.query.search,
             routeId: req.query.routeId,
+            traceId: req.query.traceId,
             minDuration: req.query.minDuration
         });
         res.json({ ...resumen, storage: logService.estado() });
     } catch (err) {
         console.error(`[API] Error calculando estadísticas del log: ${err.message}`);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/* Traza completa de una petición, con sus pasos en orden */
+router.get('/logs/trace/:traceId', async function(req, res) {
+    try {
+        const traza = await logService.getTrace(req.params.traceId);
+        if (!traza) {
+            return res.status(404).json({ error: 'Traza no encontrada' });
+        }
+        res.json(traza);
+    } catch (err) {
+        console.error(`[API] Error recuperando la traza: ${err.message}`);
         res.status(500).json({ error: err.message });
     }
 });
