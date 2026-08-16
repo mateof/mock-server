@@ -1,6 +1,7 @@
 const sqliteService = require('../services/sqlite.service');
 const criteriaService = require('../services/criteria-evaluator.service');
 const scriptRunner = require('../services/script-runner.service');
+const trace = require('../services/trace.service');
 const http = require('http');
 const https = require('https');
 const zlib = require('zlib');
@@ -65,7 +66,12 @@ function emitScriptLogs(phase, logs) {
  */
 function dropStaleResponseHeaders(res, finalHeaders) {
     res.getHeaderNames().forEach(name => {
-        if (!Object.prototype.hasOwnProperty.call(finalHeaders, name.toLowerCase())) {
+        const clave = name.toLowerCase();
+        // Las x-mock-* son nuestras, no del backend: sobre todo x-mock-trace-id,
+        // que es lo que permite correlacionar la respuesta con su traza. Sin
+        // esta excepción, este mismo barrido se la llevaba por delante.
+        if (clave.startsWith('x-mock-')) return;
+        if (!Object.prototype.hasOwnProperty.call(finalHeaders, clave)) {
             res.removeHeader(name);
         }
     });
@@ -253,6 +259,17 @@ function findMatchingFallback(config, subPath, errorType) {
 
 // Envía la respuesta de fallback
 function sendFallbackResponse(res, fallback, req, requestPath, proxyConfig, errorType, requestStart) {
+    trace.step(trace.PASOS.FALLBACK, {
+        message: `Fallback "${fallback.nombre || 'sin nombre'}" por ${errorType}`,
+        level: 'warning',
+        details: {
+            fallback: fallback.nombre,
+            error_type: errorType,
+            path_pattern: fallback.path_pattern,
+            status_code: fallback.codigo
+        }
+    });
+
     // Start with fallback defaults
     let responseCode = parseInt(fallback.codigo) || 200;
     let responseType = fallback.tiporespuesta || 'json';
@@ -562,6 +579,19 @@ async function configureProxy(app) {
                 });
 
                 emitScriptLogs('request', outcome.logs);
+                trace.step(trace.PASOS.SCRIPT, {
+                    message: outcome.success
+                        ? (outcome.shortCircuit ? 'Script de petición: cortocircuito' : 'Script de petición ejecutado')
+                        : `Script de petición falló: ${outcome.error}`,
+                    level: outcome.success ? 'info' : 'error',
+                    details: {
+                        phase: 'request',
+                        console: outcome.logs,
+                        short_circuit: outcome.shortCircuit || null,
+                        error: outcome.error || null,
+                        body_changed: outcome.result ? outcome.result.body.changed : null
+                    }
+                });
 
                 if (!outcome.success) {
                     console.error(`[PROXY] Error en el script de petición: ${outcome.error}`);
@@ -626,6 +656,21 @@ async function configureProxy(app) {
             // Calcular subPath para fallback matching
             const subPath = targetPath;
 
+            // Va aquí, después de requestHeadersForLog: leerlo antes de su
+            // declaración lanzaba un ReferenceError que el catch general
+            // convertía en un 500, y la petición al backend no llegaba a salir
+            trace.step(trace.PASOS.PROXY_REQUEST, {
+                message: `${options.method} ${targetUrl.protocol}//${targetUrl.host}${targetPath}`,
+                target: `${targetUrl.protocol}//${targetUrl.host}${targetPath}`,
+                details: {
+                    method: options.method,
+                    target: `${targetUrl.protocol}//${targetUrl.host}${targetPath}`,
+                    timeout_ms: proxyConfig.timeout,
+                    headers: requestHeadersForLog,
+                    body_bytes: outgoingBody ? outgoingBody.length : 0
+                }
+            });
+
             // Control de timeout
             let timeoutTriggered = false;
             let timeoutId = null;
@@ -636,6 +681,17 @@ async function configureProxy(app) {
                     clearTimeout(timeoutId);
                     timeoutId = null;
                 }
+
+                trace.step(trace.PASOS.PROXY_RESPONSE, {
+                    message: `El backend respondió ${proxyRes.statusCode}`,
+                    status: proxyRes.statusCode,
+                    level: proxyRes.statusCode >= 500 ? 'error' : (proxyRes.statusCode >= 400 ? 'warning' : 'info'),
+                    details: {
+                        status: proxyRes.statusCode,
+                        headers: proxyRes.headers,
+                        encoding: proxyRes.headers['content-encoding'] || null
+                    }
+                });
 
                 console.log(`[PROXY] Respuesta recibida: ${proxyRes.statusCode}`);
                 console.log(`[PROXY] Content-Encoding: ${proxyRes.headers['content-encoding'] || 'none'}`);
@@ -704,6 +760,17 @@ async function configureProxy(app) {
                     });
 
                     emitScriptLogs('response', outcome.logs);
+                    trace.step(trace.PASOS.SCRIPT, {
+                        message: outcome.success ? 'Script de respuesta ejecutado' : `Script de respuesta falló: ${outcome.error}`,
+                        level: outcome.success ? 'info' : 'error',
+                        details: {
+                            phase: 'response',
+                            console: outcome.logs,
+                            error: outcome.error || null,
+                            body_changed: outcome.result ? outcome.result.body.changed : null,
+                            status_changed: outcome.result ? outcome.result.status : null
+                        }
+                    });
 
                     if (!outcome.success) {
                         console.error(`[PROXY] Error en el script de respuesta: ${outcome.error}`);

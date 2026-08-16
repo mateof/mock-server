@@ -1246,6 +1246,144 @@ body {
   white-space: pre;
 }
 
+/* ===== TRAZA DE PETICIÓN ===== */
+.logs-row-traceable { cursor: pointer; }
+.logs-actions { white-space: nowrap; }
+
+.logs-trace-chip {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  background: var(--bg-dark);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-xs);
+  font-size: 0.78rem;
+  color: var(--primary);
+}
+
+.trace-summary {
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  background: var(--bg-card);
+  margin-bottom: 1rem;
+}
+
+.trace-summary-main {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.5rem;
+}
+
+.trace-url {
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  word-break: break-all;
+}
+
+.trace-summary-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  align-items: center;
+}
+
+.trace-id { color: var(--text-secondary); }
+
+.trace-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.trace-step {
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  background: var(--bg-card);
+  overflow: hidden;
+}
+
+/* El nivel se ve en el borde izquierdo, sin depender del color del texto */
+.trace-step-error { border-left: 3px solid var(--danger); }
+.trace-step-warning { border-left: 3px solid var(--warning); }
+.trace-step-success { border-left: 3px solid var(--success); }
+.trace-step-info { border-left: 3px solid var(--primary); }
+
+.trace-step-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+}
+
+.trace-step-head:hover { background: var(--bg-card-hover); }
+
+.trace-step-icon {
+  width: 22px;
+  text-align: center;
+  color: var(--primary);
+}
+
+.trace-step-name {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-secondary);
+  min-width: 110px;
+}
+
+.trace-step-message {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trace-step-time {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.trace-step-toggle { color: var(--text-muted); font-size: 0.75rem; }
+
+/* La barra dice dónde se fue el tiempo: casi siempre esperando al backend */
+.trace-step-bar-rail {
+  height: 4px;
+  background: var(--bg-dark);
+  margin: 0 0.75rem 0.5rem 0.75rem;
+  border-radius: 2px;
+}
+
+.trace-step-bar {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 2px;
+  min-width: 3px;
+}
+
+.trace-step-error .trace-step-bar { background: var(--danger); }
+.trace-step-warning .trace-step-bar { background: var(--warning); }
+
+.trace-step-detail {
+  margin: 0;
+  padding: 0.6rem 0.9rem;
+  background: var(--bg-dark);
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* ===== AVISO DE NUEVA VERSIÓN ===== */
 .version-update {
   display: inline-flex;

@@ -83,7 +83,14 @@ A powerful HTTP mocking and proxying application built with Express.js and Node.
   - Stacked histogram over time, summary tiles and expandable detail with the proxied headers and bodies
   - Live tail, per-filter clear and scoped clearing (only what the filters match)
   - Bounded retention (`MOCK_SERVER_LOG_MAX_ROWS`, 50000 by default) so it cannot eat the volume
-  - Queryable over MCP with `query_logs` and `log_stats`
+  - Queryable over MCP with `query_logs`, `log_stats` and `get_trace`
+
+- **Request Tracing** - Every request carries a trace id and records the steps it went through
+  - Which route matched, which condition won, what each script did, what was asked of the backend and what came back
+  - The id travels back in the `X-Mock-Trace-Id` response header, so an answer can be correlated with its trace
+  - Clicking a log line filters the log down to that one request; a button opens a walkthrough with a timeline showing where the time went
+  - Steps go only to the stored log, never to the live console, which would be unreadable with several lines per request
+  - Turn the steps off with `MOCK_SERVER_TRACE_STEPS=false` if you would rather keep the log small
 
 - **Update Notice** - The footer shows the running version and tells you when a newer one is published
   - The server queries GHCR, not the browser: no CORS trouble and one check per instance instead of one per tab
@@ -209,6 +216,7 @@ podman compose up -d --build
 | `TZ` | Europe/Madrid | Timezone |
 | `MOCK_SERVER_LOG_ENABLED` | true | Set to `false` to stop recording traffic |
 | `MOCK_SERVER_LOG_MAX_ROWS` | 50000 | Oldest entries are pruned past this |
+| `MOCK_SERVER_TRACE_STEPS` | true | Set to `false` to record only the summary line per request |
 | `MOCK_SERVER_UPDATE_CHECK` | true | Set to `false` to never contact the registry |
 | `MOCK_SERVER_UPDATE_CHECK_HOURS` | 6 | How long the registry answer is cached |
 | `MOCK_SERVER_IMAGE` | mateof/mock-server | Image to check for newer versions |
@@ -286,6 +294,7 @@ volumes:
 |--------|----------|-------------|
 | GET | `/api/logs` | Query the log (range, level, type, method, status, text, duration) |
 | GET | `/api/logs/stats` | Totals, top status codes and the histogram |
+| GET | `/api/logs/trace/:traceId` | The full ordered walkthrough of one request |
 | DELETE | `/api/logs` | Clear the log, entirely or just what the filters match |
 
 ### MCP

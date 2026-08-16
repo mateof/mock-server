@@ -3,6 +3,7 @@ const criteriaService = require('../services/criteria-evaluator.service');
 const { log, sendData } = require('../services/socket.service');
 const graphqlService = require('../services/graphql.service');
 const semaphore = require('../services/semaphore.service');
+const trace = require('../services/trace.service');
 const moment = require("moment");
 const path = require("path");
 const fs = require("fs");
@@ -96,6 +97,24 @@ async function checkRoute(req, res, next) {
     let rute = await sqliteService.getRuta(url, method.toLowerCase());
     console.log(`[ROUTE] Ruta encontrada en BD: ${rute ? 'SÍ' : 'NO'}`);
 
+    if (rute) {
+        trace.setRoute(rute.id);
+        trace.step(trace.PASOS.ROUTE, {
+            message: `Ruta ${rute.id} (${rute.tipo.toUpperCase()} ${rute.ruta})`,
+            details: {
+                route_id: rute.id, path: rute.ruta, method: rute.tipo,
+                response_type: rute.tiporespuesta, status_code: rute.codigo,
+                is_regex: rute.isRegex === 1
+            }
+        });
+    } else {
+        // Sin nivel de aviso: en una ruta proxy esto es lo normal, porque el
+        // proxy casa por prefijo más adelante y no por esta búsqueda
+        trace.step(trace.PASOS.ROUTE, {
+            message: 'Ninguna ruta mock casa; sigue el proxy si hay alguno'
+        });
+    }
+
     // Si es tipo proxy, ignorar y pasar al middleware de proxy
     if (rute && rute.tiporespuesta === 'proxy') {
         console.log(`[ROUTE] Tipo proxy detectado, delegando al middleware de proxy...`);
@@ -142,6 +161,18 @@ async function checkRoute(req, res, next) {
                     const evalResult = criteriaService.evaluateCriteria(condition.criteria, evalContext);
                     if (evalResult.success && evalResult.result) {
                         console.log(`[ROUTE] Condición matched: "${condition.nombre || condition.id}"`);
+                        trace.step(trace.PASOS.CONDITION, {
+                            message: `Condición "${condition.nombre || condition.id}"`,
+                            details: {
+                                condition_id: condition.id, name: condition.nombre,
+                                criteria: condition.criteria,
+                                overrides: {
+                                    status_code: condition.codigo,
+                                    response_type: condition.tiporespuesta,
+                                    has_body: !!condition.respuesta
+                                }
+                            }
+                        });
 
                         // Aplicar overrides de la condición
                         if (condition.codigo) {
@@ -175,6 +206,10 @@ async function checkRoute(req, res, next) {
         if (rute.esperaActiva === 1) {
             console.log(`[ROUTE] Modo espera activa ACTIVADO - esperando señal...`);
             log.wait(method, url);
+            trace.step(trace.PASOS.WAIT, {
+                message: 'Espera activa: la petición queda retenida',
+                level: 'warning'
+            });
 
             // Obtener condiciones disponibles para esta ruta (para selector en pending list)
             try {
@@ -219,6 +254,10 @@ async function checkRoute(req, res, next) {
                 console.log(`[ROUTE] Usando respuesta personalizada:`, JSON.stringify(customResponse).substring(0, 200));
             }
             sendData('deleteItem', itemLW.id);
+            trace.step(trace.PASOS.WAIT, {
+                message: 'Espera activa liberada',
+                details: { custom_response: !!itemLW.customResponse }
+            });
             rute = await sqliteService.getRuta(url, method.toLowerCase());
             console.log(`[ROUTE] Ruta recargada después de espera`);
         }
