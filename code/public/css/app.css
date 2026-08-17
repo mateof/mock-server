@@ -1723,7 +1723,9 @@ body {
 }
 
 .tags-filter-options {
-  max-height: 260px;
+  /* El alto real lo calcula posicionarMenuTags() con el hueco disponible en la
+     ventana; esto es solo el tope por si el JS no llegara a ejecutarse */
+  max-height: 60vh;
   overflow-y: auto;
 }
 
@@ -3598,18 +3600,20 @@ table.dataTable.no-footer {
   position: fixed;
   top: 0;
   left: 0;
-  min-width: 220px;
+  min-width: 280px;
   width: max-content;
-  max-width: 320px;
+  max-width: 420px;
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius-sm);
   box-shadow: var(--shadow-lg);
   /* Por encima de la tarjeta y de la tabla, por debajo de los modales (1055) */
   z-index: 1040;
-  max-height: 250px;
-  overflow-y: auto;
-  overflow-x: hidden;
+  /* Sin scroll aquí: el menú crece con su contenido y solo la lista de tags
+     tiene barra. Antes había dos scrolls anidados y este recortaba a 250 px el
+     conjunto (selector + buscador + aviso + lista), así que a la lista le
+     quedaban tres filas y aparecía barra con cuatro tags. */
+  overflow: hidden;
   display: none;
   margin-top: 4px;
 }

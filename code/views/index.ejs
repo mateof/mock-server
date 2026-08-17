@@ -1136,11 +1136,28 @@
   }
 
   function posicionarMenuTags() {
-    posicionarMenuFlotante(
-      document.getElementById('tagsFilterMenu'),
-      document.querySelector('#tagsFilterDropdown .tags-filter-button'),
-      'izquierda'
-    );
+    const menu = document.getElementById('tagsFilterMenu');
+    const boton = document.querySelector('#tagsFilterDropdown .tags-filter-button');
+    if (!menu || !boton || !menu.classList.contains('show')) return;
+
+    // La lista se estira hasta donde llegue el hueco de la ventana. Con un tope
+    // fijo aparecía barra de scroll aunque hubiera sitio de sobra en pantalla.
+    const lista = menu.querySelector('.tags-filter-options');
+    if (lista) {
+      const r = boton.getBoundingClientRect();
+      const margen = 12;
+
+      // Alto de lo que no es la lista: selector de modo, buscador y avisos
+      lista.style.maxHeight = 'none';
+      const altoFijo = menu.offsetHeight - lista.offsetHeight;
+
+      // Se mide el mayor de los dos huecos, arriba y abajo, porque el menú
+      // vuelca hacia arriba si no cabe debajo
+      const hueco = Math.max(r.top - margen, window.innerHeight - r.bottom - margen);
+      lista.style.maxHeight = Math.max(160, hueco - altoFijo) + 'px';
+    }
+
+    posicionarMenuFlotante(menu, boton, 'izquierda');
   }
 
   function posicionarMenuHerramientas() {
