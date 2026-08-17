@@ -3504,15 +3504,17 @@ table.dataTable.no-footer {
 }
 
 .dropdown-menu-modern {
-  position: absolute;
-  top: 100%;
-  right: 0;
+  /* Mismo motivo que el menú de tags: absolute lo recortaba la tarjeta.
+     Las coordenadas las pone posicionarMenuHerramientas(). */
+  position: fixed;
+  top: 0;
+  left: 0;
   min-width: 180px;
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
   box-shadow: var(--shadow-lg);
-  z-index: 1000;
+  z-index: 1040;
   padding: 0.5rem 0;
   display: none;
   margin-top: 4px;
@@ -3588,8 +3590,13 @@ table.dataTable.no-footer {
 }
 
 .tags-filter-menu {
-  position: absolute;
-  top: 100%;
+  /* Fija, no absoluta: la tarjeta que la envuelve tiene overflow hidden y
+     recortaba el menú, de forma que al quedarse la lista vacía la tarjeta
+     encogía y se llevaba medio desplegable por delante. Con position: fixed
+     el menú ya no depende del tamaño de sus ancestros; las coordenadas las
+     calcula posicionarMenuTags() a partir del botón. */
+  position: fixed;
+  top: 0;
   left: 0;
   min-width: 220px;
   width: max-content;
@@ -3597,8 +3604,9 @@ table.dataTable.no-footer {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius-sm);
-  box-shadow: var(--shadow-md);
-  z-index: 100;
+  box-shadow: var(--shadow-lg);
+  /* Por encima de la tarjeta y de la tabla, por debajo de los modales (1055) */
+  z-index: 1040;
   max-height: 250px;
   overflow-y: auto;
   overflow-x: hidden;

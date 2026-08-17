@@ -1073,6 +1073,9 @@
       <div class="tags-filter-options">${opciones}</div>
     `;
 
+    // El alto cambia con el contenido, así que hay que recolocarlo
+    posicionarMenuTags();
+
     // Reponer el foco y el cursor: re-renderizar lo pierde y se corta al teclear
     if (tagFilterSearch) {
       const input = document.getElementById('tagsFilterSearchInput');
@@ -1098,8 +1101,64 @@
 
   function toggleTagsFilterDropdown() {
     const menu = document.getElementById('tagsFilterMenu');
-    menu.classList.toggle('show');
+    const abierto = menu.classList.toggle('show');
+    if (abierto) posicionarMenuTags();
   }
+
+  /**
+   * Coloca un menú flotante bajo su botón.
+   *
+   * Los menús son position: fixed para escapar del overflow hidden de la
+   * tarjeta que los envuelve, que los recortaba: al quedarse la lista vacía la
+   * tarjeta encogía y se llevaba medio desplegable por delante. Al ser fixed,
+   * las coordenadas ya no las heredan del botón y hay que calcularlas.
+   *
+   * @param alinear 'izquierda' pega el menú al borde izquierdo del botón,
+   *                'derecha' a su borde derecho (que es como estaba el de
+   *                herramientas, con right: 0).
+   */
+  function posicionarMenuFlotante(menu, boton, alinear = 'izquierda') {
+    if (!menu || !boton || !menu.classList.contains('show')) return;
+
+    const r = boton.getBoundingClientRect();
+    const alto = menu.offsetHeight;
+    const ancho = menu.offsetWidth;
+    const margen = 4;
+
+    // Si no cabe debajo pero sí encima, se despliega hacia arriba
+    const cabeDebajo = r.bottom + margen + alto <= window.innerHeight;
+    const cabeEncima = r.top - margen - alto >= 0;
+    menu.style.top = (cabeDebajo || !cabeEncima ? r.bottom + margen : r.top - margen - alto) + 'px';
+
+    // Y si se saliera de la ventana, se mete dentro
+    const deseada = alinear === 'derecha' ? r.right - ancho : r.left;
+    menu.style.left = Math.max(margen, Math.min(deseada, window.innerWidth - ancho - margen)) + 'px';
+  }
+
+  function posicionarMenuTags() {
+    posicionarMenuFlotante(
+      document.getElementById('tagsFilterMenu'),
+      document.querySelector('#tagsFilterDropdown .tags-filter-button'),
+      'izquierda'
+    );
+  }
+
+  function posicionarMenuHerramientas() {
+    posicionarMenuFlotante(
+      document.getElementById('toolsDropdownMenu'),
+      document.querySelector('.dropdown-modern .dropdown-toggle'),
+      'derecha'
+    );
+  }
+
+  // Con scroll o cambio de tamaño el botón se mueve y el menú se quedaría
+  // flotando donde estaba
+  function recolocarMenusFlotantes() {
+    posicionarMenuTags();
+    posicionarMenuHerramientas();
+  }
+  window.addEventListener('scroll', recolocarMenusFlotantes, true);
+  window.addEventListener('resize', recolocarMenusFlotantes);
 
   // Se llama tanto desde el desplegable como al pulsar un tag en la tabla, y
   // es acumulativo: cada pulsación añade o quita ese tag del filtro
@@ -5076,7 +5135,8 @@
   // ===== TOOLS DROPDOWN =====
   function toggleToolsDropdown() {
     const menu = document.getElementById('toolsDropdownMenu');
-    menu.classList.toggle('show');
+    const abierto = menu.classList.toggle('show');
+    if (abierto) posicionarMenuHerramientas();
   }
 
   function closeToolsDropdown() {
