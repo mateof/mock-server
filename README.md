@@ -27,6 +27,7 @@ A powerful HTTP mocking and proxying application built with Express.js and Node.
 | **Empty** | Empty 204 responses |
 | **GraphQL** | GraphQL endpoint with per-operation mock/proxy support |
 | **WebSocket** | WebSocket endpoint with configurable message handlers |
+| **SSE** | `text/event-stream` with timed events and optional looping |
 | **Proxy** | Forward requests to backend servers |
 | **Redirect** | HTTP 301 redirects |
 
@@ -39,6 +40,12 @@ A powerful HTTP mocking and proxying application built with Express.js and Node.
 - **Regex Route Matching** - Test routes with regex patterns in UI
   - Validation with test URL
   - Separate path extraction for proxies
+
+- **Server-Sent Events** - `text/event-stream` responses with timed events
+  - The body is the event list: name, data and the delay before each one
+  - Optional looping, for heartbeats
+  - Stops cleanly when the client disconnects
+  - See [SSE Documentation](docs/sse.md) for details
 
 - **Call Verification** - Assert what actually happened, from the assistant
   - "Was /orders called, how many times, and with what body?"

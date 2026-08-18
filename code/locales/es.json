@@ -123,7 +123,8 @@
       "faultsHelp": "Hace que la ruta tarde, falle, o las dos cosas. Es lo que hace falta para probar timeouts, reintentos y degradación, que un mock que responde al instante no ejercita. En una ruta proxy el retardo se aplica antes de llamar al backend y un fallo provocado nunca llega a él.",
       "templatingDesc": "Sustituye {{...}} en el cuerpo y en las cabeceras por datos de la petición o valores generados. Viene apagado porque una respuesta puede llevar {{...}} de forma legítima.",
       "sequenceHelp": "Hace que la ruta responda distinto según la vez que se llame: primera pending, segunda processing, tercera done. Es lo que simula un flujo con sondeo, que las condiciones no pueden porque solo miran la petición y en un sondeo todas son iguales. El paso gana sobre las condiciones. El contador vive en memoria y se reinicia al reiniciar el servidor.",
-      "mockScriptHelp": "Transforma la respuesta con JavaScript antes de enviarla. Corre el último: ve el cuerpo definitivo, después de las condiciones, el escenario y la plantilla. Puede leer la petición con ms.request.json() y cambiar la respuesta con ms.response.code, ms.response.headers y ms.response.setBody()."
+      "mockScriptHelp": "Transforma la respuesta con JavaScript antes de enviarla. Corre el último: ve el cuerpo definitivo, después de las condiciones, el escenario y la plantilla. Puede leer la petición con ms.request.json() y cambiar la respuesta con ms.response.code, ms.response.headers y ms.response.setBody().",
+      "sseHelp": "El cuerpo es la lista de eventos en JSON. `delay` es lo que se espera ANTES de mandar ese evento. Al acabar se cierra la conexión, salvo que actives el bucle."
     },
     "proxyTimeout": "Timeout de Petición",
     "proxyFallbacks": "Respuestas de Fallback",
@@ -212,7 +213,9 @@
     "sequenceResetHint": "Vuelve al primer paso sin tocar la configuración",
     "sequenceResetDone": "Escenario reiniciado",
     "mockScript": "Script de la respuesta",
-    "scriptReference": "Referencia de la API ms.*"
+    "scriptReference": "Referencia de la API ms.*",
+    "sseLoop": "Repetir los eventos en bucle",
+    "sseExample": "Formato de los eventos"
   },
   "responseTypes": {
     "json": "JSON",
@@ -225,7 +228,8 @@
     "proxy": "Proxy",
     "graphql": "GraphQL",
     "websocket": "WebSocket",
-    "empty": "Sin Body"
+    "empty": "Sin Body",
+    "sse": "SSE (eventos en streaming)"
   },
   "buttons": {
     "save": "Guardar",

@@ -31,7 +31,7 @@ const scenarioService = require('./scenario.service');
 const { log } = require('./socket.service');
 const { version } = require('../package.json');
 
-const RESPONSE_TYPES = ['json', 'xml', 'soap', 'text', 'html', 'page', 'empty', 'file', 'graphql', 'websocket', 'proxy'];
+const RESPONSE_TYPES = ['json', 'xml', 'soap', 'text', 'html', 'page', 'empty', 'sse', 'file', 'graphql', 'websocket', 'proxy'];
 const HTTP_METHODS = ['get', 'post', 'put', 'delete', 'patch', 'options', 'head', 'any'];
 
 // ===== ESQUEMAS REUTILIZADOS =====
@@ -76,6 +76,7 @@ const routeFields = {
     fault_rate: z.number().optional().describe('Percentage of requests that fail on purpose, 0 to 100'),
     fault_type: z.enum(['error', 'reset', 'empty']).optional().describe("What failing means: 'error' answers fault_status with a JSON body, 'reset' drops the connection, 'empty' answers the code with no body"),
     fault_status: z.string().optional().describe("Status code used when fault_type is 'error' or 'empty'. Default '500'"),
+    sse_loop: z.boolean().optional().describe('For sse routes: start the event list over instead of closing when it runs out'),
     mock_script: z.string().optional().describe('ms.* script that shapes the response of a MOCK route, running last: after conditions, scenario and templating. It can read the request (ms.request.json(), headers, query) and change the response (ms.response.code, headers, setBody). On proxy routes use proxy_pre_script and proxy_post_script instead'),
     templating: z.boolean().optional().describe("Resolve {{...}} placeholders in the response body and headers. Off by default, because a response can legitimately contain {{...}}. Use {{body.x}}, {{query.x}}, {{params.x}}, {{headers.x}}, generators like {{uuid()}}, {{now('+1d')}}, {{randomInt(1,100)}}, {{pick('a','b')}}, and {{x ?? 'fallback'}}. In JSON, quote it to get a string and leave it unquoted to get a number, array or object"),
     conditions: z.array(conditionSchema).optional().describe('Conditional responses, evaluated in order: the first match wins')
@@ -120,7 +121,8 @@ function baseFromRoute(ruta) {
         faultStatus: ruta.fault_status,
         templating: ruta.templating === 1,
         sequenceMode: ruta.sequence_mode,
-        mockScript: ruta.mock_script
+        mockScript: ruta.mock_script,
+        sseLoop: ruta.sse_loop === 1
     };
 }
 
@@ -163,6 +165,7 @@ function toPayload(args, base = {}) {
     if (args.templating !== undefined) payload.templating = args.templating;
     if (args.sequence_mode !== undefined) payload.sequenceMode = args.sequence_mode;
     if (args.mock_script !== undefined) payload.mockScript = args.mock_script;
+    if (args.sse_loop !== undefined) payload.sseLoop = args.sse_loop;
 
     if (args.conditions !== undefined) {
         payload.conditions = args.conditions.map(c => ({
@@ -212,6 +215,7 @@ function toRouteView(row, { detailed = false } = {}) {
     view.custom_headers = parse(row.customHeaders) || [];
     if (row.templating === 1) view.templating = true;
     if (row.mock_script) view.mock_script = row.mock_script;
+    if (row.tiporespuesta === 'sse') view.sse_loop = row.sse_loop === 1;
 
     if (Array.isArray(row.sequence) && row.sequence.length) {
         view.sequence_mode = row.sequence_mode || 'stick';

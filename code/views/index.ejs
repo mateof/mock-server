@@ -802,7 +802,7 @@
         return html;
       }},
       { data: null, render: function (data) {
-        const icons = { json: 'fa-code', xml: 'fa-file-code-o', soap: 'fa-envelope-o', text: 'fa-align-left', html: 'fa-html5', page: 'fa-file-text-o', file: 'fa-file-o', proxy: 'fa-exchange', graphql: 'fa-share-alt', websocket: 'fa-plug', empty: 'fa-circle-o' };
+        const icons = { json: 'fa-code', xml: 'fa-file-code-o', soap: 'fa-envelope-o', text: 'fa-align-left', html: 'fa-html5', page: 'fa-file-text-o', file: 'fa-file-o', proxy: 'fa-exchange', graphql: 'fa-share-alt', websocket: 'fa-plug', sse: 'fa-rss', empty: 'fa-circle-o' };
         return `<span class="response-type type-${data.tiporespuesta}"><i class="fa ${icons[data.tiporespuesta] || 'fa-question'}"></i> ${data.tiporespuesta}</span>`;
       }},
       { data: null, render: function (data) {
@@ -1327,6 +1327,7 @@
     hideElements(['#divDestino', '#divFile', '#divProxyTimeout', '#divProxyRecording', '#divFallbacks', '#divProxyTransform', '#divGraphQL', '#divWebSocket']);
     // En una ruta mock el script vive aquí; en una proxy, en las transformaciones
     document.getElementById('divMockScript').style.display = '';
+    document.getElementById('divSse').style.display = tipoResp === 'sse' ? '' : 'none';
     // Se descarga solo cuando hace falta, igual que en el proxy
     ScriptEditors.montar().then(() => ScriptEditors.sincronizar());
 
@@ -5971,6 +5972,7 @@
     document.getElementById("templating").checked = false;
     document.getElementById("mockScript").value = '';
     document.getElementById("mockScriptResult").innerHTML = '';
+    document.getElementById("sseLoop").checked = false;
     sequenceRouteId = null;
     clearSequence();
     updateFaultsFields();
@@ -6002,6 +6004,7 @@
     document.getElementById("faultStatus").value = obj.fault_status || '500';
     document.getElementById("templating").checked = obj.templating === 1;
     document.getElementById("mockScript").value = obj.mock_script || '';
+    document.getElementById("sseLoop").checked = obj.sse_loop === 1;
     sequenceRouteId = obj.id;
     setSequence(obj.sequence, obj.sequence_mode);
     updateFaultsFields();
@@ -6104,6 +6107,7 @@
     if (tiporespuesta !== 'proxy') {
       formData.append('mockScript', document.getElementById("mockScript").value || '');
     }
+    formData.append('sseLoop', document.getElementById("sseLoop").checked);
 
     // Proxy timeout y transformaciones de petición/respuesta
     if (tiporespuesta === 'proxy') {
@@ -6237,6 +6241,7 @@
     if (tiporespuesta !== 'proxy') {
       formData.append('mockScript', document.getElementById("mockScript").value || '');
     }
+    formData.append('sseLoop', document.getElementById("sseLoop").checked);
 
     // Proxy timeout y transformaciones de petición/respuesta
     if (tiporespuesta === 'proxy') {

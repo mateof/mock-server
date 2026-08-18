@@ -8,6 +8,7 @@ const faultService = require('../services/fault.service');
 const templateService = require('../services/template.service');
 const scenarioService = require('../services/scenario.service');
 const scriptRunner = require('../services/script-runner.service');
+const sseService = require('../services/sse.service');
 const moment = require("moment");
 const path = require("path");
 const fs = require("fs");
@@ -469,7 +470,11 @@ async function checkRoute(req, res, next) {
         }
 
         res.statusCode = responseCode;
-        res.status = responseCode;
+        // Aquí había un `res.status = responseCode` que machacaba el método
+        // res.status() de Express con un número. Nadie lo leía, y dejaba
+        // tirando abajo el proceso cualquier error posterior que respondiera
+        // con res.status(...): el fichero sin configurar, el fichero que no
+        // existe y, ahora, el SSE mal formado
         res.header('Access-Control-Allow-Origin', req.header('origin'));
         console.log(`[ROUTE] Status code establecido: ${res.statusCode}`);
 
@@ -545,6 +550,37 @@ async function checkRoute(req, res, next) {
                     }
                 });
                 log.mock(method, url, res.statusCode, duration);
+                return;
+            }
+            if (responseType === 'sse') {
+                console.log(`[ROUTE] Respuesta tipo SSE`);
+                const analisis = sseService.parsearEventos(responseBody);
+
+                if (!analisis.ok) {
+                    console.error(`[ROUTE] SSE mal configurado: ${analisis.error}`);
+                    trace.step(trace.PASOS.RESPONSE, {
+                        message: `SSE mal configurado: ${analisis.error}`,
+                        level: 'error'
+                    });
+                    res.status(500).json({ error: 'Invalid SSE configuration', message: analisis.error });
+                    log.error(`📡 ${method} ${url}: ${analisis.error}`);
+                    return;
+                }
+
+                trace.step(trace.PASOS.RESPONSE, {
+                    message: `Stream SSE abierto con ${analisis.eventos.length} eventos`,
+                    status: 200,
+                    details: { events: analisis.eventos.length, loop: rute.sse_loop === 1 }
+                });
+
+                sseService.transmitir(req, res, {
+                    eventos: analisis.eventos,
+                    loop: rute.sse_loop === 1,
+                    onEnd: ({ sent, reason }) => {
+                        log.request(method, url, 200, Date.now() - requestStart, 'mock');
+                        console.log(`[ROUTE] SSE cerrado (${reason}) tras ${sent} eventos`);
+                    }
+                });
                 return;
             }
             if (responseType === 'graphql') {

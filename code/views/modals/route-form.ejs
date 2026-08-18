@@ -83,6 +83,7 @@
                   <option value="proxy"><%= __('responseTypes.proxy') %></option>
                   <option value="graphql"><%= __('responseTypes.graphql') %></option>
                   <option value="websocket"><%= __('responseTypes.websocket') %></option>
+                  <option value="sse"><%= __('responseTypes.sse') %></option>
                   <option value="empty"><%= __('responseTypes.empty') %></option>
                 </select>
               </div>
@@ -456,6 +457,27 @@
                 </div>
                 <label class="switch-modern" for="rutaActiva">
                   <input type="checkbox" id="rutaActiva" name="rutaActiva" checked>
+                  <span class="slider"></span>
+                </label>
+              </div>
+
+              <!-- Opciones de SSE -->
+              <div class="alert-modern alert-modern-info" id="divSse" style="display: none;">
+                <i class="fa fa-rss alert-icon" aria-hidden="true"></i>
+                <div class="alert-content">
+                  <div class="alert-title"><%= __('form.sseLoop') %></div>
+                  <div class="alert-text"><%= __('form.help.sseHelp') %></div>
+                  <div class="conditions-reference" style="margin-top: 0.75rem;">
+                    <div><strong><%= __('form.sseExample') %>:</strong></div>
+                    <pre style="margin: 0.4rem 0 0; white-space: pre-wrap;"><code>[
+  { "data": { "estado": "pending" } },
+  { "event": "progreso", "data": { "pct": 50 }, "delay": 1000 },
+  { "event": "fin", "data": "listo", "delay": 1000 }
+]</code></pre>
+                  </div>
+                </div>
+                <label class="switch-modern" for="sseLoop">
+                  <input type="checkbox" id="sseLoop" name="sseLoop">
                   <span class="slider"></span>
                 </label>
               </div>

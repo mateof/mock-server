@@ -123,7 +123,8 @@
       "faultsHelp": "Fai que a ruta tarde, falle, ou as dúas cousas. É o que fai falta para probar timeouts, reintentos e degradación, que un mock que responde ao instante non exercita. Nunha ruta proxy o retardo aplícase antes de chamar ao backend e un fallo provocado nunca chega a el.",
       "templatingDesc": "Substitúe {{...}} no corpo e nas cabeceiras por datos da petición ou valores xerados. Vén apagado porque unha resposta pode levar {{...}} de forma lexítima.",
       "sequenceHelp": "Fai que a ruta responda distinto segundo a vez que se chame: primeira pending, segunda processing, terceira done. É o que simula un fluxo con sondaxe, que as condicións non poden porque só miran a petición e nunha sondaxe todas son iguais. O paso gaña sobre as condicións. O contador vive en memoria e reiníciase ao reiniciar o servidor.",
-      "mockScriptHelp": "Transforma a resposta con JavaScript antes de enviala. Corre o último: ve o corpo definitivo, despois das condicións, o escenario e a plantilla. Pode ler a petición con ms.request.json() e cambiar a resposta con ms.response.code, ms.response.headers e ms.response.setBody()."
+      "mockScriptHelp": "Transforma a resposta con JavaScript antes de enviala. Corre o último: ve o corpo definitivo, despois das condicións, o escenario e a plantilla. Pode ler a petición con ms.request.json() e cambiar a resposta con ms.response.code, ms.response.headers e ms.response.setBody().",
+      "sseHelp": "O corpo é a lista de eventos en JSON. `delay` é o que se espera ANTES de mandar ese evento. Ao rematar péchase a conexión, agás que actives o bucle."
     },
     "proxyTimeout": "Timeout de Petición",
     "proxyFallbacks": "Respostas de Fallback",
@@ -212,7 +213,9 @@
     "sequenceResetHint": "Volve ao primeiro paso sen tocar a configuración",
     "sequenceResetDone": "Escenario reiniciado",
     "mockScript": "Script da resposta",
-    "scriptReference": "Referencia da API ms.*"
+    "scriptReference": "Referencia da API ms.*",
+    "sseLoop": "Repetir os eventos en bucle",
+    "sseExample": "Formato dos eventos"
   },
   "responseTypes": {
     "json": "JSON",
@@ -225,7 +228,8 @@
     "proxy": "Proxy",
     "graphql": "GraphQL",
     "websocket": "WebSocket",
-    "empty": "Sen Body"
+    "empty": "Sen Body",
+    "sse": "SSE (eventos en streaming)"
   },
   "buttons": {
     "save": "Gardar",

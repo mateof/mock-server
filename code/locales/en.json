@@ -123,7 +123,8 @@
       "faultsHelp": "Makes the route slow, unreliable, or both. This is what you need to test timeouts, retries and degradation, which a mock that always answers instantly cannot exercise. On a proxy route the delay happens before calling the backend, and an injected fault never reaches it.",
       "templatingDesc": "Replaces {{...}} in the body and headers with request data or generated values. Off by default, because a response can legitimately contain {{...}}.",
       "sequenceHelp": "Makes the route answer differently depending on how many times it has been called: first pending, then processing, then done. This is what simulates a polling flow, which conditions cannot: they only look at the request, and in a poll every request is identical. The step wins over conditions. The counter lives in memory and resets when the server restarts.",
-      "mockScriptHelp": "Transforms the response with JavaScript before sending it. It runs last: it sees the final body, after conditions, the scenario and templating. It can read the request with ms.request.json() and change the response with ms.response.code, ms.response.headers and ms.response.setBody()."
+      "mockScriptHelp": "Transforms the response with JavaScript before sending it. It runs last: it sees the final body, after conditions, the scenario and templating. It can read the request with ms.request.json() and change the response with ms.response.code, ms.response.headers and ms.response.setBody().",
+      "sseHelp": "The body is the list of events in JSON. `delay` is how long to wait BEFORE sending that event. The connection closes when the list runs out, unless you turn on looping."
     },
     "proxyTimeout": "Request Timeout",
     "proxyFallbacks": "Fallback Responses",
@@ -212,7 +213,9 @@
     "sequenceResetHint": "Back to the first step, without touching the configuration",
     "sequenceResetDone": "Scenario restarted",
     "mockScript": "Response script",
-    "scriptReference": "ms.* API reference"
+    "scriptReference": "ms.* API reference",
+    "sseLoop": "Loop the events",
+    "sseExample": "Event format"
   },
   "responseTypes": {
     "json": "JSON",
@@ -225,7 +228,8 @@
     "proxy": "Proxy",
     "graphql": "GraphQL",
     "websocket": "WebSocket",
-    "empty": "No Body"
+    "empty": "No Body",
+    "sse": "SSE (server-sent events)"
   },
   "buttons": {
     "save": "Save",
