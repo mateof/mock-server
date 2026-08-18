@@ -2,6 +2,7 @@ const sqliteService = require('../services/sqlite.service');
 const criteriaService = require('../services/criteria-evaluator.service');
 const scriptRunner = require('../services/script-runner.service');
 const trace = require('../services/trace.service');
+const faultService = require('../services/fault.service');
 const http = require('http');
 const https = require('https');
 const zlib = require('zlib');
@@ -193,7 +194,10 @@ async function loadProxyConfigs() {
             postScript: p.proxy_post_script || null,
             // Modo grabación: cada respuesta del backend se guarda como mock
             recording: p.recording === 1,
-            recordingMode: p.recording_mode || 'update'
+            recordingMode: p.recording_mode || 'update',
+            // Se normaliza al cargar y no en cada petición: la configuración
+            // solo cambia al guardar la ruta, que ya fuerza una recarga
+            chaos: faultService.configuracion(p)
         };
     }));
 
@@ -460,6 +464,34 @@ async function configureProxy(app) {
         if (!proxyConfig) {
             console.log(`[PROXY] Sin proxy configurado, pasando al siguiente middleware`);
             return next();
+        }
+
+        // Latencia y fallos provocados, antes de salir hacia el backend: un
+        // fallo simulado no debe molestar al backend real, y el retardo tiene
+        // que sumarse al suyo, no solaparse
+        const chaos = proxyConfig.chaos;
+        if (chaos && faultService.estaActiva(chaos)) {
+            const retardo = faultService.calcularRetardo(chaos);
+            if (retardo > 0) {
+                trace.step(trace.PASOS.LATENCY, {
+                    message: `Latencia provocada: ${retardo} ms`,
+                    details: { mode: chaos.modo, delay_ms: retardo, min: chaos.min, max: chaos.max }
+                });
+                await faultService.esperar(retardo);
+            }
+
+            if (faultService.tocaFallar(chaos)) {
+                trace.step(trace.PASOS.FAULT, {
+                    message: `Fallo provocado (${chaos.tipoFallo})`,
+                    level: 'error',
+                    status: chaos.tipoFallo === 'reset' ? null : Number(chaos.codigoFallo),
+                    details: { type: chaos.tipoFallo, rate: chaos.porcentajeFallo, status: chaos.codigoFallo }
+                });
+                faultService.provocarFallo(chaos, res);
+                log.proxyError(req.method, requestPath, proxyConfig.target,
+                    `Fallo provocado (${chaos.tipoFallo} ${chaos.codigoFallo})`);
+                return;
+            }
         }
 
         try {

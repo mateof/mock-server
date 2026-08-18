@@ -200,6 +200,13 @@ async function createTables(newdb) {
     // Modo grabación: convierte en mocks lo que va respondiendo el backend
     await addColumn(newdb, 'recording', 'INTEGER DEFAULT 0');
     await addColumn(newdb, 'recording_mode', "TEXT DEFAULT 'update'");
+    // Latencia y fallos provocados (ver fault.service.js)
+    await addColumn(newdb, 'latency_mode', "TEXT DEFAULT 'none'");
+    await addColumn(newdb, 'latency_ms', 'INTEGER DEFAULT 0');
+    await addColumn(newdb, 'latency_max_ms', 'INTEGER DEFAULT 0');
+    await addColumn(newdb, 'fault_rate', 'INTEGER DEFAULT 0');
+    await addColumn(newdb, 'fault_type', "TEXT DEFAULT 'error'");
+    await addColumn(newdb, 'fault_status', "TEXT DEFAULT '500'");
 
     // Crear índices para optimizar búsquedas de rutas
     await new Promise((resolve) => {

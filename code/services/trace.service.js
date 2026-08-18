@@ -27,6 +27,8 @@ const PASOS = {
     PROXY_REQUEST: 'proxy-request',
     PROXY_RESPONSE: 'proxy-response',
     FALLBACK: 'fallback',
+    LATENCY: 'latency',
+    FAULT: 'fault',
     RESPONSE: 'response'
 };
 

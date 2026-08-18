@@ -4,6 +4,7 @@ const { log, sendData } = require('../services/socket.service');
 const graphqlService = require('../services/graphql.service');
 const semaphore = require('../services/semaphore.service');
 const trace = require('../services/trace.service');
+const faultService = require('../services/fault.service');
 const moment = require("moment");
 const path = require("path");
 const fs = require("fs");
@@ -82,6 +83,13 @@ function extractPathParams(route, url) {
         console.error(`[ROUTE] Error extrayendo params: ${e.message}`);
         return {};
     }
+}
+
+// Cómo se cuenta el fallo en la consola del panel
+function describirFallo(config) {
+    if (config.tipoFallo === 'reset') return 'conexión cortada';
+    if (config.tipoFallo === 'empty') return `respuesta vacía ${config.codigoFallo}`;
+    return `error ${config.codigoFallo}`;
 }
 
 // ===== MIDDLEWARE PRINCIPAL =====
@@ -279,6 +287,32 @@ async function checkRoute(req, res, next) {
             if (customResponse.headers) {
                 responseHeaders = customResponse.headers;
                 console.log(`[ROUTE] Headers personalizados desde UI`);
+            }
+        }
+
+        // Latencia y fallos provocados. Van después de las condiciones para que
+        // la traza deje ver qué se iba a responder antes de romperlo
+        const chaos = faultService.configuracion(rute);
+        if (faultService.estaActiva(chaos)) {
+            const retardo = faultService.calcularRetardo(chaos);
+            if (retardo > 0) {
+                trace.step(trace.PASOS.LATENCY, {
+                    message: `Latencia provocada: ${retardo} ms`,
+                    details: { mode: chaos.modo, delay_ms: retardo, min: chaos.min, max: chaos.max }
+                });
+                await faultService.esperar(retardo);
+            }
+
+            if (faultService.tocaFallar(chaos)) {
+                trace.step(trace.PASOS.FAULT, {
+                    message: `Fallo provocado (${chaos.tipoFallo})`,
+                    level: 'error',
+                    status: chaos.tipoFallo === 'reset' ? null : Number(chaos.codigoFallo),
+                    details: { type: chaos.tipoFallo, rate: chaos.porcentajeFallo, status: chaos.codigoFallo }
+                });
+                faultService.provocarFallo(chaos, res);
+                log.error(`💥 ${method} ${url} ${describirFallo(chaos)} (${Date.now() - requestStart}ms)`);
+                return;
             }
         }
 

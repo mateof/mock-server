@@ -16,6 +16,7 @@ const sqliteService = require('./sqlite.service');
 const scriptRunner = require('./script-runner.service');
 const criteriaService = require('./criteria-evaluator.service');
 const graphqlService = require('./graphql.service');
+const faultService = require('./fault.service');
 const websocketService = require('./websocket.service');
 const proxyMiddleware = require('../middlewares/proxy.middleware');
 
@@ -151,7 +152,14 @@ function buildColumns(payload) {
         proxy_pre_script: isProxy ? (payload.proxyPreScript || null) : null,
         proxy_post_script: isProxy ? (payload.proxyPostScript || null) : null,
         recording: isProxy && toBool(payload.recording) ? 1 : 0,
-        recording_mode: isProxy ? (payload.recordingMode === 'skip' ? 'skip' : 'update') : null
+        recording_mode: isProxy ? (payload.recordingMode === 'skip' ? 'skip' : 'update') : null,
+        // Latencia y fallos: valen en cualquier tipo de ruta, no solo proxy
+        latency_mode: faultService.MODOS_LATENCIA.includes(payload.latencyMode) ? payload.latencyMode : 'none',
+        latency_ms: parseInt(payload.latencyMs) || 0,
+        latency_max_ms: parseInt(payload.latencyMaxMs) || 0,
+        fault_rate: parseInt(payload.faultRate) || 0,
+        fault_type: faultService.TIPOS_FALLO.includes(payload.faultType) ? payload.faultType : 'error',
+        fault_status: String(payload.faultStatus || '500')
     };
 }
 
@@ -224,14 +232,16 @@ async function createRoute(payload, options = {}) {
         `INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders,
             activo, orden, fileName, filePath, fileMimeType, tags, operationId, summary, description,
             requestBodyExample, proxy_timeout, proxy_request_headers, proxy_request_params, proxy_pre_script, proxy_post_script,
-            recording, recording_mode)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            recording, recording_mode, latency_mode, latency_ms, latency_max_ms, fault_rate, fault_type, fault_status)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [columns.tipo, columns.ruta, columns.codigo, columns.respuesta, columns.tiporespuesta,
          columns.esperaActiva, columns.isRegex, columns.customHeaders, columns.activo, orden,
          file.fileName || null, file.filePath || null, file.fileMimeType || null,
          columns.tags, columns.operationId, columns.summary, columns.description, columns.requestBodyExample,
          columns.proxy_timeout, columns.proxy_request_headers, columns.proxy_request_params,
-         columns.proxy_pre_script, columns.proxy_post_script, columns.recording, columns.recording_mode]
+         columns.proxy_pre_script, columns.proxy_post_script, columns.recording, columns.recording_mode,
+         columns.latency_mode, columns.latency_ms, columns.latency_max_ms,
+         columns.fault_rate, columns.fault_type, columns.fault_status]
     );
 
     if (Array.isArray(payload.conditions)) {
@@ -276,14 +286,17 @@ async function updateRoute(id, payload, options = {}) {
             isRegex = ?, customHeaders = ?, activo = ?, orden = ?, fileName = ?, filePath = ?, fileMimeType = ?,
             tags = ?, operationId = ?, summary = ?, description = ?, requestBodyExample = ?, proxy_timeout = ?,
             proxy_request_headers = ?, proxy_request_params = ?, proxy_pre_script = ?, proxy_post_script = ?,
-            recording = ?, recording_mode = ?
+            recording = ?, recording_mode = ?, latency_mode = ?, latency_ms = ?, latency_max_ms = ?,
+            fault_rate = ?, fault_type = ?, fault_status = ?
          WHERE id = ?`,
         [columns.tipo, columns.ruta, columns.codigo, columns.respuesta, columns.tiporespuesta,
          columns.esperaActiva, columns.isRegex, columns.customHeaders, columns.activo, orden,
          file.fileName, file.filePath, file.fileMimeType,
          columns.tags, columns.operationId, columns.summary, columns.description, columns.requestBodyExample,
          columns.proxy_timeout, columns.proxy_request_headers, columns.proxy_request_params,
-         columns.proxy_pre_script, columns.proxy_post_script, columns.recording, columns.recording_mode, routeId]
+         columns.proxy_pre_script, columns.proxy_post_script, columns.recording, columns.recording_mode,
+         columns.latency_mode, columns.latency_ms, columns.latency_max_ms,
+         columns.fault_rate, columns.fault_type, columns.fault_status, routeId]
     );
 
     if (Array.isArray(payload.conditions)) {
@@ -533,8 +546,9 @@ async function duplicateRoute(id, newPath) {
         `INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders,
             activo, orden, fileName, filePath, fileMimeType, tags, operationId, summary, description,
             requestBodyExample, proxy_timeout, proxy_request_headers, proxy_request_params, proxy_pre_script,
-            proxy_post_script, graphql_schema, graphql_proxy_url, recording, recording_mode)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            proxy_post_script, graphql_schema, graphql_proxy_url, recording, recording_mode,
+            latency_mode, latency_ms, latency_max_ms, fault_rate, fault_type, fault_status)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [original.tipo, newPath, original.codigo, original.respuesta, original.tiporespuesta,
          original.esperaActiva, original.isRegex, original.customHeaders, original.activo, orden,
          fileName, filePath, fileMimeType, original.tags, original.operationId, original.summary,
@@ -543,7 +557,9 @@ async function duplicateRoute(id, newPath) {
          original.proxy_post_script, original.graphql_schema, original.graphql_proxy_url,
          // La grabación no se copia: es un modo de operación, no configuración,
          // y duplicar una ruta no debería poner a grabar una segunda en silencio
-         0, original.recording_mode]
+         0, original.recording_mode,
+         original.latency_mode, original.latency_ms, original.latency_max_ms,
+         original.fault_rate, original.fault_type, original.fault_status]
     );
 
     const nuevoId = result.lastID;

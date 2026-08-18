@@ -2425,6 +2425,40 @@
     body.style.display = body.style.display === 'none' ? 'block' : 'none';
   }
 
+  function toggleFaultsSection() {
+    const body = document.querySelector('#divFaults .collapsible-body');
+    body.style.display = body.style.display === 'none' ? 'block' : 'none';
+  }
+
+  /**
+   * Enseña solo lo que tiene sentido según lo elegido, y resume en la cabecera
+   * lo que hay puesto: la sección va plegada, y sin resumen habría que abrirla
+   * para saber si una ruta va lenta o falla
+   */
+  function updateFaultsFields() {
+    const modo = document.getElementById('latencyMode').value;
+    const porcentaje = parseInt(document.getElementById('faultRate').value) || 0;
+    const tipo = document.getElementById('faultType').value;
+
+    document.getElementById('divLatencyValues').style.display = modo === 'none' ? 'none' : '';
+    document.getElementById('latencyMaxWrapper').style.display = modo === 'random' ? '' : 'none';
+    document.getElementById('latencyMsLabel').textContent =
+      modo === 'random' ? t('form.latencyRange') : t('form.latencyMs');
+
+    document.getElementById('divFaultDetail').style.display = porcentaje > 0 ? '' : 'none';
+    // Al cortar la conexión no hay código de estado que enviar
+    document.getElementById('divFaultStatus').style.display = tipo === 'reset' ? 'none' : '';
+
+    const badge = document.getElementById('faultsBadge');
+    const partes = [];
+    if (modo === 'fixed') partes.push(`${document.getElementById('latencyMs').value || 0} ms`);
+    if (modo === 'random') partes.push(`${document.getElementById('latencyMs').value || 0}-${document.getElementById('latencyMaxMs').value || 0} ms`);
+    if (porcentaje > 0) partes.push(`${porcentaje}% ${tipo}`);
+
+    badge.textContent = partes.join(' · ');
+    badge.style.display = partes.length ? '' : 'none';
+  }
+
   function toggleMetadataSection() {
     const body = document.querySelector('#divMetadata .collapsible-body');
     body.style.display = body.style.display === 'none' ? 'block' : 'none';
@@ -5588,6 +5622,13 @@
     document.getElementById("proxyTimeout").value = '30000';
     document.getElementById("proxyRecording").checked = false;
     document.getElementById("proxyRecordingMode").value = 'update';
+    document.getElementById("latencyMode").value = 'none';
+    document.getElementById("latencyMs").value = '0';
+    document.getElementById("latencyMaxMs").value = '0';
+    document.getElementById("faultRate").value = '0';
+    document.getElementById("faultType").value = 'error';
+    document.getElementById("faultStatus").value = '500';
+    updateFaultsFields();
     clearFallbacks();
     ProxyTransform.clearAll();
   }
@@ -5607,6 +5648,13 @@
       document.getElementById("respuesta").value = obj.respuesta || '';
       document.getElementById("destinoProxy").value = '';
     }
+    document.getElementById("latencyMode").value = obj.latency_mode || 'none';
+    document.getElementById("latencyMs").value = obj.latency_ms || 0;
+    document.getElementById("latencyMaxMs").value = obj.latency_max_ms || 0;
+    document.getElementById("faultRate").value = obj.fault_rate || 0;
+    document.getElementById("faultType").value = obj.fault_type || 'error';
+    document.getElementById("faultStatus").value = obj.fault_status || '500';
+    updateFaultsFields();
     document.getElementById("tiporespuesta").value = obj.tiporespuesta;
     document.getElementById("esperaActiva").checked = obj.esperaActiva ?? false;
     document.getElementById("rutaActiva").checked = obj.activo !== 0;
@@ -5693,6 +5741,14 @@
     if (summary) formData.append('summary', summary);
     if (description) formData.append('description', description);
     if (requestBodyExample) formData.append('requestBodyExample', requestBodyExample);
+
+    // Latencia y fallos provocados: aplican a cualquier tipo de ruta
+    formData.append('latencyMode', document.getElementById("latencyMode").value);
+    formData.append('latencyMs', document.getElementById("latencyMs").value || 0);
+    formData.append('latencyMaxMs', document.getElementById("latencyMaxMs").value || 0);
+    formData.append('faultRate', document.getElementById("faultRate").value || 0);
+    formData.append('faultType', document.getElementById("faultType").value);
+    formData.append('faultStatus', document.getElementById("faultStatus").value || '500');
 
     // Proxy timeout y transformaciones de petición/respuesta
     if (tiporespuesta === 'proxy') {
@@ -5809,6 +5865,14 @@
     if (summary) formData.append('summary', summary);
     if (description) formData.append('description', description);
     if (requestBodyExample) formData.append('requestBodyExample', requestBodyExample);
+
+    // Latencia y fallos provocados: aplican a cualquier tipo de ruta
+    formData.append('latencyMode', document.getElementById("latencyMode").value);
+    formData.append('latencyMs', document.getElementById("latencyMs").value || 0);
+    formData.append('latencyMaxMs', document.getElementById("latencyMaxMs").value || 0);
+    formData.append('faultRate', document.getElementById("faultRate").value || 0);
+    formData.append('faultType', document.getElementById("faultType").value);
+    formData.append('faultStatus', document.getElementById("faultStatus").value || '500');
 
     // Proxy timeout y transformaciones de petición/respuesta
     if (tiporespuesta === 'proxy') {

@@ -40,6 +40,13 @@ A powerful HTTP mocking and proxying application built with Express.js and Node.
   - Validation with test URL
   - Separate path extraction for proxies
 
+- **Latency and Fault Injection** - Make a route slow, unreliable, or both
+  - Fixed or random delay, per route, on mocks and proxies alike
+  - Failure rate as a percentage, answering an error code, dropping the connection, or answering with no body
+  - On a proxy the delay happens before calling the backend, and an injected fault never reaches it
+  - This is what exercises timeouts, retries and degradation, which an instant mock cannot
+  - See [Latency and Faults Documentation](docs/faults.md) for details
+
 - **Traffic Recording** - Turn real traffic into mocks instead of writing them by hand
   - Recording mode on a proxy route: every backend response becomes a mock route
   - "Save as mock" on any line of the log, and bulk conversion from the current filters

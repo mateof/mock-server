@@ -69,8 +69,54 @@ const routeFields = {
     proxy_request_params: z.array(headerRuleSchema).optional().describe('Rules applied to the REQUEST query parameters (proxy only)'),
     proxy_pre_script: z.string().optional().describe('ms.* script that transforms the request before calling the backend (proxy only)'),
     proxy_post_script: z.string().optional().describe('ms.* script that transforms the response before returning it (proxy only)'),
+    latency_mode: z.enum(['none', 'fixed', 'random']).optional().describe('Injected latency: none, a fixed delay, or a random one between latency_ms and latency_max_ms'),
+    latency_ms: z.number().optional().describe('Delay in ms (the lower bound when the mode is random)'),
+    latency_max_ms: z.number().optional().describe('Upper bound in ms when the mode is random'),
+    fault_rate: z.number().optional().describe('Percentage of requests that fail on purpose, 0 to 100'),
+    fault_type: z.enum(['error', 'reset', 'empty']).optional().describe("What failing means: 'error' answers fault_status with a JSON body, 'reset' drops the connection, 'empty' answers the code with no body"),
+    fault_status: z.string().optional().describe("Status code used when fault_type is 'error' or 'empty'. Default '500'"),
     conditions: z.array(conditionSchema).optional().describe('Conditional responses, evaluated in order: the first match wins')
 };
+
+/**
+ * Payload completo a partir de una ruta existente.
+ *
+ * updateRoute reescribe la fila entera, así que cualquier herramienta que toque
+ * un solo campo tiene que mandar todos los demás. Hacerlo a mano en cada una ya
+ * apagó la grabación una vez al editar una transformación; con un solo sitio,
+ * añadir una columna no puede volver a romperlas de una en una.
+ */
+function baseFromRoute(ruta) {
+    return {
+        tipo: ruta.tipo,
+        ruta: ruta.ruta,
+        codigo: ruta.codigo,
+        respuesta: ruta.respuesta,
+        tiporespuesta: ruta.tiporespuesta,
+        esperaActiva: ruta.esperaActiva,
+        isRegex: ruta.isRegex,
+        customHeaders: ruta.customHeaders,
+        activo: ruta.activo,
+        tags: ruta.tags,
+        operationId: ruta.operationId,
+        summary: ruta.summary,
+        description: ruta.description,
+        requestBodyExample: ruta.requestBodyExample,
+        proxyTimeout: ruta.proxy_timeout,
+        proxyRequestHeaders: ruta.proxy_request_headers,
+        proxyRequestParams: ruta.proxy_request_params,
+        proxyPreScript: ruta.proxy_pre_script,
+        proxyPostScript: ruta.proxy_post_script,
+        recording: ruta.recording === 1,
+        recordingMode: ruta.recording_mode,
+        latencyMode: ruta.latency_mode,
+        latencyMs: ruta.latency_ms,
+        latencyMaxMs: ruta.latency_max_ms,
+        faultRate: ruta.fault_rate,
+        faultType: ruta.fault_type,
+        faultStatus: ruta.fault_status
+    };
+}
 
 // ===== TRADUCCIÓN A LA CAPA DE SERVICIO =====
 
@@ -102,6 +148,12 @@ function toPayload(args, base = {}) {
     if (args.proxy_post_script !== undefined) payload.proxyPostScript = args.proxy_post_script;
     if (args.recording !== undefined) payload.recording = args.recording;
     if (args.recording_mode !== undefined) payload.recordingMode = args.recording_mode;
+    if (args.latency_mode !== undefined) payload.latencyMode = args.latency_mode;
+    if (args.latency_ms !== undefined) payload.latencyMs = args.latency_ms;
+    if (args.latency_max_ms !== undefined) payload.latencyMaxMs = args.latency_max_ms;
+    if (args.fault_rate !== undefined) payload.faultRate = args.fault_rate;
+    if (args.fault_type !== undefined) payload.faultType = args.fault_type;
+    if (args.fault_status !== undefined) payload.faultStatus = args.fault_status;
 
     if (args.conditions !== undefined) {
         payload.conditions = args.conditions.map(c => ({
@@ -149,6 +201,21 @@ function toRouteView(row, { detailed = false } = {}) {
     view.response = row.respuesta;
     view.description = row.description || null;
     view.custom_headers = parse(row.customHeaders) || [];
+
+    // Solo se asoma cuando hay algo configurado: en la inmensa mayoría de
+    // rutas sería ruido en cada respuesta
+    if ((row.latency_mode && row.latency_mode !== 'none') || row.fault_rate > 0) {
+        view.latency = {
+            mode: row.latency_mode || 'none',
+            ms: row.latency_ms || 0,
+            max_ms: row.latency_max_ms || 0
+        };
+        view.fault = {
+            rate: row.fault_rate || 0,
+            type: row.fault_type || 'error',
+            status: row.fault_status || '500'
+        };
+    }
 
     if (row.tiporespuesta === 'proxy') {
         view.proxy_timeout = row.proxy_timeout;
@@ -394,26 +461,7 @@ function buildServer() {
             proxy_request_params: args.request_params,
             proxy_pre_script: args.pre_script,
             proxy_post_script: args.post_script
-        }, {
-            tipo: ruta.tipo,
-            ruta: ruta.ruta,
-            codigo: ruta.codigo,
-            respuesta: ruta.respuesta,
-            tiporespuesta: ruta.tiporespuesta,
-            esperaActiva: ruta.esperaActiva,
-            isRegex: ruta.isRegex,
-            customHeaders: ruta.customHeaders,
-            activo: ruta.activo,
-            tags: ruta.tags,
-            proxyTimeout: ruta.proxy_timeout,
-            proxyRequestHeaders: ruta.proxy_request_headers,
-            proxyRequestParams: ruta.proxy_request_params,
-            proxyPreScript: ruta.proxy_pre_script,
-            proxyPostScript: ruta.proxy_post_script,
-            // Sin esto, tocar la transformación apagaría la grabación de paso
-            recording: ruta.recording === 1,
-            recordingMode: ruta.recording_mode
-        }), { file: 'keep' });
+        }, baseFromRoute(ruta)), { file: 'keep' });
 
         log.success(`🤖 MCP: transformación actualizada en la ruta ${args.id}`);
         const actualizada = await routesService.getRoute(args.id);
@@ -627,6 +675,38 @@ function buildServer() {
         return ok({ deleted: true, id });
     }));
 
+    server.registerTool('set_route_faults', {
+        title: 'Set latency and fault injection',
+        description: 'Makes a route slow, unreliable, or both. This is how you test timeouts, retries and degradation, which a mock that always answers instantly cannot exercise. Works on any route type, mock and proxy alike. On a proxy the delay happens before calling the backend and an injected fault never reaches it.',
+        inputSchema: {
+            id: z.number(),
+            latency_mode: z.enum(['none', 'fixed', 'random']).optional(),
+            latency_ms: z.number().optional().describe('Delay in ms, or the lower bound when the mode is random'),
+            latency_max_ms: z.number().optional().describe('Upper bound in ms when the mode is random'),
+            fault_rate: z.number().optional().describe('Percentage of requests that fail, 0 to 100'),
+            fault_type: z.enum(['error', 'reset', 'empty']).optional(),
+            fault_status: z.string().optional().describe("Status code for 'error' and 'empty'. Default '500'")
+        }
+    }, async (args) => run('set_route_faults', async () => {
+        const ruta = await routesService.getRoute(args.id);
+        if (!ruta) return fail(`No existe la ruta ${args.id}`);
+
+        const base = baseFromRoute(ruta);
+        await routesService.updateRoute(args.id, {
+            ...base,
+            latencyMode: args.latency_mode === undefined ? base.latencyMode : args.latency_mode,
+            latencyMs: args.latency_ms === undefined ? base.latencyMs : args.latency_ms,
+            latencyMaxMs: args.latency_max_ms === undefined ? base.latencyMaxMs : args.latency_max_ms,
+            faultRate: args.fault_rate === undefined ? base.faultRate : args.fault_rate,
+            faultType: args.fault_type === undefined ? base.faultType : args.fault_type,
+            faultStatus: args.fault_status === undefined ? base.faultStatus : args.fault_status
+        }, { file: 'keep' });
+
+        log.success(`🤖 MCP: latencia y fallos actualizados en la ruta ${args.id}`);
+        const actualizada = await routesService.getRoute(args.id);
+        return ok({ updated: true, route: toRouteView(actualizada, { detailed: true }) });
+    }));
+
     // ===== GRABACIÓN =====
 
     server.registerTool('set_route_recording', {
@@ -645,21 +725,7 @@ function buildServer() {
         }
 
         await routesService.updateRoute(args.id, {
-            tipo: ruta.tipo,
-            ruta: ruta.ruta,
-            codigo: ruta.codigo,
-            respuesta: ruta.respuesta,
-            tiporespuesta: ruta.tiporespuesta,
-            esperaActiva: ruta.esperaActiva,
-            isRegex: ruta.isRegex,
-            customHeaders: ruta.customHeaders,
-            activo: ruta.activo,
-            tags: ruta.tags,
-            proxyTimeout: ruta.proxy_timeout,
-            proxyRequestHeaders: ruta.proxy_request_headers,
-            proxyRequestParams: ruta.proxy_request_params,
-            proxyPreScript: ruta.proxy_pre_script,
-            proxyPostScript: ruta.proxy_post_script,
+            ...baseFromRoute(ruta),
             recording: args.recording,
             recordingMode: args.mode || ruta.recording_mode
         }, { file: 'keep' });

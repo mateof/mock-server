@@ -460,6 +460,73 @@
                 </label>
               </div>
 
+              <!-- Latencia y fallos provocados -->
+              <div class="collapsible-section" id="divFaults" style="margin-top: 1.25rem;">
+                <div class="collapsible-header" onclick="toggleFaultsSection()">
+                  <h4><i class="fa fa-bolt"></i> <%= __('form.faults') %></h4>
+                  <span class="badge-modern" id="faultsBadge" style="display: none;"></span>
+                </div>
+                <div class="collapsible-body" style="display: none;">
+                  <small style="color: var(--text-muted); margin-bottom: 1rem; display: block;">
+                    <%= __('form.help.faultsHelp') %>
+                  </small>
+
+                  <div class="form-group-modern">
+                    <label class="form-label-modern" for="latencyMode"><%= __('form.latencyMode') %></label>
+                    <select class="form-control-modern" id="latencyMode" name="latencyMode"
+                            onchange="updateFaultsFields()" style="max-width: 260px;">
+                      <option value="none"><%= __('form.latencyNone') %></option>
+                      <option value="fixed"><%= __('form.latencyFixed') %></option>
+                      <option value="random"><%= __('form.latencyRandom') %></option>
+                    </select>
+                  </div>
+
+                  <div class="form-group-modern" id="divLatencyValues" style="display: none;">
+                    <label class="form-label-modern" for="latencyMs">
+                      <span id="latencyMsLabel"><%= __('form.latencyMs') %></span>
+                    </label>
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                      <input type="number" class="form-control-modern" id="latencyMs" name="latencyMs"
+                             value="0" min="0" max="60000" step="100" style="max-width: 130px;">
+                      <span style="color: var(--text-secondary);">ms</span>
+                      <span id="latencyMaxWrapper" style="display: none;" class="d-flex align-items-center gap-2">
+                        <span style="color: var(--text-secondary);">&mdash;</span>
+                        <input type="number" class="form-control-modern" id="latencyMaxMs" name="latencyMaxMs"
+                               value="0" min="0" max="60000" step="100" style="max-width: 130px;">
+                        <span style="color: var(--text-secondary);">ms</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  <div class="form-group-modern">
+                    <label class="form-label-modern" for="faultRate"><%= __('form.faultRate') %></label>
+                    <div class="d-flex align-items-center gap-2">
+                      <input type="number" class="form-control-modern" id="faultRate" name="faultRate"
+                             value="0" min="0" max="100" step="5" style="max-width: 110px;"
+                             onchange="updateFaultsFields()" oninput="updateFaultsFields()">
+                      <span style="color: var(--text-secondary);">%</span>
+                    </div>
+                  </div>
+
+                  <div id="divFaultDetail" style="display: none;">
+                    <div class="form-group-modern">
+                      <label class="form-label-modern" for="faultType"><%= __('form.faultType') %></label>
+                      <select class="form-control-modern" id="faultType" name="faultType"
+                              onchange="updateFaultsFields()" style="max-width: 320px;">
+                        <option value="error"><%= __('form.faultTypeError') %></option>
+                        <option value="reset"><%= __('form.faultTypeReset') %></option>
+                        <option value="empty"><%= __('form.faultTypeEmpty') %></option>
+                      </select>
+                    </div>
+                    <div class="form-group-modern" id="divFaultStatus">
+                      <label class="form-label-modern" for="faultStatus"><%= __('form.faultStatus') %></label>
+                      <input type="text" class="form-control-modern" id="faultStatus" name="faultStatus"
+                             value="500" style="max-width: 110px;">
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <!-- Metadata (operationId, summary, description) -->
               <div class="collapsible-section" id="divMetadata" style="margin-top: 1.25rem;">
                 <div class="collapsible-header" onclick="toggleMetadataSection()">

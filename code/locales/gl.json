@@ -119,7 +119,8 @@
       "graphqlProxyHelp": "URL do endpoint GraphQL remoto. As operacións en modo 'Proxy' reenviarán a query a esta URL en lugar de devolver datos mock.",
       "wsHelp": "Define o comportamento deste endpoint WebSocket. Engade mensaxes para enviar ao conectar, en resposta a mensaxes entrantes (por patrón) ou periodicamente.",
       "proxyTransformHelp": "Modifica a petición antes de enviala ao backend e a resposta antes de devolvela, como faría un BFF. As regras aplícanse primeiro e o script despois, así que o script ten a última palabra.",
-      "proxyRecordingHelp": "Garda como ruta mock cada resposta do backend. Nacen desactivadas a propósito: un mock activo tapa este proxy e non habería máis que gravar. Actívaas cando remates a sesión."
+      "proxyRecordingHelp": "Garda como ruta mock cada resposta do backend. Nacen desactivadas a propósito: un mock activo tapa este proxy e non habería máis que gravar. Actívaas cando remates a sesión.",
+      "faultsHelp": "Fai que a ruta tarde, falle, ou as dúas cousas. É o que fai falta para probar timeouts, reintentos e degradación, que un mock que responde ao instante non exercita. Nunha ruta proxy o retardo aplícase antes de chamar ao backend e un fallo provocado nunca chega a el."
     },
     "proxyTimeout": "Timeout de Petición",
     "proxyFallbacks": "Respostas de Fallback",
@@ -177,7 +178,20 @@
     "editorFallback": "O editor avanzado non se puido cargar. Podes escribir o script igualmente, pero sen autocompletado.",
     "proxyRecording": "Modo gravación",
     "proxyRecordingUpdate": "Actualizar a ruta se xa existe",
-    "proxyRecordingSkip": "Non tocar as rutas que xa existen"
+    "proxyRecordingSkip": "Non tocar as rutas que xa existen",
+    "faults": "Latencia e fallos",
+    "latencyMode": "Latencia",
+    "latencyNone": "Sen latencia",
+    "latencyFixed": "Retardo fixo",
+    "latencyRandom": "Retardo aleatorio",
+    "latencyMs": "Retardo",
+    "latencyRange": "Entre",
+    "faultRate": "Porcentaxe de fallos",
+    "faultType": "Que pasa ao fallar",
+    "faultTypeError": "Responder un código de erro",
+    "faultTypeReset": "Cortar a conexión",
+    "faultTypeEmpty": "Responder o código sen corpo",
+    "faultStatus": "Código do fallo"
   },
   "responseTypes": {
     "json": "JSON",
