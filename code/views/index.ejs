@@ -1250,6 +1250,10 @@
     const tipoResp = document.getElementById("tiporespuesta").value;
     showElements(['#divtresp', '#divtipo', '#divruta', '#divcodresp', '#divresp', '#divEsperaActiva', '#divMetadata', '#divHeaders', '#divConditions']);
     hideElements(['#divDestino', '#divFile', '#divProxyTimeout', '#divProxyRecording', '#divFallbacks', '#divProxyTransform', '#divGraphQL', '#divWebSocket']);
+    // En una ruta mock el script vive aquí; en una proxy, en las transformaciones
+    document.getElementById('divMockScript').style.display = '';
+    // Se descarga solo cuando hace falta, igual que en el proxy
+    ScriptEditors.montar().then(() => ScriptEditors.sincronizar());
 
     // Nav panel: show conditions/fallbacks/graphql/websocket dividers based on type
     document.getElementById('navDividerConditions').style.display = '';
@@ -1267,6 +1271,7 @@
       // servidor ya los aplicaba aunque el formulario los tuviera ocultos.
       hideElements(['#divtipo', '#divcodresp', '#divEsperaActiva', '#divresp', '#divFile', '#divMetadata', '#divConditions']);
       showElements(['#divDestino', '#divProxyTimeout', '#divProxyRecording', '#divFallbacks', '#divProxyTransform', '#divHeaders']);
+      document.getElementById('divMockScript').style.display = 'none';
       // Se descarga aquí, no al cargar la página: solo lo necesita quien
       // configura un proxy
       ScriptEditors.montar().then(() => ScriptEditors.sincronizar());
@@ -2016,7 +2021,7 @@
     // 0.52.2 es la última versión con distribución AMD (min/vs) y workers; a
     // partir de 0.53 Monaco es solo ESM y este montaje deja de existir.
     BASE: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs',
-    IDS: ['proxyPreScript', 'proxyPostScript'],
+    IDS: ['proxyPreScript', 'proxyPostScript', 'mockScript'],
     promesa: null,
     editores: {},
     avisado: false,
@@ -2158,6 +2163,39 @@
   function toggleProxyTransformSection() {
     const body = document.querySelector('#divProxyTransform .collapsible-body');
     body.style.display = body.style.display === 'none' ? 'block' : 'none';
+  }
+
+  function toggleMockScriptSection() {
+    const body = document.querySelector('#divMockScript .collapsible-body');
+    body.style.display = body.style.display === 'none' ? 'block' : 'none';
+  }
+
+  /**
+   * Se valida como script de respuesta porque es lo que es: transforma una
+   * respuesta que ya está compuesta. Lo único que no tiene es ms.respond()
+   */
+  async function validateMockScript() {
+    const script = document.getElementById('mockScript').value;
+    const target = document.getElementById('mockScriptResult');
+
+    if (!script.trim()) {
+      target.innerHTML = '';
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/validateScript', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ script, phase: 'response' })
+      });
+      const result = await response.json();
+      target.innerHTML = result.valid
+        ? `<span class="text-success"><i class="fa fa-check-circle"></i> ${t('form.scriptValid')}</span>`
+        : `<span class="text-danger"><i class="fa fa-times-circle"></i> ${escapeHtml(result.error)}</span>`;
+    } catch (e) {
+      target.innerHTML = `<span class="text-danger"><i class="fa fa-times-circle"></i> ${escapeHtml(e.message)}</span>`;
+    }
   }
 
   async function validateProxyScript(phase) {
@@ -5804,6 +5842,8 @@
     document.getElementById("faultType").value = 'error';
     document.getElementById("faultStatus").value = '500';
     document.getElementById("templating").checked = false;
+    document.getElementById("mockScript").value = '';
+    document.getElementById("mockScriptResult").innerHTML = '';
     sequenceRouteId = null;
     clearSequence();
     updateFaultsFields();
@@ -5834,6 +5874,7 @@
     document.getElementById("faultType").value = obj.fault_type || 'error';
     document.getElementById("faultStatus").value = obj.fault_status || '500';
     document.getElementById("templating").checked = obj.templating === 1;
+    document.getElementById("mockScript").value = obj.mock_script || '';
     sequenceRouteId = obj.id;
     setSequence(obj.sequence, obj.sequence_mode);
     updateFaultsFields();
@@ -5933,6 +5974,9 @@
     formData.append('faultType', document.getElementById("faultType").value);
     formData.append('faultStatus', document.getElementById("faultStatus").value || '500');
     formData.append('templating', document.getElementById("templating").checked);
+    if (tiporespuesta !== 'proxy') {
+      formData.append('mockScript', document.getElementById("mockScript").value || '');
+    }
 
     // Proxy timeout y transformaciones de petición/respuesta
     if (tiporespuesta === 'proxy') {
@@ -6063,6 +6107,9 @@
     formData.append('faultType', document.getElementById("faultType").value);
     formData.append('faultStatus', document.getElementById("faultStatus").value || '500');
     formData.append('templating', document.getElementById("templating").checked);
+    if (tiporespuesta !== 'proxy') {
+      formData.append('mockScript', document.getElementById("mockScript").value || '');
+    }
 
     // Proxy timeout y transformaciones de petición/respuesta
     if (tiporespuesta === 'proxy') {

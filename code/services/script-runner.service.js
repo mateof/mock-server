@@ -366,6 +366,7 @@ function runResponseScript(script, ctx) {
 
     const consoleApi = createConsole(logs);
     const requestCtx = ctx.request || {};
+    const peticionBody = createBodyApi(requestCtx.bodyText);
 
     const ms = {
         response: {
@@ -387,7 +388,12 @@ function runResponseScript(script, ctx) {
             url: {
                 path: requestCtx.path || '/',
                 query: createKeyValueApi({ ...(requestCtx.query || {}) })
-            }
+            },
+            // Solo lectura, y por eso son funciones sueltas y no un MsBody: con
+            // la API completa se podría escribir en un cuerpo que ya no va a
+            // ninguna parte, y el cambio se perdería sin decir nada
+            json: () => peticionBody.json(),
+            text: () => peticionBody.text()
         },
         variables: createKeyValueApi(vars),
         console: consoleApi
@@ -552,6 +558,10 @@ interface MsRequest {
     headers: MsKeyValueList;
     /** Cuerpo de la petición. Solo se reserializa si lo tocas */
     body: MsBody;
+    /** El cuerpo de la petición ya parseado. Solo en el script de respuesta */
+    json?(): any;
+    /** El cuerpo de la petición como texto. Solo en el script de respuesta */
+    text?(): string;
 }
 
 /** La respuesta del backend. Solo en el script de respuesta */

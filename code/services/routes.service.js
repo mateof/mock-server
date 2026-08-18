@@ -117,7 +117,9 @@ function validatePayload(payload) {
         }
     }
 
-    for (const [campo, script] of [['proxyPreScript', payload.proxyPreScript], ['proxyPostScript', payload.proxyPostScript]]) {
+    for (const [campo, script] of [['proxyPreScript', payload.proxyPreScript],
+                                  ['proxyPostScript', payload.proxyPostScript],
+                                  ['mockScript', payload.mockScript]]) {
         const check = scriptRunner.validateScript(script);
         if (!check.valid) {
             throw new RouteValidationError(`Invalid script (${campo}): ${check.error}`);
@@ -162,7 +164,9 @@ function buildColumns(payload) {
         fault_type: faultService.TIPOS_FALLO.includes(payload.faultType) ? payload.faultType : 'error',
         fault_status: String(payload.faultStatus || '500'),
         templating: toBool(payload.templating) ? 1 : 0,
-        sequence_mode: payload.sequenceMode === 'loop' ? 'loop' : 'stick'
+        sequence_mode: payload.sequenceMode === 'loop' ? 'loop' : 'stick',
+        // En una ruta proxy el sitio del script son pre y post, no este
+        mock_script: isProxy ? null : (payload.mockScript || null)
     };
 }
 
@@ -237,8 +241,8 @@ async function createRoute(payload, options = {}) {
             activo, orden, fileName, filePath, fileMimeType, tags, operationId, summary, description,
             requestBodyExample, proxy_timeout, proxy_request_headers, proxy_request_params, proxy_pre_script, proxy_post_script,
             recording, recording_mode, latency_mode, latency_ms, latency_max_ms, fault_rate, fault_type, fault_status,
-            templating, sequence_mode)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            templating, sequence_mode, mock_script)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [columns.tipo, columns.ruta, columns.codigo, columns.respuesta, columns.tiporespuesta,
          columns.esperaActiva, columns.isRegex, columns.customHeaders, columns.activo, orden,
          file.fileName || null, file.filePath || null, file.fileMimeType || null,
@@ -247,7 +251,7 @@ async function createRoute(payload, options = {}) {
          columns.proxy_pre_script, columns.proxy_post_script, columns.recording, columns.recording_mode,
          columns.latency_mode, columns.latency_ms, columns.latency_max_ms,
          columns.fault_rate, columns.fault_type, columns.fault_status, columns.templating,
-         columns.sequence_mode]
+         columns.sequence_mode, columns.mock_script]
     );
 
     if (Array.isArray(payload.conditions)) {
@@ -296,7 +300,7 @@ async function updateRoute(id, payload, options = {}) {
             tags = ?, operationId = ?, summary = ?, description = ?, requestBodyExample = ?, proxy_timeout = ?,
             proxy_request_headers = ?, proxy_request_params = ?, proxy_pre_script = ?, proxy_post_script = ?,
             recording = ?, recording_mode = ?, latency_mode = ?, latency_ms = ?, latency_max_ms = ?,
-            fault_rate = ?, fault_type = ?, fault_status = ?, templating = ?, sequence_mode = ?
+            fault_rate = ?, fault_type = ?, fault_status = ?, templating = ?, sequence_mode = ?, mock_script = ?
          WHERE id = ?`,
         [columns.tipo, columns.ruta, columns.codigo, columns.respuesta, columns.tiporespuesta,
          columns.esperaActiva, columns.isRegex, columns.customHeaders, columns.activo, orden,
@@ -306,7 +310,7 @@ async function updateRoute(id, payload, options = {}) {
          columns.proxy_pre_script, columns.proxy_post_script, columns.recording, columns.recording_mode,
          columns.latency_mode, columns.latency_ms, columns.latency_max_ms,
          columns.fault_rate, columns.fault_type, columns.fault_status, columns.templating,
-         columns.sequence_mode, routeId]
+         columns.sequence_mode, columns.mock_script, routeId]
     );
 
     if (Array.isArray(payload.conditions)) {
@@ -582,8 +586,8 @@ async function duplicateRoute(id, newPath) {
             requestBodyExample, proxy_timeout, proxy_request_headers, proxy_request_params, proxy_pre_script,
             proxy_post_script, graphql_schema, graphql_proxy_url, recording, recording_mode,
             latency_mode, latency_ms, latency_max_ms, fault_rate, fault_type, fault_status, templating,
-            sequence_mode)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            sequence_mode, mock_script)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [original.tipo, newPath, original.codigo, original.respuesta, original.tiporespuesta,
          original.esperaActiva, original.isRegex, original.customHeaders, original.activo, orden,
          fileName, filePath, fileMimeType, original.tags, original.operationId, original.summary,
@@ -595,7 +599,7 @@ async function duplicateRoute(id, newPath) {
          0, original.recording_mode,
          original.latency_mode, original.latency_ms, original.latency_max_ms,
          original.fault_rate, original.fault_type, original.fault_status, original.templating,
-         original.sequence_mode]
+         original.sequence_mode, original.mock_script]
     );
 
     const nuevoId = result.lastID;

@@ -76,6 +76,7 @@ const routeFields = {
     fault_rate: z.number().optional().describe('Percentage of requests that fail on purpose, 0 to 100'),
     fault_type: z.enum(['error', 'reset', 'empty']).optional().describe("What failing means: 'error' answers fault_status with a JSON body, 'reset' drops the connection, 'empty' answers the code with no body"),
     fault_status: z.string().optional().describe("Status code used when fault_type is 'error' or 'empty'. Default '500'"),
+    mock_script: z.string().optional().describe('ms.* script that shapes the response of a MOCK route, running last: after conditions, scenario and templating. It can read the request (ms.request.json(), headers, query) and change the response (ms.response.code, headers, setBody). On proxy routes use proxy_pre_script and proxy_post_script instead'),
     templating: z.boolean().optional().describe("Resolve {{...}} placeholders in the response body and headers. Off by default, because a response can legitimately contain {{...}}. Use {{body.x}}, {{query.x}}, {{params.x}}, {{headers.x}}, generators like {{uuid()}}, {{now('+1d')}}, {{randomInt(1,100)}}, {{pick('a','b')}}, and {{x ?? 'fallback'}}. In JSON, quote it to get a string and leave it unquoted to get a number, array or object"),
     conditions: z.array(conditionSchema).optional().describe('Conditional responses, evaluated in order: the first match wins')
 };
@@ -118,7 +119,8 @@ function baseFromRoute(ruta) {
         faultType: ruta.fault_type,
         faultStatus: ruta.fault_status,
         templating: ruta.templating === 1,
-        sequenceMode: ruta.sequence_mode
+        sequenceMode: ruta.sequence_mode,
+        mockScript: ruta.mock_script
     };
 }
 
@@ -160,6 +162,7 @@ function toPayload(args, base = {}) {
     if (args.fault_status !== undefined) payload.faultStatus = args.fault_status;
     if (args.templating !== undefined) payload.templating = args.templating;
     if (args.sequence_mode !== undefined) payload.sequenceMode = args.sequence_mode;
+    if (args.mock_script !== undefined) payload.mockScript = args.mock_script;
 
     if (args.conditions !== undefined) {
         payload.conditions = args.conditions.map(c => ({
@@ -208,6 +211,7 @@ function toRouteView(row, { detailed = false } = {}) {
     view.description = row.description || null;
     view.custom_headers = parse(row.customHeaders) || [];
     if (row.templating === 1) view.templating = true;
+    if (row.mock_script) view.mock_script = row.mock_script;
 
     if (Array.isArray(row.sequence) && row.sequence.length) {
         view.sequence_mode = row.sequence_mode || 'stick';

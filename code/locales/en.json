@@ -122,7 +122,8 @@
       "proxyRecordingHelp": "Saves every backend response as a mock route. They are created inactive on purpose: an active mock shadows this proxy and there would be nothing left to record. Activate them when the session is done.",
       "faultsHelp": "Makes the route slow, unreliable, or both. This is what you need to test timeouts, retries and degradation, which a mock that always answers instantly cannot exercise. On a proxy route the delay happens before calling the backend, and an injected fault never reaches it.",
       "templatingDesc": "Replaces {{...}} in the body and headers with request data or generated values. Off by default, because a response can legitimately contain {{...}}.",
-      "sequenceHelp": "Makes the route answer differently depending on how many times it has been called: first pending, then processing, then done. This is what simulates a polling flow, which conditions cannot: they only look at the request, and in a poll every request is identical. The step wins over conditions. The counter lives in memory and resets when the server restarts."
+      "sequenceHelp": "Makes the route answer differently depending on how many times it has been called: first pending, then processing, then done. This is what simulates a polling flow, which conditions cannot: they only look at the request, and in a poll every request is identical. The step wins over conditions. The counter lives in memory and resets when the server restarts.",
+      "mockScriptHelp": "Transforms the response with JavaScript before sending it. It runs last: it sees the final body, after conditions, the scenario and templating. It can read the request with ms.request.json() and change the response with ms.response.code, ms.response.headers and ms.response.setBody()."
     },
     "proxyTimeout": "Request Timeout",
     "proxyFallbacks": "Fallback Responses",
@@ -209,7 +210,9 @@
     "sequenceSteps": "{{count}} steps",
     "sequenceReset": "Restart",
     "sequenceResetHint": "Back to the first step, without touching the configuration",
-    "sequenceResetDone": "Scenario restarted"
+    "sequenceResetDone": "Scenario restarted",
+    "mockScript": "Response script",
+    "scriptReference": "ms.* API reference"
   },
   "responseTypes": {
     "json": "JSON",
@@ -343,7 +346,9 @@
     "creatingTag": "Error creating tag",
     "savingGraphQLOperations": "Error saving GraphQL operations",
     "importingGraphQLSchema": "Error importing GraphQL schema",
-    "savingSequence": "Error saving the scenario"
+    "savingSequence": "Error saving the scenario",
+    "generic": "Something went wrong",
+    "savingWSMessages": "Error saving the WebSocket messages"
   },
   "empty": {
     "noHeaders": "No headers configured",

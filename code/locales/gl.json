@@ -122,7 +122,8 @@
       "proxyRecordingHelp": "Garda como ruta mock cada resposta do backend. Nacen desactivadas a propósito: un mock activo tapa este proxy e non habería máis que gravar. Actívaas cando remates a sesión.",
       "faultsHelp": "Fai que a ruta tarde, falle, ou as dúas cousas. É o que fai falta para probar timeouts, reintentos e degradación, que un mock que responde ao instante non exercita. Nunha ruta proxy o retardo aplícase antes de chamar ao backend e un fallo provocado nunca chega a el.",
       "templatingDesc": "Substitúe {{...}} no corpo e nas cabeceiras por datos da petición ou valores xerados. Vén apagado porque unha resposta pode levar {{...}} de forma lexítima.",
-      "sequenceHelp": "Fai que a ruta responda distinto segundo a vez que se chame: primeira pending, segunda processing, terceira done. É o que simula un fluxo con sondaxe, que as condicións non poden porque só miran a petición e nunha sondaxe todas son iguais. O paso gaña sobre as condicións. O contador vive en memoria e reiníciase ao reiniciar o servidor."
+      "sequenceHelp": "Fai que a ruta responda distinto segundo a vez que se chame: primeira pending, segunda processing, terceira done. É o que simula un fluxo con sondaxe, que as condicións non poden porque só miran a petición e nunha sondaxe todas son iguais. O paso gaña sobre as condicións. O contador vive en memoria e reiníciase ao reiniciar o servidor.",
+      "mockScriptHelp": "Transforma a resposta con JavaScript antes de enviala. Corre o último: ve o corpo definitivo, despois das condicións, o escenario e a plantilla. Pode ler a petición con ms.request.json() e cambiar a resposta con ms.response.code, ms.response.headers e ms.response.setBody()."
     },
     "proxyTimeout": "Timeout de Petición",
     "proxyFallbacks": "Respostas de Fallback",
@@ -209,7 +210,9 @@
     "sequenceSteps": "{{count}} pasos",
     "sequenceReset": "Reiniciar",
     "sequenceResetHint": "Volve ao primeiro paso sen tocar a configuración",
-    "sequenceResetDone": "Escenario reiniciado"
+    "sequenceResetDone": "Escenario reiniciado",
+    "mockScript": "Script da resposta",
+    "scriptReference": "Referencia da API ms.*"
   },
   "responseTypes": {
     "json": "JSON",
@@ -343,7 +346,9 @@
     "creatingTag": "Erro creando tag",
     "savingGraphQLOperations": "Erro gardando operacións GraphQL",
     "importingGraphQLSchema": "Erro importando schema GraphQL",
-    "savingSequence": "Erro gardando o escenario"
+    "savingSequence": "Erro gardando o escenario",
+    "generic": "Ocorreu un erro",
+    "savingWSMessages": "Erro gardando as mensaxes de WebSocket"
   },
   "empty": {
     "noHeaders": "Non hai headers configurados",
@@ -549,7 +554,15 @@
     "directoryPath": "Ruta do cartafol",
     "noFilesInDirectory": "Non se atoparon arquivos ZIP no cartafol import",
     "filesImported": "Arquivos importados",
-    "errors": "Erros"
+    "errors": "Erros",
+    "deselectAll": "Deseleccionar todo",
+    "exportAll": "Todas as rutas",
+    "exportSelected": "Rutas seleccionadas",
+    "noRoutesSelected": "Selecciona polo menos unha ruta para exportar",
+    "searchRoutes": "Buscar rutas...",
+    "selectAll": "Seleccionar todo",
+    "selectRoutesToExport": "Selecciona as rutas a exportar",
+    "selectedCount": "seleccionadas"
   },
   "ws": {
     "clientsTitle": "Clientes WebSocket",

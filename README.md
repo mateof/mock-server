@@ -40,6 +40,12 @@ A powerful HTTP mocking and proxying application built with Express.js and Node.
   - Validation with test URL
   - Separate path extraction for proxies
 
+- **Scripts on Mock Routes** - The same `ms.*` engine the proxy uses, now on mocks
+  - Runs last: after conditions, the scenario step and templating
+  - Reads the request (`ms.request.json()`, headers, query) and rewrites code, headers and body
+  - The escape hatch for whatever the declarative features cannot express
+  - See [Scripting Documentation](docs/proxy-scripting.md) for details
+
 - **Stateful Scenarios** - Answer differently depending on how many times a route was called
   - First `pending`, then `processing`, then `done`: what simulates a polling flow
   - A step can cover several consecutive calls, and the sequence can stick on the last or loop

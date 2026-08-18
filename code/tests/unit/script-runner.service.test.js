@@ -380,3 +380,48 @@ describe('script-runner.service', () => {
         });
     });
 });
+
+// El script de respuesta puede leer la petición. Vale tanto para el post-script
+// de un proxy como para el script de una ruta mock, que usa el mismo motor.
+describe('script de respuesta: leer la petición', () => {
+    test('el script puede ver el cuerpo que se envió', () => {
+        const salida = scriptRunner.runResponseScript(
+            'const p = ms.request.json(); const r = ms.response.json(); r.eco = p.nombre; ms.response.setBody(r);',
+            {
+                status: 200,
+                headers: {},
+                bodyText: '{"ok":true}',
+                request: { method: 'POST', path: '/x', bodyText: '{"nombre":"Ana"}' }
+            });
+
+        expect(salida.success).toBe(true);
+        expect(JSON.parse(salida.result.body.text).eco).toBe('Ana');
+    });
+
+    test('también se puede leer como texto', () => {
+        const salida = scriptRunner.runResponseScript(
+            'ms.response.setBody({ recibido: ms.request.text() });',
+            { status: 200, headers: {}, bodyText: '{}', request: { bodyText: 'hola' } });
+
+        expect(JSON.parse(salida.result.body.text).recibido).toBe('hola');
+    });
+
+    test('sin cuerpo en la petición no revienta', () => {
+        const salida = scriptRunner.runResponseScript(
+            'ms.response.setBody({ vacio: ms.request.json() === null });',
+            { status: 200, headers: {}, bodyText: '{}', request: {} });
+
+        expect(salida.success).toBe(true);
+        expect(JSON.parse(salida.result.body.text).vacio).toBe(true);
+    });
+
+    test('el cuerpo no se reserializa si el script no lo toca', () => {
+        // Importante: si no, un JSON escrito a mano perdería su formato solo
+        // por pasar por un script que únicamente mira cabeceras
+        const salida = scriptRunner.runResponseScript(
+            'ms.response.headers.set("x-visto", "1");',
+            { status: 200, headers: {}, bodyText: '{\n  "a": 1\n}', request: {} });
+
+        expect(salida.result.body.changed).toBe(false);
+    });
+});

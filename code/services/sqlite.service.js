@@ -213,6 +213,8 @@ async function createTables(newdb) {
     await addColumn(newdb, 'templating', 'INTEGER DEFAULT 0');
     // Qué hacer cuando se agota la secuencia: repetir el último paso o volver a empezar
     await addColumn(newdb, 'sequence_mode', "TEXT DEFAULT 'stick'");
+    // Script ms.* en rutas mock: el mismo motor que el post-script del proxy
+    await addColumn(newdb, 'mock_script', 'TEXT');
 
     // Crear índices para optimizar búsquedas de rutas
     await new Promise((resolve) => {

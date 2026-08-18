@@ -7,6 +7,7 @@ const trace = require('../services/trace.service');
 const faultService = require('../services/fault.service');
 const templateService = require('../services/template.service');
 const scenarioService = require('../services/scenario.service');
+const scriptRunner = require('../services/script-runner.service');
 const moment = require("moment");
 const path = require("path");
 const fs = require("fs");
@@ -84,6 +85,37 @@ function extractPathParams(route, url) {
     } catch (e) {
         console.error(`[ROUTE] Error extrayendo params: ${e.message}`);
         return {};
+    }
+}
+
+/**
+ * Las cabeceras de una ruta se guardan como reglas set/remove; el script las
+ * espera como un objeto plano. Las de tipo remove no llegan: quitar algo que
+ * todavía no se ha puesto no significa nada aquí.
+ */
+function cabecerasComoObjeto(customHeadersJson) {
+    const resultado = {};
+    const parsed = safeJsonParse(customHeadersJson, 'customHeaders para script');
+    if (parsed.success && Array.isArray(parsed.data)) {
+        parsed.data.forEach(h => {
+            if (h.action === 'set' && h.name) resultado[h.name] = h.value || '';
+        });
+    }
+    return resultado;
+}
+
+/**
+ * El cuerpo tal cual llegó. Se usa rawBody si está, que es lo que evita que un
+ * formulario o un cuerpo no-JSON lleguen al script convertidos en otra cosa.
+ */
+function cuerpoDePeticionComoTexto(req) {
+    if (req.rawBody && req.rawBody.length) return req.rawBody.toString('utf8');
+    if (req.body === undefined || req.body === null) return '';
+    if (typeof req.body === 'string') return req.body;
+    try {
+        return Object.keys(req.body).length ? JSON.stringify(req.body) : '';
+    } catch (e) {
+        return '';
     }
 }
 
@@ -378,6 +410,60 @@ async function checkRoute(req, res, next) {
             // para que un valor con comillas no destroce el array
             if (templateService.tienePlantilla(responseHeaders)) {
                 responseHeaders = templateService.render(responseHeaders, contexto, { json: true });
+            }
+        }
+
+        // Script ms.*: el último en tocar la respuesta, así que ve el cuerpo
+        // definitivo. Los tipos sin cuerpo de texto se saltan: no hay nada que
+        // transformar en un fichero ni en una respuesta vacía
+        if (rute.mock_script && !['file', 'empty', 'graphql'].includes(responseType)) {
+            const salida = scriptRunner.runResponseScript(rute.mock_script, {
+                status: responseCode,
+                headers: cabecerasComoObjeto(responseHeaders),
+                bodyText: responseBody === null || responseBody === undefined ? '' : String(responseBody),
+                request: {
+                    method: method,
+                    path: (req.path || url).split('?')[0],
+                    query: req.query || {},
+                    headers: req.headers || {},
+                    bodyText: cuerpoDePeticionComoTexto(req)
+                }
+            });
+
+            (salida.logs || []).forEach(linea => log.info(`📜 ${linea}`));
+
+            if (!salida.success) {
+                console.error(`[ROUTE] Error en el script de la ruta: ${salida.error}`);
+                trace.step(trace.PASOS.SCRIPT, {
+                    message: `El script falló: ${salida.error}`,
+                    level: 'error',
+                    details: { error: salida.error }
+                });
+                log.error(`📜 ${method} ${url}: ${salida.error}`);
+                res.status(500).json({ error: 'Mock script failed', message: salida.error });
+                return;
+            }
+
+            if (salida.result) {
+                responseCode = salida.result.status;
+                // El cuerpo solo se sustituye si el script lo tocó: igual que en
+                // el proxy, así un script que solo lee cabeceras no reserializa
+                // el JSON ni le cambia el formato al que lo escribió
+                if (salida.result.body.changed) {
+                    responseBody = salida.result.body.text;
+                }
+                responseHeaders = JSON.stringify(
+                    Object.entries(salida.result.headers || {})
+                        .map(([name, value]) => ({ action: 'set', name, value: String(value) }))
+                );
+                trace.step(trace.PASOS.SCRIPT, {
+                    message: 'Script de la ruta aplicado',
+                    details: {
+                        status: responseCode,
+                        body_changed: salida.result.body.changed,
+                        logs: (salida.logs || []).length
+                    }
+                });
             }
         }
 
