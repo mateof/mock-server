@@ -15,9 +15,10 @@ const logService = require('../services/log.service');
 const versionService = require('../services/version.service');
 const recordingService = require('../services/recording.service');
 const scenarioService = require('../services/scenario.service');
+const config = require('../services/paths');
 
 // Configuración de multer para subida de archivos
-const UPLOADS_DIR = path.join(__dirname, '..', 'data', 'uploads');
+const UPLOADS_DIR = path.join(config.DATA_DIR, 'uploads');
 
 // Asegurar que existe el directorio de uploads
 if (!fs.existsSync(UPLOADS_DIR)) {

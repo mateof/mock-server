@@ -20,8 +20,9 @@ const faultService = require('./fault.service');
 const scenarioService = require('./scenario.service');
 const websocketService = require('./websocket.service');
 const proxyMiddleware = require('../middlewares/proxy.middleware');
+const config = require('./paths');
 
-const UPLOADS_DIR = path.join(__dirname, '..', 'data', 'uploads');
+const UPLOADS_DIR = path.join(config.DATA_DIR, 'uploads');
 
 // El panel vive en /api y el servidor MCP en /mcp: una ruta mock ahí quedaría
 // ensombrecida y el usuario no entendería por qué no responde nunca

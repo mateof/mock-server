@@ -12,9 +12,10 @@ const sseService = require('../services/sse.service');
 const moment = require("moment");
 const path = require("path");
 const fs = require("fs");
+const config = require('../services/paths');
 
 // Directorio de archivos subidos
-const UPLOADS_DIR = path.join(__dirname, '..', 'data', 'uploads');
+const UPLOADS_DIR = path.join(config.DATA_DIR, 'uploads');
 
 // ===== HELPERS =====
 

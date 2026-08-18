@@ -8,10 +8,11 @@ const path = require('path');
 const { execSync, exec } = require('child_process');
 const unzipper = require('unzipper');
 const { v4: uuidv4 } = require('uuid');
+const config = require('./paths');
 
 // Import directory path
-const IMPORT_DIR = path.join(__dirname, '..', 'data', 'import');
-const UPLOADS_DIR = path.join(__dirname, '..', 'data', 'uploads');
+const IMPORT_DIR = path.join(config.DATA_DIR, 'import');
+const UPLOADS_DIR = path.join(config.DATA_DIR, 'uploads');
 
 // Environment variables
 const ENV_GIT_REPO = process.env.MOCK_SERVER_GIT_REPO;

@@ -20,3 +20,8 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
+
+# Pruebas de navegador
+code/test-results/
+code/playwright-report/
+code/tests/e2e/.data/

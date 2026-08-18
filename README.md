@@ -269,6 +269,17 @@ podman compose up -d --build
 | `MOCK_SERVER_UPDATE_CHECK` | true | Set to `false` to never contact the registry |
 | `MOCK_SERVER_UPDATE_CHECK_HOURS` | 6 | How long the registry answer is cached |
 | `MOCK_SERVER_IMAGE` | mateof/mock-server | Image to check for newer versions |
+| `MOCK_SERVER_DATA_DIR` | `code/data` | Where the database, uploads and auto-import folder live |
+
+### Testing
+
+| Command | What it runs |
+|---------|--------------|
+| `npm test` | Unit and integration tests (Jest) |
+| `npm run test:e2e` | Browser smoke tests (Playwright, Chromium) |
+| `npm run test:all` | Both |
+
+Browser tests run the server against their own data directory, so they never touch your database. See [Testing Documentation](docs/testing.md) for details.
 
 ### Data Persistence
 

@@ -45,3 +45,44 @@ jobs:
           name: coverage-report
           path: code/coverage/
           retention-days: 7
+
+  # El navegador va en un job aparte: descargar Chromium tarda más que todas
+  # las pruebas unitarias juntas, y no tiene por qué retrasar su resultado
+  browser:
+    name: Browser smoke tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: 'npm'
+          cache-dependency-path: code/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./code
+        run: npm ci
+
+      # Solo Chromium y sus dependencias del sistema: los tres navegadores
+      # tardarían el triple para cubrir lo mismo
+      - name: Install Chromium
+        working-directory: ./code
+        run: npx playwright install --with-deps chromium
+
+      - name: Run browser tests
+        working-directory: ./code
+        run: npm run test:e2e
+
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            code/playwright-report/
+            code/test-results/
+          retention-days: 7

@@ -1,9 +1,10 @@
 var sqlite3 = require('sqlite3');
 var path = require('path');
 var fs = require('fs');
+const config = require('./paths');
 
 // Ruta de la base de datos
-const DB_DIR = path.join(__dirname, '..', 'data');
+const DB_DIR = config.DATA_DIR;
 const DB_PATH = path.join(DB_DIR, 'database.db');
 
 // Conexión persistente (singleton)
