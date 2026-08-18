@@ -10,6 +10,18 @@ Open a route, expand **Stateful scenario**, and add steps in order. Each step ov
 
 **Calls** on a step is how many consecutive calls it covers. A `processing` that lasts three polls is one step with `repeat: 3`, not three copies of the same step. The number badge on each step shows the range of calls it answers, so `2-4` means the second through fourth call land there.
 
+**Response type** on a step can be `json`, `xml`, `soap`, `text`, `html`, `page`, `empty` or `sse`: everything that is built from the body you type. Leave it blank to keep the route's own type.
+
+The other four route types are rejected when you save, with the reason:
+
+| Type | Why not |
+|------|---------|
+| `proxy`, `websocket` | Another middleware handles those, and it looks at the type of the **route**, not the one the step resolves to. A step claiming `proxy` used to be served as plain text, silently |
+| `file` | Needs an uploaded file, and a step only carries text |
+| `graphql` | Needs the operations that hang off the route, not off the step |
+
+An `sse` step is worth knowing about: a scenario can answer JSON twice and open a stream on the third call.
+
 **When the sequence ends** decides what happens after the last step:
 
 | Mode | Behaviour |

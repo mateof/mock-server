@@ -129,8 +129,66 @@ describe('template.service: respuestas dinámicas', () => {
             expect(tpl.render('{{randomString(12)}}', contexto)).toHaveLength(12);
         });
 
-        test('un generador que no existe se trata como camino y queda vacío', () => {
-            expect(tpl.render('[{{noExisteEsto()}}]', contexto)).toBe('[]');
+        test('un generador mal escrito se deja tal cual, para que se vea', () => {
+            // Vaciarlo dejaba el error invisible: salía un hueco y no había
+            // forma de saber que la culpa era de una letra de más
+            expect(tpl.render('[{{noExisteEsto()}}]', contexto)).toBe('[{{noExisteEsto()}}]');
+        });
+    });
+
+    describe('lo que el motor no reconoce', () => {
+        test('una raíz desconocida se deja intacta', () => {
+            // Una plantilla de Handlebars servida como fixture no va dirigida
+            // a este motor, y vaciarla destruía contenido ajeno
+            expect(tpl.render('Hola {{nombre}}, tienes {{n}} mensajes', contexto))
+                .toBe('Hola {{nombre}}, tienes {{n}} mensajes');
+        });
+
+        test('pero una raíz conocida sin dato sí se vacía', () => {
+            // Aquí el motor sí sabe qué se le pide: el dato simplemente no vino
+            expect(tpl.render('[{{body.noExiste}}]', contexto)).toBe('[]');
+            expect(tpl.render('[{{query.noExiste}}]', contexto)).toBe('[]');
+            expect(tpl.render('[{{headers.noExiste}}]', contexto)).toBe('[]');
+        });
+
+        test('un generador que sí existe sigue funcionando', () => {
+            expect(tpl.render('{{uuid()}}', contexto)).toMatch(/^[0-9a-f]{8}-/);
+        });
+
+        test('escribir ?? es decir "esto es mío", y manda el defecto', () => {
+            // Con un valor por defecto explícito no hay ambigüedad que respetar
+            expect(tpl.render('{{nombre ?? "invitado"}}', contexto)).toBe('invitado');
+            expect(tpl.render('{{malEscrito() ?? "x"}}', contexto)).toBe('x');
+        });
+
+        test('un defecto tampoco reconocido cuenta como ausente', () => {
+            expect(tpl.render('[{{body.noExiste ?? tampoco}}]', contexto)).toBe('[]');
+        });
+
+        describe('en JSON', () => {
+            const json = (plantilla, ctx = contexto) => tpl.render(plantilla, ctx, { json: true });
+
+            test('dentro de comillas se respeta y el JSON sigue siendo válido', () => {
+                const salida = json('{"plantilla": "Hola {{nombre}}"}');
+                expect(JSON.parse(salida).plantilla).toBe('Hola {{nombre}}');
+            });
+
+            test('una expresión con comillas dentro no parte el documento', () => {
+                // Al respetarla hay que escaparla igual, o la comilla cierra la
+                // cadena. El generador tiene que ser uno inexistente: `pick` sí
+                // existe y resolvería en vez de dejarse intacto
+                const salida = json('{"x": "{{traducir(\'hola\')}}"}');
+                expect(() => JSON.parse(salida)).not.toThrow();
+                expect(JSON.parse(salida).x).toBe("{{traducir('hola')}}");
+            });
+
+            test('fuera de comillas se resuelve siempre, porque ahí no podría ser otra cosa', () => {
+                // Un {{...}} suelto en posición de valor no sería JSON válido de
+                // ninguna manera, así que solo puede ser una expresión nuestra
+                const salida = json('{"x": {{nombre}}}');
+                expect(salida).toBe('{"x": null}');
+                expect(JSON.parse(salida).x).toBeNull();
+            });
         });
     });
 

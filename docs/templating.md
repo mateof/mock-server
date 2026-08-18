@@ -68,31 +68,41 @@ That is the normal way to use this, and usually the best one. A realistic mock i
 
 Everything else stays hardcoded. You do not have to make the whole body dynamic, and you should not: the more of it is fixed, the more the mock reads like a real example of what the endpoint returns.
 
-## Why it is a switch, and not always on
+## What it does not touch
 
-Because a response can contain `{{...}}` for its own reasons, and substituting it by surprise would break it.
-
-The clearest case is a route that serves a template as its content. Say you mock an endpoint that returns an email template:
+Anything the engine does not recognise is **left exactly as it was**. That matters when a response legitimately contains `{{...}}` of its own, which happens more often than it sounds: a mock of an endpoint that returns a Handlebars or Mustache template, or a documentation example showing placeholder syntax.
 
 ```json
 {"greeting":"Hola {{nombre}}, tienes {{n}} mensajes"}
 ```
 
-With dynamic responses **off**, that is served exactly as written, which is what you want:
+That comes back untouched even with dynamic responses **on**, because `nombre` and `n` are not things this engine knows about.
+
+The line it draws is between two different situations:
+
+| You wrote | The engine reads it as | Result |
+|-----------|------------------------|--------|
+| `{{body.nope}}` | "I know `body`, that field just is not here" | Empty |
+| `{{nombre}}` | "I have no idea what this is" | Left as `{{nombre}}` |
+| `{{uuidd()}}` | A call to a generator that does not exist | Left as `{{uuidd()}}` |
+
+The second row is what saves foreign templates. The third is what makes typos visible: a misspelled generator used to render as an empty gap with no clue why, and now it shows itself in the response.
+
+### So why is it still a switch?
+
+Because the protection above only covers names this engine does not use. A foreign template that happens to use **the same names** is still fair game:
 
 ```json
-{"greeting":"Hola {{nombre}}, tienes {{n}} mensajes"}
+{"plantilla":"Hola {{body.nombre}}, hoy es {{now()}}"}
 ```
 
-With it **on**, the engine treats those as holes to fill, finds nothing called `nombre` or `n` in the request, and empties them:
+With the switch on, that one **is** substituted, because `body.nombre` and `now()` are exactly what this engine offers:
 
 ```json
-{"greeting":"Hola , tienes  mensajes"}
+{"plantilla":"Hola , hoy es 2026-08-18T12:06:29.364Z"}
 ```
 
-The same applies to a mock of an endpoint that returns Handlebars or Mustache, or to documentation examples that show placeholder syntax. Turning this on globally would silently corrupt every one of those, and they would keep working right up until the upgrade.
-
-So it is a checkbox on each route. Routes that do not tick it behave exactly as they always did.
+So the checkbox is still the thing that guarantees a route is untouched. Routes that do not tick it behave exactly as they always did, no exceptions.
 
 ## What you can put inside the braces
 
@@ -131,6 +141,8 @@ The parentheses are optional when there are no arguments: `{{uuid}}` works the s
 `{{body.name ?? 'anonymous'}}` uses the fallback when the value is missing **or empty**. An empty query parameter (`?page=`) counts as missing, because otherwise it would leave a hole where a value should be.
 
 The fallback can be a literal, a number, or another generator: `{{body.id ?? uuid()}}`.
+
+Writing `??` also settles any doubt about who the expression belongs to: `{{nombre}}` on its own is left alone, but `{{nombre ?? 'guest'}}` uses the fallback, because adding one is a statement that you meant it for this engine.
 
 ### Conversions
 
@@ -188,7 +200,7 @@ called with `?page=5` and `{"name":"Ana"}`, the answer is:
   "withFallback": "anonymous",
   "queryAsText": "5",
   "queryAsNumber": 5,
-  "misspelledGenerator": ""
+  "misspelledGenerator": "{{uuidd()}}"
 }
 ```
 
@@ -197,7 +209,8 @@ Worth noting:
 - A missing value **inside quotes** becomes an empty string; **outside quotes** it becomes `null`. Either way the body still parses.
 - Nothing ever renders as the word `undefined`.
 - `queryAsText` came out as the string `"5"`, not the number `5`. That is not a bug: query parameters are text. Wrap it in `number()` when you want a number.
-- A **misspelled generator** is indistinguishable from a path that does not exist, so it renders empty rather than raising an error. If a value comes out empty and you expected something, check the spelling first.
+- A **misspelled generator** comes back as itself, `{{uuidd()}}`, instead of an empty gap. That is deliberate: an empty value gives no clue that a letter is wrong, and seeing the expression in the response says it immediately.
+- Outside quotes there is no room for that courtesy: a bare `{{...}}` in a JSON value position would not be valid JSON whatever it meant, so it can only be an expression of this engine, and it always resolves. Unresolved, it becomes `null` and the body stays parseable.
 
 ## Beyond JSON
 
