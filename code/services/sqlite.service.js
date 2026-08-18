@@ -1,9 +1,10 @@
 var sqlite3 = require('sqlite3');
 var path = require('path');
 var fs = require('fs');
+const config = require('./paths');
 
 // Ruta de la base de datos
-const DB_DIR = path.join(__dirname, '..', 'data');
+const DB_DIR = config.DATA_DIR;
 const DB_PATH = path.join(DB_DIR, 'database.db');
 
 // Conexión persistente (singleton)
@@ -197,6 +198,26 @@ async function createTables(newdb) {
     await addColumn(newdb, 'proxy_request_params', 'TEXT');
     await addColumn(newdb, 'proxy_pre_script', 'TEXT');
     await addColumn(newdb, 'proxy_post_script', 'TEXT');
+    // Modo grabación: convierte en mocks lo que va respondiendo el backend
+    await addColumn(newdb, 'recording', 'INTEGER DEFAULT 0');
+    await addColumn(newdb, 'recording_mode', "TEXT DEFAULT 'update'");
+    // Latencia y fallos provocados (ver fault.service.js)
+    await addColumn(newdb, 'latency_mode', "TEXT DEFAULT 'none'");
+    await addColumn(newdb, 'latency_ms', 'INTEGER DEFAULT 0');
+    await addColumn(newdb, 'latency_max_ms', 'INTEGER DEFAULT 0');
+    await addColumn(newdb, 'fault_rate', 'INTEGER DEFAULT 0');
+    await addColumn(newdb, 'fault_type', "TEXT DEFAULT 'error'");
+    await addColumn(newdb, 'fault_status', "TEXT DEFAULT '500'");
+    // Plantillas en la respuesta. Desactivado por defecto: una respuesta puede
+    // llevar {{...}} de forma legítima y sustituirlo por sorpresa rompería
+    // rutas que ya funcionan
+    await addColumn(newdb, 'templating', 'INTEGER DEFAULT 0');
+    // Qué hacer cuando se agota la secuencia: repetir el último paso o volver a empezar
+    await addColumn(newdb, 'sequence_mode', "TEXT DEFAULT 'stick'");
+    // Script ms.* en rutas mock: el mismo motor que el post-script del proxy
+    await addColumn(newdb, 'mock_script', 'TEXT');
+    // SSE: si al acabar los eventos se vuelve a empezar en vez de cerrar
+    await addColumn(newdb, 'sse_loop', 'INTEGER DEFAULT 0');
 
     // Crear índices para optimizar búsquedas de rutas
     await new Promise((resolve) => {
@@ -284,6 +305,29 @@ async function createTables(newdb) {
             CREATE INDEX IF NOT EXISTS idx_conditions_route_orden ON conditional_responses(route_id, orden);
         `, (err) => {
             if (!err) console.log('[DB] Tabla conditional_responses verificada');
+            resolve();
+        });
+    });
+
+    // Escenarios con estado: respuestas en secuencia según la vez que se llama
+    await new Promise((resolve) => {
+        newdb.exec(`
+            CREATE TABLE IF NOT EXISTS route_sequences (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                route_id INTEGER NOT NULL,
+                orden INTEGER DEFAULT 0,
+                nombre TEXT,
+                codigo TEXT,
+                tiporespuesta TEXT,
+                respuesta TEXT,
+                customHeaders TEXT,
+                repeticiones INTEGER DEFAULT 1,
+                activo INTEGER DEFAULT 1,
+                FOREIGN KEY (route_id) REFERENCES rutas(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_sequences_route_orden ON route_sequences(route_id, orden);
+        `, (err) => {
+            if (!err) console.log('[DB] Tabla route_sequences verificada');
             resolve();
         });
     });
@@ -517,6 +561,52 @@ async function getConditionalResponses(routeId) {
 }
 
 // Guardar respuestas condicionales (reemplaza todas las existentes)
+async function getRouteSequence(routeId) {
+    return new Promise((resolve, reject) => {
+        _db.all('SELECT * FROM route_sequences WHERE route_id = ? AND activo = 1 ORDER BY orden ASC',
+            [routeId], (err, rows) => {
+                if (err) reject(err); else resolve(rows || []);
+            });
+    });
+}
+
+async function getAllRouteSequence(routeId) {
+    return new Promise((resolve, reject) => {
+        _db.all('SELECT * FROM route_sequences WHERE route_id = ? ORDER BY orden ASC',
+            [routeId], (err, rows) => {
+                if (err) reject(err); else resolve(rows || []);
+            });
+    });
+}
+
+async function saveRouteSequence(routeId, pasos) {
+    await new Promise((resolve, reject) => {
+        _db.run('DELETE FROM route_sequences WHERE route_id = ?', [routeId], (err) => {
+            if (err) reject(err); else resolve();
+        });
+    });
+
+    for (let i = 0; i < pasos.length; i++) {
+        const p = pasos[i];
+        const customHeaders = p.customHeaders
+            ? (typeof p.customHeaders === 'string' ? p.customHeaders : JSON.stringify(p.customHeaders))
+            : null;
+        await new Promise((resolve, reject) => {
+            _db.run(`INSERT INTO route_sequences
+                     (route_id, orden, nombre, codigo, tiporespuesta, respuesta, customHeaders, repeticiones, activo)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [routeId, i, p.nombre || null, p.codigo || null, p.tiporespuesta || null,
+                 p.respuesta || null, customHeaders,
+                 // Un paso puede durar varias llamadas: "processing" tres veces
+                 Math.max(1, parseInt(p.repeticiones) || 1),
+                 p.activo !== false ? 1 : 0],
+                (err) => { if (err) reject(err); else resolve(); });
+        });
+    }
+
+    console.log(`[DB] Guardados ${pasos.length} pasos de secuencia para ruta ${routeId}`);
+}
+
 async function saveConditionalResponses(routeId, conditions) {
     // Eliminar condiciones existentes
     await new Promise((resolve, reject) => {
@@ -1054,6 +1144,9 @@ exports.getProxys = getProxys;
 exports.getConditionalResponses = getConditionalResponses;
 exports.saveConditionalResponses = saveConditionalResponses;
 exports.deleteConditionalResponses = deleteConditionalResponses;
+exports.getRouteSequence = getRouteSequence;
+exports.getAllRouteSequence = getAllRouteSequence;
+exports.saveRouteSequence = saveRouteSequence;
 exports.getAllTags = getAllTags;
 exports.getOrCreateTag = getOrCreateTag;
 exports.updateTagColor = updateTagColor;

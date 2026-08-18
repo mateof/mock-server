@@ -9,6 +9,7 @@ const { v4: uuidv4 } = require('uuid');
 
 // Get database and services
 const sqliteService = require('../services/sqlite.service');
+const config = require('../services/paths');
 
 // Configure multer for file upload
 const upload = multer({
@@ -478,7 +479,7 @@ router.get('/export', async (req, res) => {
         };
 
         // Get files manifest if including files
-        const uploadsDir = path.join(__dirname, '..', 'data', 'uploads');
+        const uploadsDir = path.join(config.DATA_DIR, 'uploads');
         if (includeFiles && fs.existsSync(uploadsDir)) {
             routes.forEach(route => {
                 if (route.filePath && route.fileName) {
@@ -558,7 +559,7 @@ router.post('/import', upload.single('file'), async (req, res) => {
         const importFiles = req.body.importFiles === 'true';
 
         const db = sqliteService.getDatabase();
-        const uploadsDir = path.join(__dirname, '..', 'data', 'uploads');
+        const uploadsDir = path.join(config.DATA_DIR, 'uploads');
 
         // Ensure uploads directory exists
         if (!fs.existsSync(uploadsDir)) {
@@ -931,7 +932,7 @@ router.get('/export/preview', async (req, res) => {
 
         // Calculate files size
         let filesSize = 0;
-        const uploadsDir = path.join(__dirname, '..', 'data', 'uploads');
+        const uploadsDir = path.join(config.DATA_DIR, 'uploads');
         if (fs.existsSync(uploadsDir)) {
             const files = fs.readdirSync(uploadsDir);
             files.forEach(file => {

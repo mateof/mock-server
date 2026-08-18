@@ -4,12 +4,18 @@ const { log, sendData } = require('../services/socket.service');
 const graphqlService = require('../services/graphql.service');
 const semaphore = require('../services/semaphore.service');
 const trace = require('../services/trace.service');
+const faultService = require('../services/fault.service');
+const templateService = require('../services/template.service');
+const scenarioService = require('../services/scenario.service');
+const scriptRunner = require('../services/script-runner.service');
+const sseService = require('../services/sse.service');
 const moment = require("moment");
 const path = require("path");
 const fs = require("fs");
+const config = require('../services/paths');
 
 // Directorio de archivos subidos
-const UPLOADS_DIR = path.join(__dirname, '..', 'data', 'uploads');
+const UPLOADS_DIR = path.join(config.DATA_DIR, 'uploads');
 
 // ===== HELPERS =====
 
@@ -84,6 +90,44 @@ function extractPathParams(route, url) {
     }
 }
 
+/**
+ * Las cabeceras de una ruta se guardan como reglas set/remove; el script las
+ * espera como un objeto plano. Las de tipo remove no llegan: quitar algo que
+ * todavía no se ha puesto no significa nada aquí.
+ */
+function cabecerasComoObjeto(customHeadersJson) {
+    const resultado = {};
+    const parsed = safeJsonParse(customHeadersJson, 'customHeaders para script');
+    if (parsed.success && Array.isArray(parsed.data)) {
+        parsed.data.forEach(h => {
+            if (h.action === 'set' && h.name) resultado[h.name] = h.value || '';
+        });
+    }
+    return resultado;
+}
+
+/**
+ * El cuerpo tal cual llegó. Se usa rawBody si está, que es lo que evita que un
+ * formulario o un cuerpo no-JSON lleguen al script convertidos en otra cosa.
+ */
+function cuerpoDePeticionComoTexto(req) {
+    if (req.rawBody && req.rawBody.length) return req.rawBody.toString('utf8');
+    if (req.body === undefined || req.body === null) return '';
+    if (typeof req.body === 'string') return req.body;
+    try {
+        return Object.keys(req.body).length ? JSON.stringify(req.body) : '';
+    } catch (e) {
+        return '';
+    }
+}
+
+// Cómo se cuenta el fallo en la consola del panel
+function describirFallo(config) {
+    if (config.tipoFallo === 'reset') return 'conexión cortada';
+    if (config.tipoFallo === 'empty') return `respuesta vacía ${config.codigoFallo}`;
+    return `error ${config.codigoFallo}`;
+}
+
 // ===== MIDDLEWARE PRINCIPAL =====
 
 async function checkRoute(req, res, next) {
@@ -140,6 +184,10 @@ async function checkRoute(req, res, next) {
         let responseBody = rute.respuesta;
         let responseHeaders = rute.customHeaders;
 
+        // Una sola vez por petición: si se consultara en cada sitio, el criterio
+        // y la plantilla verían números distintos dentro de la misma llamada
+        const numeroLlamada = scenarioService.registrarLlamada(rute.id);
+
         // Evaluar condiciones ANTES de la espera activa (para mostrar la respuesta real en pending list)
         try {
             const conditions = await sqliteService.getConditionalResponses(rute.id);
@@ -153,7 +201,10 @@ async function checkRoute(req, res, next) {
                     path: req.path || url,
                     query: req.query || {},
                     params: extractPathParams(rute, url),
-                    method: method.toLowerCase()
+                    method: method.toLowerCase(),
+                    // Número de esta llamada a la ruta, para condiciones que
+                    // dependen de cuántas van y no de lo que trae la petición
+                    callCount: numeroLlamada
                 };
 
                 // Evaluar condiciones en orden (primera que match gana)
@@ -282,8 +333,149 @@ async function checkRoute(req, res, next) {
             }
         }
 
+        // Latencia y fallos provocados. Van después de las condiciones para que
+        // la traza deje ver qué se iba a responder antes de romperlo
+        const chaos = faultService.configuracion(rute);
+        if (faultService.estaActiva(chaos)) {
+            const retardo = faultService.calcularRetardo(chaos);
+            if (retardo > 0) {
+                trace.step(trace.PASOS.LATENCY, {
+                    message: `Latencia provocada: ${retardo} ms`,
+                    details: { mode: chaos.modo, delay_ms: retardo, min: chaos.min, max: chaos.max }
+                });
+                await faultService.esperar(retardo);
+            }
+
+            if (faultService.tocaFallar(chaos)) {
+                trace.step(trace.PASOS.FAULT, {
+                    message: `Fallo provocado (${chaos.tipoFallo})`,
+                    level: 'error',
+                    status: chaos.tipoFallo === 'reset' ? null : Number(chaos.codigoFallo),
+                    details: { type: chaos.tipoFallo, rate: chaos.porcentajeFallo, status: chaos.codigoFallo }
+                });
+                faultService.provocarFallo(chaos, res);
+                log.fault(method, url, chaos.tipoFallo === 'reset' ? null : Number(chaos.codigoFallo),
+                    Date.now() - requestStart, describirFallo(chaos));
+                return;
+            }
+        }
+
+        // Escenario: el paso que toca según la vez que se llama. Va después de
+        // las condiciones y gana sobre ellas: "a la tercera, done" es una regla
+        // sobre el flujo entero, más de fuera que cualquier criterio de petición
+        try {
+            const pasos = await sqliteService.getRouteSequence(rute.id);
+            if (pasos.length > 0) {
+                const elegido = scenarioService.pasoParaLlamada(
+                    pasos, numeroLlamada, rute.sequence_mode || 'stick');
+
+                if (elegido) {
+                    const paso = elegido.paso;
+                    trace.step(trace.PASOS.SEQUENCE, {
+                        message: `Paso ${elegido.posicion + 1}/${elegido.total}` +
+                                 `${paso.nombre ? ` "${paso.nombre}"` : ''} (llamada ${numeroLlamada})`,
+                        details: {
+                            call: numeroLlamada,
+                            step: elegido.posicion + 1,
+                            steps: elegido.total,
+                            name: paso.nombre,
+                            mode: rute.sequence_mode || 'stick',
+                            exhausted: elegido.agotada
+                        }
+                    });
+
+                    if (paso.codigo) responseCode = Number(paso.codigo);
+                    if (paso.tiporespuesta) responseType = paso.tiporespuesta;
+                    if (paso.respuesta !== null && paso.respuesta !== undefined) responseBody = paso.respuesta;
+                    if (paso.customHeaders) responseHeaders = paso.customHeaders;
+                }
+            }
+        } catch (seqErr) {
+            console.error(`[ROUTE] Error aplicando la secuencia: ${seqErr.message}`);
+        }
+
+        // Plantillas en el cuerpo y en las cabeceras. Va después de las
+        // condiciones a propósito: la respuesta que se renderiza es la que
+        // ganó, no la de por defecto
+        if (rute.templating === 1) {
+            const contexto = templateService.contextoDePeticion(req, extractPathParams(rute, url));
+            contexto.callCount = numeroLlamada;
+            const esJson = responseType === 'json';
+
+            if (templateService.tienePlantilla(responseBody)) {
+                responseBody = templateService.render(responseBody, contexto, { json: esJson });
+                trace.step(trace.PASOS.TEMPLATE, {
+                    message: 'Plantilla aplicada a la respuesta',
+                    details: { response_type: responseType, json_mode: esJson }
+                });
+            }
+            // Las cabeceras son un JSON, así que se renderizan en modo JSON
+            // para que un valor con comillas no destroce el array
+            if (templateService.tienePlantilla(responseHeaders)) {
+                responseHeaders = templateService.render(responseHeaders, contexto, { json: true });
+            }
+        }
+
+        // Script ms.*: el último en tocar la respuesta, así que ve el cuerpo
+        // definitivo. Los tipos sin cuerpo de texto se saltan: no hay nada que
+        // transformar en un fichero ni en una respuesta vacía
+        if (rute.mock_script && !['file', 'empty', 'graphql'].includes(responseType)) {
+            const salida = scriptRunner.runResponseScript(rute.mock_script, {
+                status: responseCode,
+                headers: cabecerasComoObjeto(responseHeaders),
+                bodyText: responseBody === null || responseBody === undefined ? '' : String(responseBody),
+                request: {
+                    method: method,
+                    path: (req.path || url).split('?')[0],
+                    query: req.query || {},
+                    headers: req.headers || {},
+                    bodyText: cuerpoDePeticionComoTexto(req)
+                }
+            });
+
+            (salida.logs || []).forEach(linea => log.info(`📜 ${linea}`));
+
+            if (!salida.success) {
+                console.error(`[ROUTE] Error en el script de la ruta: ${salida.error}`);
+                trace.step(trace.PASOS.SCRIPT, {
+                    message: `El script falló: ${salida.error}`,
+                    level: 'error',
+                    details: { error: salida.error }
+                });
+                res.status(500).json({ error: 'Mock script failed', message: salida.error });
+                log.fault(method, url, 500, Date.now() - requestStart, `script: ${salida.error}`);
+                return;
+            }
+
+            if (salida.result) {
+                responseCode = salida.result.status;
+                // El cuerpo solo se sustituye si el script lo tocó: igual que en
+                // el proxy, así un script que solo lee cabeceras no reserializa
+                // el JSON ni le cambia el formato al que lo escribió
+                if (salida.result.body.changed) {
+                    responseBody = salida.result.body.text;
+                }
+                responseHeaders = JSON.stringify(
+                    Object.entries(salida.result.headers || {})
+                        .map(([name, value]) => ({ action: 'set', name, value: String(value) }))
+                );
+                trace.step(trace.PASOS.SCRIPT, {
+                    message: 'Script de la ruta aplicado',
+                    details: {
+                        status: responseCode,
+                        body_changed: salida.result.body.changed,
+                        logs: (salida.logs || []).length
+                    }
+                });
+            }
+        }
+
         res.statusCode = responseCode;
-        res.status = responseCode;
+        // Aquí había un `res.status = responseCode` que machacaba el método
+        // res.status() de Express con un número. Nadie lo leía, y dejaba
+        // tirando abajo el proceso cualquier error posterior que respondiera
+        // con res.status(...): el fichero sin configurar, el fichero que no
+        // existe y, ahora, el SSE mal formado
         res.header('Access-Control-Allow-Origin', req.header('origin'));
         console.log(`[ROUTE] Status code establecido: ${res.statusCode}`);
 
@@ -359,6 +551,37 @@ async function checkRoute(req, res, next) {
                     }
                 });
                 log.mock(method, url, res.statusCode, duration);
+                return;
+            }
+            if (responseType === 'sse') {
+                console.log(`[ROUTE] Respuesta tipo SSE`);
+                const analisis = sseService.parsearEventos(responseBody);
+
+                if (!analisis.ok) {
+                    console.error(`[ROUTE] SSE mal configurado: ${analisis.error}`);
+                    trace.step(trace.PASOS.RESPONSE, {
+                        message: `SSE mal configurado: ${analisis.error}`,
+                        level: 'error'
+                    });
+                    res.status(500).json({ error: 'Invalid SSE configuration', message: analisis.error });
+                    log.error(`📡 ${method} ${url}: ${analisis.error}`);
+                    return;
+                }
+
+                trace.step(trace.PASOS.RESPONSE, {
+                    message: `Stream SSE abierto con ${analisis.eventos.length} eventos`,
+                    status: 200,
+                    details: { events: analisis.eventos.length, loop: rute.sse_loop === 1 }
+                });
+
+                sseService.transmitir(req, res, {
+                    eventos: analisis.eventos,
+                    loop: rute.sse_loop === 1,
+                    onEnd: ({ sent, reason }) => {
+                        log.request(method, url, 200, Date.now() - requestStart, 'mock');
+                        console.log(`[ROUTE] SSE cerrado (${reason}) tras ${sent} eventos`);
+                    }
+                });
                 return;
             }
             if (responseType === 'graphql') {

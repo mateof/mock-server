@@ -29,6 +29,14 @@ function traceId() {
 }
 
 /**
+ * Ruta que está atendiendo la petición, si ya se sabe cuál es
+ */
+function routeId() {
+    const contexto = actual();
+    return contexto && contexto.routeId ? contexto.routeId : null;
+}
+
+/**
  * Número de orden dentro de la traza. Los pasos se emiten en el mismo
  * milisegundo con frecuencia, así que ordenar por tiempo no basta.
  */
@@ -39,4 +47,4 @@ function siguienteOrden() {
     return contexto.seq;
 }
 
-module.exports = { run, actual, traceId, siguienteOrden };
+module.exports = { run, actual, traceId, routeId, siguienteOrden };

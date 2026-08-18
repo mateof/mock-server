@@ -26,10 +26,12 @@ const routesService = require('./routes.service');
 const criteriaService = require('./criteria-evaluator.service');
 const scriptRunner = require('./script-runner.service');
 const logService = require('./log.service');
+const recordingService = require('./recording.service');
+const scenarioService = require('./scenario.service');
 const { log } = require('./socket.service');
 const { version } = require('../package.json');
 
-const RESPONSE_TYPES = ['json', 'xml', 'soap', 'text', 'html', 'page', 'empty', 'file', 'graphql', 'websocket', 'proxy'];
+const RESPONSE_TYPES = ['json', 'xml', 'soap', 'text', 'html', 'page', 'empty', 'sse', 'file', 'graphql', 'websocket', 'proxy'];
 const HTTP_METHODS = ['get', 'post', 'put', 'delete', 'patch', 'options', 'head', 'any'];
 
 // ===== ESQUEMAS REUTILIZADOS =====
@@ -68,8 +70,61 @@ const routeFields = {
     proxy_request_params: z.array(headerRuleSchema).optional().describe('Rules applied to the REQUEST query parameters (proxy only)'),
     proxy_pre_script: z.string().optional().describe('ms.* script that transforms the request before calling the backend (proxy only)'),
     proxy_post_script: z.string().optional().describe('ms.* script that transforms the response before returning it (proxy only)'),
+    latency_mode: z.enum(['none', 'fixed', 'random']).optional().describe('Injected latency: none, a fixed delay, or a random one between latency_ms and latency_max_ms'),
+    latency_ms: z.number().optional().describe('Delay in ms (the lower bound when the mode is random)'),
+    latency_max_ms: z.number().optional().describe('Upper bound in ms when the mode is random'),
+    fault_rate: z.number().optional().describe('Percentage of requests that fail on purpose, 0 to 100'),
+    fault_type: z.enum(['error', 'reset', 'empty']).optional().describe("What failing means: 'error' answers fault_status with a JSON body, 'reset' drops the connection, 'empty' answers the code with no body"),
+    fault_status: z.string().optional().describe("Status code used when fault_type is 'error' or 'empty'. Default '500'"),
+    sse_loop: z.boolean().optional().describe('For sse routes: start the event list over instead of closing when it runs out'),
+    mock_script: z.string().optional().describe('ms.* script that shapes the response of a MOCK route, running last: after conditions, scenario and templating. It can read the request (ms.request.json(), headers, query) and change the response (ms.response.code, headers, setBody). On proxy routes use proxy_pre_script and proxy_post_script instead'),
+    templating: z.boolean().optional().describe("Resolve {{...}} placeholders in the response body and headers. Off by default, because a response can legitimately contain {{...}}. Use {{body.x}}, {{query.x}}, {{params.x}}, {{headers.x}}, generators like {{uuid()}}, {{now('+1d')}}, {{randomInt(1,100)}}, {{pick('a','b')}}, and {{x ?? 'fallback'}}. In JSON, quote it to get a string and leave it unquoted to get a number, array or object"),
     conditions: z.array(conditionSchema).optional().describe('Conditional responses, evaluated in order: the first match wins')
 };
+
+/**
+ * Payload completo a partir de una ruta existente.
+ *
+ * updateRoute reescribe la fila entera, así que cualquier herramienta que toque
+ * un solo campo tiene que mandar todos los demás. Hacerlo a mano en cada una ya
+ * apagó la grabación una vez al editar una transformación; con un solo sitio,
+ * añadir una columna no puede volver a romperlas de una en una.
+ */
+function baseFromRoute(ruta) {
+    return {
+        tipo: ruta.tipo,
+        ruta: ruta.ruta,
+        codigo: ruta.codigo,
+        respuesta: ruta.respuesta,
+        tiporespuesta: ruta.tiporespuesta,
+        esperaActiva: ruta.esperaActiva,
+        isRegex: ruta.isRegex,
+        customHeaders: ruta.customHeaders,
+        activo: ruta.activo,
+        tags: ruta.tags,
+        operationId: ruta.operationId,
+        summary: ruta.summary,
+        description: ruta.description,
+        requestBodyExample: ruta.requestBodyExample,
+        proxyTimeout: ruta.proxy_timeout,
+        proxyRequestHeaders: ruta.proxy_request_headers,
+        proxyRequestParams: ruta.proxy_request_params,
+        proxyPreScript: ruta.proxy_pre_script,
+        proxyPostScript: ruta.proxy_post_script,
+        recording: ruta.recording === 1,
+        recordingMode: ruta.recording_mode,
+        latencyMode: ruta.latency_mode,
+        latencyMs: ruta.latency_ms,
+        latencyMaxMs: ruta.latency_max_ms,
+        faultRate: ruta.fault_rate,
+        faultType: ruta.fault_type,
+        faultStatus: ruta.fault_status,
+        templating: ruta.templating === 1,
+        sequenceMode: ruta.sequence_mode,
+        mockScript: ruta.mock_script,
+        sseLoop: ruta.sse_loop === 1
+    };
+}
 
 // ===== TRADUCCIÓN A LA CAPA DE SERVICIO =====
 
@@ -99,6 +154,18 @@ function toPayload(args, base = {}) {
     if (args.proxy_request_params !== undefined) payload.proxyRequestParams = args.proxy_request_params;
     if (args.proxy_pre_script !== undefined) payload.proxyPreScript = args.proxy_pre_script;
     if (args.proxy_post_script !== undefined) payload.proxyPostScript = args.proxy_post_script;
+    if (args.recording !== undefined) payload.recording = args.recording;
+    if (args.recording_mode !== undefined) payload.recordingMode = args.recording_mode;
+    if (args.latency_mode !== undefined) payload.latencyMode = args.latency_mode;
+    if (args.latency_ms !== undefined) payload.latencyMs = args.latency_ms;
+    if (args.latency_max_ms !== undefined) payload.latencyMaxMs = args.latency_max_ms;
+    if (args.fault_rate !== undefined) payload.faultRate = args.fault_rate;
+    if (args.fault_type !== undefined) payload.faultType = args.fault_type;
+    if (args.fault_status !== undefined) payload.faultStatus = args.fault_status;
+    if (args.templating !== undefined) payload.templating = args.templating;
+    if (args.sequence_mode !== undefined) payload.sequenceMode = args.sequence_mode;
+    if (args.mock_script !== undefined) payload.mockScript = args.mock_script;
+    if (args.sse_loop !== undefined) payload.sseLoop = args.sse_loop;
 
     if (args.conditions !== undefined) {
         payload.conditions = args.conditions.map(c => ({
@@ -146,6 +213,37 @@ function toRouteView(row, { detailed = false } = {}) {
     view.response = row.respuesta;
     view.description = row.description || null;
     view.custom_headers = parse(row.customHeaders) || [];
+    if (row.templating === 1) view.templating = true;
+    if (row.mock_script) view.mock_script = row.mock_script;
+    if (row.tiporespuesta === 'sse') view.sse_loop = row.sse_loop === 1;
+
+    if (Array.isArray(row.sequence) && row.sequence.length) {
+        view.sequence_mode = row.sequence_mode || 'stick';
+        view.sequence = row.sequence.map(p => ({
+            name: p.nombre,
+            status_code: p.codigo,
+            response_type: p.tiporespuesta,
+            response: p.respuesta,
+            repeat: p.repeticiones || 1,
+            active: p.activo !== 0
+        }));
+        view.calls_so_far = scenarioService.llamadas(row.id);
+    }
+
+    // Solo se asoma cuando hay algo configurado: en la inmensa mayoría de
+    // rutas sería ruido en cada respuesta
+    if ((row.latency_mode && row.latency_mode !== 'none') || row.fault_rate > 0) {
+        view.latency = {
+            mode: row.latency_mode || 'none',
+            ms: row.latency_ms || 0,
+            max_ms: row.latency_max_ms || 0
+        };
+        view.fault = {
+            rate: row.fault_rate || 0,
+            type: row.fault_type || 'error',
+            status: row.fault_status || '500'
+        };
+    }
 
     if (row.tiporespuesta === 'proxy') {
         view.proxy_timeout = row.proxy_timeout;
@@ -153,6 +251,8 @@ function toRouteView(row, { detailed = false } = {}) {
         view.proxy_request_params = parse(row.proxy_request_params) || [];
         view.proxy_pre_script = row.proxy_pre_script || null;
         view.proxy_post_script = row.proxy_post_script || null;
+        view.recording = row.recording === 1;
+        view.recording_mode = row.recording_mode || 'update';
         view.fallbacks = (row.fallbacks || []).map(f => ({
             id: f.id,
             name: f.nombre,
@@ -389,23 +489,7 @@ function buildServer() {
             proxy_request_params: args.request_params,
             proxy_pre_script: args.pre_script,
             proxy_post_script: args.post_script
-        }, {
-            tipo: ruta.tipo,
-            ruta: ruta.ruta,
-            codigo: ruta.codigo,
-            respuesta: ruta.respuesta,
-            tiporespuesta: ruta.tiporespuesta,
-            esperaActiva: ruta.esperaActiva,
-            isRegex: ruta.isRegex,
-            customHeaders: ruta.customHeaders,
-            activo: ruta.activo,
-            tags: ruta.tags,
-            proxyTimeout: ruta.proxy_timeout,
-            proxyRequestHeaders: ruta.proxy_request_headers,
-            proxyRequestParams: ruta.proxy_request_params,
-            proxyPreScript: ruta.proxy_pre_script,
-            proxyPostScript: ruta.proxy_post_script
-        }), { file: 'keep' });
+        }, baseFromRoute(ruta)), { file: 'keep' });
 
         log.success(`🤖 MCP: transformación actualizada en la ruta ${args.id}`);
         const actualizada = await routesService.getRoute(args.id);
@@ -617,6 +701,286 @@ function buildServer() {
     }, async ({ id }) => run('delete_tag', async () => {
         await sqliteService.deleteTag(id);
         return ok({ deleted: true, id });
+    }));
+
+    server.registerTool('verify_calls', {
+        title: 'Check what was actually called',
+        description: 'Answers "was /orders called, how many times, and with what?". Give an expectation (times, at_least, at_most) and it reports whether it holds, so a flow can be built, exercised and then checked without leaving the conversation. Matches on the recorded request: path, method, resulting status and a substring of the body. Bounded by log retention.',
+        inputSchema: {
+            path: z.string().optional().describe('Substring of the path, e.g. /orders'),
+            method: z.string().optional(),
+            status: z.string().optional().describe('Exact code (404) or family (2xx) of the response given'),
+            body_contains: z.string().optional().describe('Substring that must appear in the recorded request body'),
+            since_ms: z.number().optional().describe('Epoch ms lower bound. Use it to check only what happened after a step'),
+            times: z.number().optional().describe('Expect exactly this many calls'),
+            at_least: z.number().optional(),
+            at_most: z.number().optional()
+        }
+    }, async (args) => run('verify_calls', async () => {
+        const resultado = await logService.verificarLlamadas({
+            path: args.path,
+            method: args.method,
+            status: args.status,
+            bodyContains: args.body_contains,
+            since: args.since_ms
+        }, {
+            times: args.times,
+            atLeast: args.at_least,
+            atMost: args.at_most
+        });
+
+        return ok(resultado);
+    }));
+
+    server.registerTool('set_routes_active', {
+        title: 'Enable or disable routes in bulk',
+        description: 'Turns a whole set of routes on or off at once, by id or by tag. "Disable everything tagged payments" or "enable only the demo set". Disabling is how you let traffic fall through to a proxy again without deleting the mocks.',
+        inputSchema: {
+            active: z.boolean(),
+            ids: z.array(z.number()).optional().describe('Route ids. Takes precedence over tag'),
+            tag: z.string().optional().describe('Tag name or id: every route carrying it')
+        }
+    }, async (args) => run('set_routes_active', async () => {
+        const rutas = await routesService.listRoutes({});
+        let objetivo = [];
+
+        if (Array.isArray(args.ids) && args.ids.length) {
+            objetivo = rutas.filter(r => args.ids.includes(r.id));
+        } else if (args.tag) {
+            const buscado = String(args.tag).toLowerCase();
+            objetivo = rutas.filter(r => {
+                if (!r.tags) return false;
+                try {
+                    // Se admite el nombre o el id: el asistente ve nombres en
+                    // list_tags y pedirle que traduzca a id sería un paso de más
+                    return JSON.parse(r.tags).some(t =>
+                        t.id === args.tag || String(t.name).toLowerCase() === buscado);
+                } catch (e) {
+                    return false;
+                }
+            });
+        } else {
+            return fail('Hace falta ids o tag');
+        }
+
+        if (objetivo.length === 0) {
+            return fail(args.tag ? `Ninguna ruta lleva el tag "${args.tag}"` : 'Ninguna ruta con esos ids');
+        }
+
+        for (const ruta of objetivo) {
+            const completa = await routesService.getRoute(ruta.id);
+            await routesService.updateRoute(ruta.id, {
+                ...baseFromRoute(completa),
+                activo: args.active
+            }, { file: 'keep' });
+        }
+
+        log.success(`🤖 MCP: ${objetivo.length} rutas ${args.active ? 'activadas' : 'desactivadas'}`);
+        return ok({
+            updated: objetivo.length,
+            active: args.active,
+            routes: objetivo.map(r => ({ id: r.id, method: r.tipo, path: r.ruta }))
+        });
+    }));
+
+    server.registerTool('route_usage', {
+        title: 'Which routes are actually used',
+        description: 'Calls, last use, errors and average duration per route, taken from the log. Useful to find dead routes before cleaning up, or to confirm the traffic you expected actually landed. Bounded by log retention: what fell out of the log is no longer counted.',
+        inputSchema: {
+            since_ms: z.number().optional().describe('Epoch ms lower bound. Without it, everything still in the log'),
+            include_unused: z.boolean().optional().describe('Also list routes with no calls at all. Default true')
+        }
+    }, async (args) => run('route_usage', async () => {
+        const uso = await logService.usoPorRuta({ from: args.since_ms });
+        const rutas = await routesService.listRoutes({});
+        const incluirSinUso = args.include_unused !== false;
+
+        const filas = rutas
+            .map(r => {
+                const datos = uso[r.id] || { calls: 0, last_call: null, errors: 0, avg_duration: null };
+                return {
+                    id: r.id,
+                    method: r.tipo,
+                    path: r.ruta,
+                    active: r.activo !== 0,
+                    calls: datos.calls,
+                    last_call: datos.last_call ? new Date(datos.last_call).toISOString() : null,
+                    errors: datos.errors,
+                    avg_duration_ms: datos.avg_duration
+                };
+            })
+            .filter(r => incluirSinUso || r.calls > 0)
+            .sort((a, b) => b.calls - a.calls);
+
+        return ok({
+            routes: filas,
+            unused: filas.filter(r => r.calls === 0).length,
+            total: filas.length
+        });
+    }));
+
+    server.registerTool('set_route_sequence', {
+        title: 'Set a stateful scenario',
+        description: 'Makes a route answer differently depending on how many times it has been called: first pending, then processing, then done. This is what simulates polling flows, which conditional responses cannot: conditions only look at the request, and in a poll every request is identical. The sequence wins over conditional responses. The call counter lives in memory and resets when the server restarts or when reset_route_sequence is called.',
+        inputSchema: {
+            id: z.number(),
+            mode: z.enum(['stick', 'loop']).optional().describe("What happens after the last step: 'stick' repeats it (default), 'loop' starts over"),
+            sequence: z.array(z.object({
+                name: z.string().optional().describe('Label for the step, shown in the trace'),
+                status_code: z.string().optional(),
+                response_type: z.enum(RESPONSE_TYPES).optional(),
+                response: z.string().optional(),
+                repeat: z.number().optional().describe('How many consecutive calls this step covers. Default 1'),
+                active: z.boolean().optional()
+            })).describe('Steps in order. An empty array removes the scenario')
+        }
+    }, async (args) => run('set_route_sequence', async () => {
+        const ruta = await routesService.getRoute(args.id);
+        if (!ruta) return fail(`No existe la ruta ${args.id}`);
+        if (ruta.tiporespuesta === 'proxy') {
+            return fail(`La ruta ${args.id} es proxy; los escenarios solo existen en rutas mock`);
+        }
+
+        await routesService.saveSequence(args.id, (args.sequence || []).map(p => ({
+            nombre: p.name || null,
+            codigo: p.status_code || null,
+            tiporespuesta: p.response_type || null,
+            respuesta: p.response === undefined ? null : p.response,
+            repeticiones: p.repeat || 1,
+            activo: p.active !== false
+        })), args.mode);
+
+        log.success(`🤖 MCP: escenario de la ruta ${args.id} actualizado (${(args.sequence || []).length} pasos)`);
+        const actualizada = await routesService.getRoute(args.id);
+        return ok({ updated: true, route: toRouteView(actualizada, { detailed: true }) });
+    }));
+
+    server.registerTool('reset_route_sequence', {
+        title: 'Restart a scenario',
+        description: 'Puts the call counter back to zero so the scenario starts from its first step again. Without an id, every scenario is reset.',
+        inputSchema: { id: z.number().optional() }
+    }, async (args) => run('reset_route_sequence', async () => {
+        const total = scenarioService.reiniciar(args.id);
+        log.success(`🤖 MCP: escenario reiniciado${args.id ? ` en la ruta ${args.id}` : ' (todas las rutas)'}`);
+        return ok({ reset: true, id: args.id ?? null, cleared: total });
+    }));
+
+    server.registerTool('set_route_faults', {
+        title: 'Set latency and fault injection',
+        description: 'Makes a route slow, unreliable, or both. This is how you test timeouts, retries and degradation, which a mock that always answers instantly cannot exercise. Works on any route type, mock and proxy alike. On a proxy the delay happens before calling the backend and an injected fault never reaches it.',
+        inputSchema: {
+            id: z.number(),
+            latency_mode: z.enum(['none', 'fixed', 'random']).optional(),
+            latency_ms: z.number().optional().describe('Delay in ms, or the lower bound when the mode is random'),
+            latency_max_ms: z.number().optional().describe('Upper bound in ms when the mode is random'),
+            fault_rate: z.number().optional().describe('Percentage of requests that fail, 0 to 100'),
+            fault_type: z.enum(['error', 'reset', 'empty']).optional(),
+            fault_status: z.string().optional().describe("Status code for 'error' and 'empty'. Default '500'")
+        }
+    }, async (args) => run('set_route_faults', async () => {
+        const ruta = await routesService.getRoute(args.id);
+        if (!ruta) return fail(`No existe la ruta ${args.id}`);
+
+        const base = baseFromRoute(ruta);
+        await routesService.updateRoute(args.id, {
+            ...base,
+            latencyMode: args.latency_mode === undefined ? base.latencyMode : args.latency_mode,
+            latencyMs: args.latency_ms === undefined ? base.latencyMs : args.latency_ms,
+            latencyMaxMs: args.latency_max_ms === undefined ? base.latencyMaxMs : args.latency_max_ms,
+            faultRate: args.fault_rate === undefined ? base.faultRate : args.fault_rate,
+            faultType: args.fault_type === undefined ? base.faultType : args.fault_type,
+            faultStatus: args.fault_status === undefined ? base.faultStatus : args.fault_status
+        }, { file: 'keep' });
+
+        log.success(`🤖 MCP: latencia y fallos actualizados en la ruta ${args.id}`);
+        const actualizada = await routesService.getRoute(args.id);
+        return ok({ updated: true, route: toRouteView(actualizada, { detailed: true }) });
+    }));
+
+    // ===== GRABACIÓN =====
+
+    server.registerTool('set_route_recording', {
+        title: 'Turn recording on or off',
+        description: 'Puts a proxy route into recording mode: every backend response is saved as a mock route. Recorded routes are created INACTIVE, because an active mock outranks the proxy and would stop any further traffic reaching the backend. Activate them with update_route once the session is captured.',
+        inputSchema: {
+            id: z.number(),
+            recording: z.boolean(),
+            mode: z.enum(['update', 'skip']).optional().describe('What to do when a mock for that method and path already exists. Default: update')
+        }
+    }, async (args) => run('set_route_recording', async () => {
+        const ruta = await routesService.getRoute(args.id);
+        if (!ruta) return fail(`No existe la ruta ${args.id}`);
+        if (ruta.tiporespuesta !== 'proxy') {
+            return fail(`La ruta ${args.id} es de tipo "${ruta.tiporespuesta}"; la grabación solo existe en rutas proxy`);
+        }
+
+        await routesService.updateRoute(args.id, {
+            ...baseFromRoute(ruta),
+            recording: args.recording,
+            recordingMode: args.mode || ruta.recording_mode
+        }, { file: 'keep' });
+
+        log.success(`🤖 MCP: grabación ${args.recording ? 'activada' : 'desactivada'} en la ruta ${args.id}`);
+        const actualizada = await routesService.getRoute(args.id);
+        return ok({ updated: true, route: toRouteView(actualizada, { detailed: true }) });
+    }));
+
+    server.registerTool('create_mocks_from_logs', {
+        title: 'Turn recorded traffic into mocks',
+        description: 'Creates mock routes from proxied traffic already in the log: "everything that went through /orders in the last hour". Takes the newest response for each method and path, so repeated calls yield one route, not one per call. Entries whose body the log truncated, or whose response is binary, are reported as skipped instead of producing a broken mock.',
+        inputSchema: {
+            url: z.string().optional().describe('Substring of the path, e.g. /orders'),
+            from: z.number().optional().describe('Epoch ms, lower bound'),
+            to: z.number().optional().describe('Epoch ms, upper bound'),
+            method: z.string().optional(),
+            status: z.string().optional().describe('Exact code (404) or family (2xx)'),
+            trace_id: z.string().optional(),
+            limit: z.number().optional().describe('How many log entries to examine, max 1000'),
+            active: z.boolean().optional().describe('Whether the created routes are active. Default false, so they do not shadow the proxy they came from'),
+            mode: z.enum(['update', 'skip']).optional().describe('What to do when the mock already exists. Default: update'),
+            tags: z.array(z.string()).optional()
+        }
+    }, async (args) => run('create_mocks_from_logs', async () => {
+        const resumen = await recordingService.desdeFiltrosDeLog({
+            url: args.url,
+            from: args.from,
+            to: args.to,
+            method: args.method,
+            status: args.status,
+            traceId: args.trace_id,
+            limit: args.limit
+        }, {
+            activo: !!args.active,
+            mode: args.mode,
+            tags: args.tags
+        });
+
+        log.success(`🤖 MCP: ${resumen.created} rutas creadas y ${resumen.updated} actualizadas desde el log`);
+        return ok(resumen);
+    }));
+
+    server.registerTool('create_mock_from_log_entry', {
+        title: 'Turn one log line into a mock',
+        description: 'Creates a mock route from a single log entry, using its id as returned by query_logs. The route is created active, because asking for one specific entry is an explicit choice.',
+        inputSchema: {
+            log_id: z.number(),
+            active: z.boolean().optional(),
+            mode: z.enum(['update', 'skip']).optional(),
+            tags: z.array(z.string()).optional()
+        }
+    }, async (args) => run('create_mock_from_log_entry', async () => {
+        const resultado = await recordingService.desdeEntradaDeLog(args.log_id, {
+            activo: args.active === undefined ? true : args.active,
+            mode: args.mode,
+            tags: args.tags
+        });
+
+        if (resultado.action === 'skipped') {
+            return fail(`No se pudo convertir la entrada ${args.log_id}: ${resultado.reason}`);
+        }
+
+        log.success(`🤖 MCP: ruta ${resultado.id} ${resultado.action} desde la entrada ${args.log_id} del log`);
+        return ok(resultado);
     }));
 
     server.registerTool('validate_script', {

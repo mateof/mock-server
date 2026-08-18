@@ -190,3 +190,27 @@ ms.response.setBody({
 
 ms.response.headers.add({ key: 'cache-control', value: 'no-store' });
 ```
+
+## The same engine on mock routes
+
+Mock routes have a **Response script** of their own. It is the same `ms.*` API and the same editor, with one difference: there is no request phase to short-circuit, because the mock is already producing the response.
+
+It runs **last**, after conditional responses, the scenario step and templating, so it sees the body that is actually about to be sent. That makes it the escape hatch for anything the declarative features cannot express: loops, computed fields, conditional shapes.
+
+```javascript
+const incoming = ms.request.json();
+const body = ms.response.json();
+
+body.total = (incoming.items || []).length;
+body.receivedFrom = ms.request.headers.get('x-client');
+
+if (body.total > 100) ms.response.code = 206;
+ms.response.headers.set('x-generated-by', 'script');
+ms.response.setBody(body);
+```
+
+`ms.request.json()` and `ms.request.text()` read the request body. They are also available in a proxy's response script, where they were missing before: the request has already gone out at that point, so they are read-only and there is no `ms.request.body` API to write into a body that no longer goes anywhere.
+
+If the script throws, the route answers `500` with the error message rather than the mock body, so a broken script is loud instead of silently returning the wrong thing. Its `ms.console` output goes to the panel console with a 📜 marker, and the trace records a `script` step saying whether the body changed.
+
+File, empty and GraphQL responses skip the script: there is no text body to transform.

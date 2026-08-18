@@ -4,6 +4,12 @@
     <div class="card-header-modern">
       <h2><i class="fa fa-sitemap"></i> <%= __('routes.title') %></h2>
       <div class="d-flex gap-2">
+        <button type="button" class="btn-modern btn-modern-success" id="bulkEnableBtn" onclick="bulkSetActive(true)" style="display: none;">
+          <i class="fa fa-check"></i> <span id="bulkEnableCount"></span>
+        </button>
+        <button type="button" class="btn-modern btn-modern-warning" id="bulkDisableBtn" onclick="bulkSetActive(false)" style="display: none;">
+          <i class="fa fa-ban"></i> <span id="bulkDisableCount"></span>
+        </button>
         <button type="button" class="btn-modern btn-modern-danger" id="bulkDeleteBtn" onclick="openBulkDeleteModal()" style="display: none;">
           <i class="fa fa-trash"></i> <span id="bulkDeleteCount"></span>
         </button>
@@ -662,6 +668,54 @@
   // 'or' = la ruta lleva alguno de los tags; 'and' = los lleva todos
   let tagFilterMode = 'or';
 
+  // ===== USO POR RUTA =====
+  // Sale del log, así que la retención lo acota: lo que se podó ya no cuenta.
+  // Se guarda aparte de los datos de la tabla porque se refresca por su cuenta,
+  // sin volver a pedir las rutas enteras.
+  let routeUsage = {};
+
+  async function cargarUsoDeRutas({ repintar = true } = {}) {
+    try {
+      const datos = await fetch('/api/routes/usage').then(r => r.json());
+      routeUsage = datos.usage || {};
+      // invalidate() vuelve a pintar las celdas sin repetir la petición de rutas
+      if (repintar && typeof tabla !== 'undefined') tabla.rows().invalidate().draw(false);
+    } catch (e) {
+      console.warn('[uso] no se pudo cargar:', e.message);
+    }
+  }
+
+  /**
+   * "hace 3 min". Se corta en días: más allá, la fecha dice más que el hueco
+   */
+  function haceCuanto(ms) {
+    const segundos = Math.floor((Date.now() - ms) / 1000);
+    if (segundos < 5) return t('usage.justNow');
+    if (segundos < 60) return t('usage.secondsAgo').replace('{{n}}', segundos);
+    const minutos = Math.floor(segundos / 60);
+    if (minutos < 60) return t('usage.minutesAgo').replace('{{n}}', minutos);
+    const horas = Math.floor(minutos / 60);
+    if (horas < 24) return t('usage.hoursAgo').replace('{{n}}', horas);
+    return t('usage.daysAgo').replace('{{n}}', Math.floor(horas / 24));
+  }
+
+  function celdaDeUso(routeId) {
+    const uso = routeUsage[routeId];
+    if (!uso || !uso.calls) {
+      return `<span class="route-usage route-usage-none" title="${t('usage.neverHint')}">
+                <i class="fa fa-circle-o"></i> ${t('usage.never')}</span>`;
+    }
+
+    const errores = uso.errors
+      ? ` <span class="route-usage-errors" title="${t('usage.errorsHint')}">${uso.errors} ⚠</span>`
+      : '';
+    const media = uso.avg_duration !== null ? ` · ${uso.avg_duration} ms` : '';
+
+    return `<span class="route-usage" title="${t('usage.hint')}">
+              <i class="fa fa-history"></i> ${t('usage.calls').replace('{{n}}', uso.calls)} ·
+              ${haceCuanto(uso.last_call)}${media}</span>${errores}`;
+  }
+
   let tabla = $('#dtList').DataTable({
     ajax: {
       type: "GET",
@@ -743,11 +797,12 @@
           } catch (e) {}
         }
 
+        html += celdaDeUso(data.id);
         html += `</div>`;
         return html;
       }},
       { data: null, render: function (data) {
-        const icons = { json: 'fa-code', xml: 'fa-file-code-o', soap: 'fa-envelope-o', text: 'fa-align-left', html: 'fa-html5', page: 'fa-file-text-o', file: 'fa-file-o', proxy: 'fa-exchange', graphql: 'fa-share-alt', websocket: 'fa-plug', empty: 'fa-circle-o' };
+        const icons = { json: 'fa-code', xml: 'fa-file-code-o', soap: 'fa-envelope-o', text: 'fa-align-left', html: 'fa-html5', page: 'fa-file-text-o', file: 'fa-file-o', proxy: 'fa-exchange', graphql: 'fa-share-alt', websocket: 'fa-plug', sse: 'fa-rss', empty: 'fa-circle-o' };
         return `<span class="response-type type-${data.tiporespuesta}"><i class="fa ${icons[data.tiporespuesta] || 'fa-question'}"></i> ${data.tiporespuesta}</span>`;
       }},
       { data: null, render: function (data) {
@@ -1037,6 +1092,18 @@
               ${selectedFilterTags.includes(tag.id) ? 'checked' : ''}
               onchange="toggleTagFilter('${tag.id}')">
             <span class="badge-tag badge-tag-sm" style="background: ${tag.color};">${escapeHtml(tag.name)}</span>
+            <span class="tags-filter-actions">
+              <button type="button" class="btn-icon btn-icon-success btn-icon-xs"
+                      title="${t('bulk.enableTag')}"
+                      onclick="event.preventDefault(); event.stopPropagation(); setActiveByTag('${tag.id}', true)">
+                <i class="fa fa-check"></i>
+              </button>
+              <button type="button" class="btn-icon btn-icon-warning btn-icon-xs"
+                      title="${t('bulk.disableTag')}"
+                      onclick="event.preventDefault(); event.stopPropagation(); setActiveByTag('${tag.id}', false)">
+                <i class="fa fa-ban"></i>
+              </button>
+            </span>
           </label>
         `).join('');
 
@@ -1232,6 +1299,14 @@
   // Initialize tag filter on page load
   document.addEventListener('DOMContentLoaded', initTagFilter);
 
+  // El uso se carga al arrancar y se refresca cada medio minuto: es información
+  // de contexto, no algo que haya que ver al segundo, y repintar la tabla más a
+  // menudo molestaría más de lo que aporta
+  document.addEventListener('DOMContentLoaded', () => {
+    cargarUsoDeRutas();
+    setInterval(() => cargarUsoDeRutas(), 30000);
+  });
+
   // ===== FORM FUNCTIONS =====
   const responsePlaceholders = {
     json: '{"message": "Hello World", "status": "ok"}',
@@ -1249,7 +1324,12 @@
   function checkRespuesta() {
     const tipoResp = document.getElementById("tiporespuesta").value;
     showElements(['#divtresp', '#divtipo', '#divruta', '#divcodresp', '#divresp', '#divEsperaActiva', '#divMetadata', '#divHeaders', '#divConditions']);
-    hideElements(['#divDestino', '#divFile', '#divProxyTimeout', '#divFallbacks', '#divProxyTransform', '#divGraphQL', '#divWebSocket']);
+    hideElements(['#divDestino', '#divFile', '#divProxyTimeout', '#divProxyRecording', '#divFallbacks', '#divProxyTransform', '#divGraphQL', '#divWebSocket']);
+    // En una ruta mock el script vive aquí; en una proxy, en las transformaciones
+    document.getElementById('divMockScript').style.display = '';
+    document.getElementById('divSse').style.display = tipoResp === 'sse' ? '' : 'none';
+    // Se descarga solo cuando hace falta, igual que en el proxy
+    ScriptEditors.montar().then(() => ScriptEditors.sincronizar());
 
     // Nav panel: show conditions/fallbacks/graphql/websocket dividers based on type
     document.getElementById('navDividerConditions').style.display = '';
@@ -1266,7 +1346,8 @@
       // Los headers sí se muestran: en un proxy son los de la respuesta, y el
       // servidor ya los aplicaba aunque el formulario los tuviera ocultos.
       hideElements(['#divtipo', '#divcodresp', '#divEsperaActiva', '#divresp', '#divFile', '#divMetadata', '#divConditions']);
-      showElements(['#divDestino', '#divProxyTimeout', '#divFallbacks', '#divProxyTransform', '#divHeaders']);
+      showElements(['#divDestino', '#divProxyTimeout', '#divProxyRecording', '#divFallbacks', '#divProxyTransform', '#divHeaders']);
+      document.getElementById('divMockScript').style.display = 'none';
       // Se descarga aquí, no al cargar la página: solo lo necesita quien
       // configura un proxy
       ScriptEditors.montar().then(() => ScriptEditors.sincronizar());
@@ -2016,7 +2097,7 @@
     // 0.52.2 es la última versión con distribución AMD (min/vs) y workers; a
     // partir de 0.53 Monaco es solo ESM y este montaje deja de existir.
     BASE: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs',
-    IDS: ['proxyPreScript', 'proxyPostScript'],
+    IDS: ['proxyPreScript', 'proxyPostScript', 'mockScript'],
     promesa: null,
     editores: {},
     avisado: false,
@@ -2158,6 +2239,39 @@
   function toggleProxyTransformSection() {
     const body = document.querySelector('#divProxyTransform .collapsible-body');
     body.style.display = body.style.display === 'none' ? 'block' : 'none';
+  }
+
+  function toggleMockScriptSection() {
+    const body = document.querySelector('#divMockScript .collapsible-body');
+    body.style.display = body.style.display === 'none' ? 'block' : 'none';
+  }
+
+  /**
+   * Se valida como script de respuesta porque es lo que es: transforma una
+   * respuesta que ya está compuesta. Lo único que no tiene es ms.respond()
+   */
+  async function validateMockScript() {
+    const script = document.getElementById('mockScript').value;
+    const target = document.getElementById('mockScriptResult');
+
+    if (!script.trim()) {
+      target.innerHTML = '';
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/validateScript', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ script, phase: 'response' })
+      });
+      const result = await response.json();
+      target.innerHTML = result.valid
+        ? `<span class="text-success"><i class="fa fa-check-circle"></i> ${t('form.scriptValid')}</span>`
+        : `<span class="text-danger"><i class="fa fa-times-circle"></i> ${escapeHtml(result.error)}</span>`;
+    } catch (e) {
+      target.innerHTML = `<span class="text-danger"><i class="fa fa-times-circle"></i> ${escapeHtml(e.message)}</span>`;
+    }
   }
 
   async function validateProxyScript(phase) {
@@ -2423,6 +2537,215 @@
   function toggleTagsSection() {
     const body = document.querySelector('#divTags .collapsible-body');
     body.style.display = body.style.display === 'none' ? 'block' : 'none';
+  }
+
+  // ===== ESCENARIO CON ESTADO =====
+
+  let sequenceCounter = 0;
+  // La ruta que se está editando, para poder reiniciar su contador sin cerrar
+  let sequenceRouteId = null;
+
+  function toggleSequenceSection() {
+    const body = document.querySelector('#divSequence .collapsible-body');
+    body.style.display = body.style.display === 'none' ? 'block' : 'none';
+  }
+
+  function addSequenceRow(data = {}) {
+    sequenceCounter++;
+    const container = document.getElementById('sequenceContainer');
+    document.getElementById('noSequenceMsg').style.display = 'none';
+
+    const card = document.createElement('div');
+    card.className = 'condition-card';
+    card.id = `sequence-${sequenceCounter}`;
+    card.dataset.order = sequenceCounter;
+
+    card.innerHTML = `
+      <div class="condition-header">
+        <span class="sequence-step-number" id="sequence-number-${sequenceCounter}"></span>
+        <input type="text" class="form-control-modern condition-name"
+               placeholder="${t('form.sequenceStepName')}"
+               id="sequence-name-${sequenceCounter}"
+               value="${escapeHtml(data.nombre || '')}">
+        <label class="switch-modern" style="margin-left: auto;">
+          <input type="checkbox" id="sequence-active-${sequenceCounter}" ${data.activo !== false ? 'checked' : ''}>
+          <span class="slider"></span>
+        </label>
+        <button class="btn-icon btn-icon-danger" type="button" onclick="removeSequenceRow(${sequenceCounter})" title="${t('buttons.delete')}">
+          <i class="fa fa-trash"></i>
+        </button>
+      </div>
+      <div class="condition-body">
+        <div class="override-row">
+          <div class="form-group-modern" style="flex: 0 0 100px;">
+            <label class="form-label-modern">${t('table.code')}</label>
+            <input type="text" class="form-control-modern" id="sequence-code-${sequenceCounter}"
+                   placeholder="-" value="${escapeHtml(data.codigo || '')}">
+          </div>
+          <div class="form-group-modern" style="flex: 0 0 150px;">
+            <label class="form-label-modern">${t('table.type')}</label>
+            <select class="form-control-modern form-select-modern" id="sequence-type-${sequenceCounter}">
+              <option value="">${t('form.useDefault')}</option>
+              <option value="json" ${data.tiporespuesta === 'json' ? 'selected' : ''}>JSON</option>
+              <option value="xml" ${data.tiporespuesta === 'xml' ? 'selected' : ''}>XML</option>
+              <option value="text" ${data.tiporespuesta === 'text' ? 'selected' : ''}>Text</option>
+              <option value="html" ${data.tiporespuesta === 'html' ? 'selected' : ''}>HTML</option>
+              <option value="empty" ${data.tiporespuesta === 'empty' ? 'selected' : ''}>Empty</option>
+            </select>
+          </div>
+          <div class="form-group-modern" style="flex: 0 0 130px;">
+            <label class="form-label-modern">${t('form.sequenceRepeat')}</label>
+            <input type="number" class="form-control-modern" id="sequence-repeat-${sequenceCounter}"
+                   min="1" max="1000" value="${parseInt(data.repeticiones) || 1}">
+          </div>
+        </div>
+        <div class="form-group-modern">
+          <label class="form-label-modern">${t('form.response')}</label>
+          <textarea class="form-control-modern" id="sequence-response-${sequenceCounter}"
+                    placeholder="${t('form.placeholder.leaveEmpty')}"
+                    rows="3">${escapeHtml(data.respuesta || '')}</textarea>
+        </div>
+      </div>`;
+
+    container.appendChild(card);
+    renumberSequence();
+  }
+
+  function removeSequenceRow(id) {
+    const card = document.getElementById(`sequence-${id}`);
+    if (card) card.remove();
+    if (document.getElementById('sequenceContainer').children.length === 0) {
+      document.getElementById('noSequenceMsg').style.display = 'block';
+    }
+    renumberSequence();
+  }
+
+  /**
+   * El número de paso se recalcula al añadir o quitar: si fuera fijo, borrar el
+   * segundo paso dejaría una secuencia 1, 3, 4 y nadie sabría cuál va primero
+   */
+  function renumberSequence() {
+    const tarjetas = document.querySelectorAll('#sequenceContainer .condition-card');
+    let acumulado = 0;
+    tarjetas.forEach((card, idx) => {
+      const id = card.id.replace('sequence-', '');
+      const veces = parseInt(document.getElementById(`sequence-repeat-${id}`)?.value) || 1;
+      const desde = acumulado + 1;
+      acumulado += veces;
+      const etiqueta = document.getElementById(`sequence-number-${id}`);
+      if (etiqueta) {
+        // Con repeticiones se enseña el tramo de llamadas que cubre el paso
+        etiqueta.textContent = veces > 1 ? `${desde}-${acumulado}` : String(desde);
+      }
+    });
+
+    const badge = document.getElementById('sequenceBadge');
+    badge.textContent = tarjetas.length
+      ? t('form.sequenceSteps').replace('{{count}}', tarjetas.length)
+      : '';
+    badge.style.display = tarjetas.length ? '' : 'none';
+    document.getElementById('sequenceResetBtn').style.display =
+      tarjetas.length && sequenceRouteId ? '' : 'none';
+  }
+
+  function getSequence() {
+    const pasos = [];
+    const tarjetas = Array.from(document.querySelectorAll('#sequenceContainer .condition-card'));
+
+    tarjetas.forEach((card, idx) => {
+      const id = card.id.replace('sequence-', '');
+      pasos.push({
+        orden: idx,
+        nombre: document.getElementById(`sequence-name-${id}`).value.trim() || null,
+        codigo: document.getElementById(`sequence-code-${id}`).value.trim() || null,
+        tiporespuesta: document.getElementById(`sequence-type-${id}`).value || null,
+        respuesta: document.getElementById(`sequence-response-${id}`).value || null,
+        repeticiones: parseInt(document.getElementById(`sequence-repeat-${id}`).value) || 1,
+        activo: document.getElementById(`sequence-active-${id}`).checked
+      });
+    });
+
+    return pasos;
+  }
+
+  function setSequence(pasos, modo) {
+    clearSequence();
+    document.getElementById('sequenceMode').value = modo === 'loop' ? 'loop' : 'stick';
+    if (Array.isArray(pasos)) pasos.forEach(p => addSequenceRow(p));
+    renumberSequence();
+  }
+
+  function clearSequence() {
+    document.getElementById('sequenceContainer').innerHTML = '';
+    document.getElementById('noSequenceMsg').style.display = 'block';
+    document.getElementById('sequenceMode').value = 'stick';
+    sequenceCounter = 0;
+    renumberSequence();
+  }
+
+  /**
+   * Guarda los pasos aparte de la ruta, igual que las condiciones: la ruta ya
+   * existe cuando esto corre, y así el id está disponible
+   */
+  async function saveSequenceFor(routeId) {
+    const sequence = getSequence();
+    const mode = document.getElementById('sequenceMode').value;
+    // Se manda siempre, también vacío: es como se borra un escenario
+    const respuesta = await fetch(`/api/routes/${routeId}/sequence`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sequence, mode })
+    });
+    if (!respuesta.ok) {
+      const err = await respuesta.json().catch(() => ({}));
+      showToast(err.error || t('errors.savingSequence'), 'error');
+    }
+  }
+
+  async function resetSequenceCounter() {
+    if (!sequenceRouteId) return;
+    await fetch(`/api/routes/${sequenceRouteId}/sequence/reset`, { method: 'POST' });
+    showToast(t('form.sequenceResetDone'), 'success');
+  }
+
+  // La chuleta de sintaxis solo estorba si no se usan plantillas
+  function updateTemplatingFields() {
+    const activo = document.getElementById('templating').checked;
+    document.getElementById('templatingReference').style.display = activo ? '' : 'none';
+  }
+
+  function toggleFaultsSection() {
+    const body = document.querySelector('#divFaults .collapsible-body');
+    body.style.display = body.style.display === 'none' ? 'block' : 'none';
+  }
+
+  /**
+   * Enseña solo lo que tiene sentido según lo elegido, y resume en la cabecera
+   * lo que hay puesto: la sección va plegada, y sin resumen habría que abrirla
+   * para saber si una ruta va lenta o falla
+   */
+  function updateFaultsFields() {
+    const modo = document.getElementById('latencyMode').value;
+    const porcentaje = parseInt(document.getElementById('faultRate').value) || 0;
+    const tipo = document.getElementById('faultType').value;
+
+    document.getElementById('divLatencyValues').style.display = modo === 'none' ? 'none' : '';
+    document.getElementById('latencyMaxWrapper').style.display = modo === 'random' ? '' : 'none';
+    document.getElementById('latencyMsLabel').textContent =
+      modo === 'random' ? t('form.latencyRange') : t('form.latencyMs');
+
+    document.getElementById('divFaultDetail').style.display = porcentaje > 0 ? '' : 'none';
+    // Al cortar la conexión no hay código de estado que enviar
+    document.getElementById('divFaultStatus').style.display = tipo === 'reset' ? 'none' : '';
+
+    const badge = document.getElementById('faultsBadge');
+    const partes = [];
+    if (modo === 'fixed') partes.push(`${document.getElementById('latencyMs').value || 0} ms`);
+    if (modo === 'random') partes.push(`${document.getElementById('latencyMs').value || 0}-${document.getElementById('latencyMaxMs').value || 0} ms`);
+    if (porcentaje > 0) partes.push(`${porcentaje}% ${tipo}`);
+
+    badge.textContent = partes.join(' · ');
+    badge.style.display = partes.length ? '' : 'none';
   }
 
   function toggleMetadataSection() {
@@ -5490,11 +5813,20 @@
     const checked = document.querySelectorAll('.route-select-check:checked');
     const btn = document.getElementById('bulkDeleteBtn');
     const count = document.getElementById('bulkDeleteCount');
+    const enable = document.getElementById('bulkEnableBtn');
+    const disable = document.getElementById('bulkDisableBtn');
+
     if (checked.length > 0) {
       btn.style.display = '';
       count.textContent = `${t('bulk.deleteSelected')} (${checked.length})`;
+      enable.style.display = '';
+      disable.style.display = '';
+      document.getElementById('bulkEnableCount').textContent = `${t('bulk.enable')} (${checked.length})`;
+      document.getElementById('bulkDisableCount').textContent = `${t('bulk.disable')} (${checked.length})`;
     } else {
       btn.style.display = 'none';
+      enable.style.display = 'none';
+      disable.style.display = 'none';
     }
     // Update select all checkbox state
     const all = document.querySelectorAll('.route-select-check');
@@ -5502,6 +5834,49 @@
     if (selectAll) {
       selectAll.checked = all.length > 0 && checked.length === all.length;
       selectAll.indeterminate = checked.length > 0 && checked.length < all.length;
+    }
+  }
+
+  /**
+   * Activa o desactiva lo seleccionado. Sin confirmación a propósito: es
+   * reversible con el botón de al lado, y pedirla en cada cambio de estado
+   * convertiría en un engorro lo que se usa justo para probar rápido
+   */
+  async function bulkSetActive(active) {
+    const checked = document.querySelectorAll('.route-select-check:checked');
+    if (checked.length === 0) return;
+
+    const ids = Array.from(checked).map(cb => parseInt(cb.dataset.id));
+    await aplicarEstadoMasivo({ ids, active });
+  }
+
+  /**
+   * Lo mismo, pero a todas las rutas que llevan un tag. Es lo que convierte los
+   * tags en algo operativo y no solo en una forma de clasificar
+   */
+  async function setActiveByTag(tagId, active) {
+    await aplicarEstadoMasivo({ tagId, active });
+  }
+
+  async function aplicarEstadoMasivo(cuerpo) {
+    try {
+      const r = await fetch('/api/routes/bulk-active', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cuerpo)
+      });
+      const datos = await r.json();
+
+      if (!r.ok || !datos.success) {
+        showToast(datos.error || t('errors.generic'), 'warning');
+        return;
+      }
+
+      showToast(t(cuerpo.active ? 'bulk.enabled' : 'bulk.disabled')
+        .replace('{{n}}', datos.updated), 'success');
+      tabla.ajax.reload(null, false);
+    } catch (e) {
+      showToast(e.message, 'error');
     }
   }
 
@@ -5586,6 +5961,22 @@
     document.getElementById("requestBodyExample").value = '';
     // Limpiar proxy timeout, fallbacks y transformaciones
     document.getElementById("proxyTimeout").value = '30000';
+    document.getElementById("proxyRecording").checked = false;
+    document.getElementById("proxyRecordingMode").value = 'update';
+    document.getElementById("latencyMode").value = 'none';
+    document.getElementById("latencyMs").value = '0';
+    document.getElementById("latencyMaxMs").value = '0';
+    document.getElementById("faultRate").value = '0';
+    document.getElementById("faultType").value = 'error';
+    document.getElementById("faultStatus").value = '500';
+    document.getElementById("templating").checked = false;
+    document.getElementById("mockScript").value = '';
+    document.getElementById("mockScriptResult").innerHTML = '';
+    document.getElementById("sseLoop").checked = false;
+    sequenceRouteId = null;
+    clearSequence();
+    updateFaultsFields();
+    updateTemplatingFields();
     clearFallbacks();
     ProxyTransform.clearAll();
   }
@@ -5599,10 +5990,25 @@
       document.getElementById("respuesta").value = '';
       // Proxy timeout
       document.getElementById("proxyTimeout").value = obj.proxy_timeout || 30000;
+      document.getElementById("proxyRecording").checked = obj.recording === 1;
+      document.getElementById("proxyRecordingMode").value = obj.recording_mode || 'update';
     } else {
       document.getElementById("respuesta").value = obj.respuesta || '';
       document.getElementById("destinoProxy").value = '';
     }
+    document.getElementById("latencyMode").value = obj.latency_mode || 'none';
+    document.getElementById("latencyMs").value = obj.latency_ms || 0;
+    document.getElementById("latencyMaxMs").value = obj.latency_max_ms || 0;
+    document.getElementById("faultRate").value = obj.fault_rate || 0;
+    document.getElementById("faultType").value = obj.fault_type || 'error';
+    document.getElementById("faultStatus").value = obj.fault_status || '500';
+    document.getElementById("templating").checked = obj.templating === 1;
+    document.getElementById("mockScript").value = obj.mock_script || '';
+    document.getElementById("sseLoop").checked = obj.sse_loop === 1;
+    sequenceRouteId = obj.id;
+    setSequence(obj.sequence, obj.sequence_mode);
+    updateFaultsFields();
+    updateTemplatingFields();
     document.getElementById("tiporespuesta").value = obj.tiporespuesta;
     document.getElementById("esperaActiva").checked = obj.esperaActiva ?? false;
     document.getElementById("rutaActiva").checked = obj.activo !== 0;
@@ -5690,10 +6096,25 @@
     if (description) formData.append('description', description);
     if (requestBodyExample) formData.append('requestBodyExample', requestBodyExample);
 
+    // Latencia y fallos provocados: aplican a cualquier tipo de ruta
+    formData.append('latencyMode', document.getElementById("latencyMode").value);
+    formData.append('latencyMs', document.getElementById("latencyMs").value || 0);
+    formData.append('latencyMaxMs', document.getElementById("latencyMaxMs").value || 0);
+    formData.append('faultRate', document.getElementById("faultRate").value || 0);
+    formData.append('faultType', document.getElementById("faultType").value);
+    formData.append('faultStatus', document.getElementById("faultStatus").value || '500');
+    formData.append('templating', document.getElementById("templating").checked);
+    if (tiporespuesta !== 'proxy') {
+      formData.append('mockScript', document.getElementById("mockScript").value || '');
+    }
+    formData.append('sseLoop', document.getElementById("sseLoop").checked);
+
     // Proxy timeout y transformaciones de petición/respuesta
     if (tiporespuesta === 'proxy') {
       const proxyTimeout = document.getElementById("proxyTimeout").value || 30000;
       formData.append('proxyTimeout', proxyTimeout);
+      formData.append('recording', document.getElementById("proxyRecording").checked);
+      formData.append('recordingMode', document.getElementById("proxyRecordingMode").value);
       ProxyTransform.appendTo(formData);
     }
 
@@ -5709,6 +6130,11 @@
 
     if (response.status === 200) {
       const result = await response.json();
+
+      // Guardar el escenario, si lo hay
+      if (result.id && getSequence().length > 0) {
+        await saveSequenceFor(result.id);
+      }
 
       // Guardar condiciones si hay alguna
       const conditions = getConditions();
@@ -5804,10 +6230,25 @@
     if (description) formData.append('description', description);
     if (requestBodyExample) formData.append('requestBodyExample', requestBodyExample);
 
+    // Latencia y fallos provocados: aplican a cualquier tipo de ruta
+    formData.append('latencyMode', document.getElementById("latencyMode").value);
+    formData.append('latencyMs', document.getElementById("latencyMs").value || 0);
+    formData.append('latencyMaxMs', document.getElementById("latencyMaxMs").value || 0);
+    formData.append('faultRate', document.getElementById("faultRate").value || 0);
+    formData.append('faultType', document.getElementById("faultType").value);
+    formData.append('faultStatus', document.getElementById("faultStatus").value || '500');
+    formData.append('templating', document.getElementById("templating").checked);
+    if (tiporespuesta !== 'proxy') {
+      formData.append('mockScript', document.getElementById("mockScript").value || '');
+    }
+    formData.append('sseLoop', document.getElementById("sseLoop").checked);
+
     // Proxy timeout y transformaciones de petición/respuesta
     if (tiporespuesta === 'proxy') {
       const proxyTimeout = document.getElementById("proxyTimeout").value || 30000;
       formData.append('proxyTimeout', proxyTimeout);
+      formData.append('recording', document.getElementById("proxyRecording").checked);
+      formData.append('recordingMode', document.getElementById("proxyRecordingMode").value);
       ProxyTransform.appendTo(formData);
     }
 
@@ -5826,6 +6267,9 @@
     });
 
     if (response.status === 200) {
+      // Siempre, también vacío: es como se quita un escenario que ya existía
+      await saveSequenceFor(id);
+
       // Guardar condiciones
       const conditions = getConditions();
       if (conditions.length > 0) {

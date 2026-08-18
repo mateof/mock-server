@@ -59,6 +59,8 @@ The server is stateless on purpose. A tool-only server needs nothing between cal
 | `query_logs` | The recorded traffic: what arrived, what was answered, how long it took |
 | `log_stats` | Totals by level, type and status, durations and a histogram |
 | `get_trace` | The full story of one request in order, from the route that matched to the answer |
+| `route_usage` | Calls, last use, errors and average duration per route: which ones are dead |
+| `verify_calls` | Was it called, how many times, and with what? With pass/fail expectations |
 
 ### Writing
 
@@ -74,8 +76,23 @@ The server is stateless on purpose. A tool-only server needs nothing between cal
 | `set_graphql_operations` | Sets the operations of a GraphQL route |
 | `import_graphql_schema` | Introspects a real GraphQL endpoint and generates the operations |
 | `set_websocket_messages` | Sets the on-connect, on-message and periodic handlers |
+| `set_route_sequence` | Stateful scenario: answers by call number, for polling flows |
+| `reset_route_sequence` | Puts a scenario back to its first step |
+| `set_route_faults` | Latency and fault injection: makes a route slow, unreliable, or both |
+| `create_route` / `update_route` with `templating` | Turns on `{{...}}` substitution in the body and headers |
+| `set_routes_active` | Enables or disables a whole set of routes at once, by ids or by tag |
 | `reorder_routes` | Sets which route wins when several match |
 | `create_tag` / `delete_tag` | Manages tags |
+
+### Recording
+
+| Tool | What it does |
+|------|--------------|
+| `set_route_recording` | Puts a proxy route into recording mode: every backend response becomes a mock route |
+| `create_mocks_from_logs` | Turns traffic already in the log into mocks: "everything that went through /orders in the last hour" |
+| `create_mock_from_log_entry` | Turns one log line into a mock, by the id `query_logs` returns |
+
+Recorded routes are created **inactive**, because a mock outranks the proxy and an active one would stop any further traffic reaching the backend. Activate them with `update_route` once the session is captured. See [Recording](recording.md) for the whole picture.
 
 ### Building a flow
 
@@ -107,6 +124,14 @@ The assistant would call `create_route` and then `set_route_conditions`, and can
 > The `/legacy` proxy needs an API key added and the response trimmed to the fields the app uses.
 
 `set_proxy_transform` with `request_headers` and a `post_script`. It can try the script with `validate_script` before saving it.
+
+> Mock everything that went through `/orders` in the last hour.
+
+`create_mocks_from_logs` with `url` and `from`. It keeps the newest response for each method and path, so repeated calls give one route each, and reports what it could not convert instead of writing a broken mock.
+
+> Check the app actually posted the order, once, with the right id.
+
+`verify_calls` with `path: "/orders"`, `method: "POST"`, `body_contains: "A-100"` and `times: 1`. It answers with `passed` plus the calls it matched, so a flow can be built, exercised and checked without leaving the conversation.
 
 ## What the assistant cannot do
 

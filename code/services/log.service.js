@@ -51,7 +51,10 @@ function record(entrada) {
         url: entrada.url || null,
         status: entrada.status === undefined || entrada.status === null ? null : Number(entrada.status),
         duration: entrada.duration === undefined || entrada.duration === null ? null : Number(entrada.duration),
-        route_id: entrada.routeId || null,
+        // Igual que la traza: si la petición ya sabe qué ruta la atiende, toda
+        // línea escrita durante ella queda asociada sin que quien la escribe
+        // tenga que pasarla. Es lo que permite contar el uso por ruta
+        route_id: entrada.routeId || traceContext.routeId(),
         target: entrada.target || null,
         message: entrada.message || null,
         details: entrada.details ? recortar(entrada.details) : null,
@@ -371,6 +374,147 @@ async function getTrace(traceId) {
     };
 }
 
+// Tipos que aparecen una sola vez por petición atendida. Contar cualquier
+// entrada daría números inflados, porque una petición escribe varias líneas
+const TIPOS_POR_PETICION = ['mock', 'proxy', 'proxy-detailed', 'redirect', 'empty', 'page'];
+
+/**
+ * Cuántas veces se ha usado cada ruta y cuándo fue la última.
+ *
+ * Sale del log, así que la retención lo acota: con el log podado a 50.000
+ * filas, lo de antes deja de contarse. Es lo correcto para "¿esta ruta se
+ * usa?", que es la pregunta que responde.
+ */
+async function usoPorRuta(filtros = {}) {
+    const where = ['route_id IS NOT NULL', `type IN (${TIPOS_POR_PETICION.map(() => '?').join(',')})`];
+    const params = [...TIPOS_POR_PETICION];
+
+    if (filtros.from) {
+        where.push('ts_ms >= ?');
+        params.push(Number(filtros.from));
+    }
+
+    const filas = await dbAll(
+        `SELECT route_id, COUNT(*) as total, MAX(ts_ms) as ultima,
+                SUM(CASE WHEN status >= 400 THEN 1 ELSE 0 END) as errores,
+                AVG(duration) as media
+         FROM logs
+         WHERE ${where.join(' AND ')}
+         GROUP BY route_id`,
+        params
+    );
+
+    const uso = {};
+    for (const f of filas) {
+        uso[f.route_id] = {
+            calls: f.total,
+            last_call: f.ultima,
+            errors: f.errores || 0,
+            avg_duration: f.media === null ? null : Math.round(f.media)
+        };
+    }
+    return uso;
+}
+
+/**
+ * Comprueba si se llamó a algo, cuántas veces y con qué.
+ *
+ * Se mira sobre el paso 'request' de las trazas, que aparece una vez por
+ * petición y lleva dentro cabeceras, query y cuerpo. Sirve para preguntas del
+ * tipo "¿se llamó a /pedidos con este id?", que es lo que convierte esto en una
+ * herramienta de prueba de contrato y no solo en un visor.
+ *
+ * @param {object} criterios  path, method, since, bodyContains, header, status
+ * @param {object} expectativa times | atLeast | atMost
+ */
+async function verificarLlamadas(criterios = {}, expectativa = {}) {
+    const where = ["step = 'request'"];
+    const params = [];
+
+    if (criterios.path) {
+        where.push('url LIKE ?');
+        params.push(`%${criterios.path}%`);
+    }
+    if (criterios.method) {
+        where.push('UPPER(method) = ?');
+        params.push(String(criterios.method).toUpperCase());
+    }
+    if (criterios.since) {
+        where.push('ts_ms >= ?');
+        params.push(Number(criterios.since));
+    }
+    if (criterios.bodyContains) {
+        // LIKE sobre el detalle serializado: basta para "¿venía este id?" sin
+        // montar un motor de consultas sobre JSON
+        where.push('details LIKE ?');
+        params.push(`%${criterios.bodyContains}%`);
+    }
+
+    const filas = await dbAll(
+        `SELECT * FROM logs WHERE ${where.join(' AND ')} ORDER BY ts_ms DESC LIMIT 200`,
+        params
+    );
+
+    let coincidencias = filas.map(f => ({ ...f, details: f.details ? seguroParse(f.details) : null }));
+
+    // El código de estado no vive en el paso 'request' sino en el de respuesta,
+    // así que se resuelve por traza en un segundo paso
+    if (criterios.status) {
+        const trazas = coincidencias.map(c => c.trace_id).filter(Boolean);
+        if (trazas.length === 0) {
+            coincidencias = [];
+        } else {
+            const huecos = trazas.map(() => '?').join(',');
+            const respuestas = await dbAll(
+                `SELECT trace_id, status FROM logs
+                 WHERE step = 'response' AND trace_id IN (${huecos})`, trazas);
+            const porTraza = Object.fromEntries(respuestas.map(r => [r.trace_id, r.status]));
+
+            const buscado = String(criterios.status).toLowerCase();
+            coincidencias = coincidencias.filter(c => {
+                const estado = porTraza[c.trace_id];
+                if (estado === undefined || estado === null) return false;
+                if (/^[1-5]xx$/.test(buscado)) {
+                    const base = parseInt(buscado[0]) * 100;
+                    return estado >= base && estado < base + 100;
+                }
+                return estado === parseInt(buscado);
+            });
+            coincidencias.forEach(c => { c.status = porTraza[c.trace_id]; });
+        }
+    }
+
+    const total = coincidencias.length;
+    let cumple = true;
+    let esperado = null;
+
+    if (expectativa.times !== undefined && expectativa.times !== null) {
+        esperado = `exactamente ${expectativa.times}`;
+        cumple = total === Number(expectativa.times);
+    } else if (expectativa.atLeast !== undefined && expectativa.atLeast !== null) {
+        esperado = `al menos ${expectativa.atLeast}`;
+        cumple = total >= Number(expectativa.atLeast);
+    } else if (expectativa.atMost !== undefined && expectativa.atMost !== null) {
+        esperado = `como mucho ${expectativa.atMost}`;
+        cumple = total <= Number(expectativa.atMost);
+    }
+
+    return {
+        matched: total,
+        passed: cumple,
+        expected: esperado,
+        calls: coincidencias.slice(0, 20).map(c => ({
+            at: c.ts,
+            method: c.method,
+            url: c.url,
+            status: c.status === undefined ? null : c.status,
+            trace_id: c.trace_id,
+            body: c.details && typeof c.details === 'object' ? c.details.body : null,
+            query: c.details && typeof c.details === 'object' ? c.details.query : null
+        }))
+    };
+}
+
 async function clear(filtros = {}) {
     // Sin filtros borra todo; con ellos, solo lo que se está viendo
     const { clausula, params } = construirWhere(filtros);
@@ -399,6 +543,8 @@ module.exports = {
     record,
     flush,
     query,
+    usoPorRuta,
+    verificarLlamadas,
     getTrace,
     stats,
     clear,

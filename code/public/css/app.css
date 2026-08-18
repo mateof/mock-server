@@ -4754,3 +4754,71 @@ table.dataTable.no-footer {
 .ws-tester-json {
   color: var(--text-secondary);
 }
+
+/* Número de paso del escenario: se recalcula al añadir o quitar, así que
+   necesita ancho fijo para que la lista no baile */
+.sequence-step-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.25rem;
+    height: 1.75rem;
+    padding: 0 0.5rem;
+    border-radius: 0.375rem;
+    background: var(--primary);
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+/* Uso de la ruta, bajo el camino. Discreto a propósito: es contexto, no un
+   dato que se consulte, y compite con el nombre de la ruta por la atención */
+.route-usage {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin-top: 0.25rem;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.route-usage i {
+    font-size: 0.68rem;
+    opacity: 0.8;
+}
+
+.route-usage-none {
+    opacity: 0.55;
+    font-style: italic;
+}
+
+.route-usage-errors {
+    margin-left: 0.35rem;
+    font-size: 0.72rem;
+    color: var(--danger);
+}
+
+/* Activar y desactivar por tag, dentro de su fila del filtro. Aparecen al
+   pasar por encima: si estuvieran siempre visibles, competirían con el propio
+   filtro, que es a lo que se viene */
+.tags-filter-actions {
+    margin-left: auto;
+    display: flex;
+    gap: 0.2rem;
+    opacity: 0;
+    transition: opacity 0.12s ease;
+}
+
+.tags-filter-option:hover .tags-filter-actions,
+.tags-filter-actions:focus-within {
+    opacity: 1;
+}
+
+.btn-icon-xs {
+    width: 1.5rem;
+    height: 1.5rem;
+    font-size: 0.7rem;
+    padding: 0;
+}

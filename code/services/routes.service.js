@@ -16,10 +16,13 @@ const sqliteService = require('./sqlite.service');
 const scriptRunner = require('./script-runner.service');
 const criteriaService = require('./criteria-evaluator.service');
 const graphqlService = require('./graphql.service');
+const faultService = require('./fault.service');
+const scenarioService = require('./scenario.service');
 const websocketService = require('./websocket.service');
 const proxyMiddleware = require('../middlewares/proxy.middleware');
+const config = require('./paths');
 
-const UPLOADS_DIR = path.join(__dirname, '..', 'data', 'uploads');
+const UPLOADS_DIR = path.join(config.DATA_DIR, 'uploads');
 
 // El panel vive en /api y el servidor MCP en /mcp: una ruta mock ahí quedaría
 // ensombrecida y el usuario no entendería por qué no responde nunca
@@ -115,7 +118,9 @@ function validatePayload(payload) {
         }
     }
 
-    for (const [campo, script] of [['proxyPreScript', payload.proxyPreScript], ['proxyPostScript', payload.proxyPostScript]]) {
+    for (const [campo, script] of [['proxyPreScript', payload.proxyPreScript],
+                                  ['proxyPostScript', payload.proxyPostScript],
+                                  ['mockScript', payload.mockScript]]) {
         const check = scriptRunner.validateScript(script);
         if (!check.valid) {
             throw new RouteValidationError(`Invalid script (${campo}): ${check.error}`);
@@ -149,7 +154,21 @@ function buildColumns(payload) {
         proxy_request_headers: isProxy ? asJsonText(payload.proxyRequestHeaders) : null,
         proxy_request_params: isProxy ? asJsonText(payload.proxyRequestParams) : null,
         proxy_pre_script: isProxy ? (payload.proxyPreScript || null) : null,
-        proxy_post_script: isProxy ? (payload.proxyPostScript || null) : null
+        proxy_post_script: isProxy ? (payload.proxyPostScript || null) : null,
+        recording: isProxy && toBool(payload.recording) ? 1 : 0,
+        recording_mode: isProxy ? (payload.recordingMode === 'skip' ? 'skip' : 'update') : null,
+        // Latencia y fallos: valen en cualquier tipo de ruta, no solo proxy
+        latency_mode: faultService.MODOS_LATENCIA.includes(payload.latencyMode) ? payload.latencyMode : 'none',
+        latency_ms: parseInt(payload.latencyMs) || 0,
+        latency_max_ms: parseInt(payload.latencyMaxMs) || 0,
+        fault_rate: parseInt(payload.faultRate) || 0,
+        fault_type: faultService.TIPOS_FALLO.includes(payload.faultType) ? payload.faultType : 'error',
+        fault_status: String(payload.faultStatus || '500'),
+        templating: toBool(payload.templating) ? 1 : 0,
+        sequence_mode: payload.sequenceMode === 'loop' ? 'loop' : 'stick',
+        // En una ruta proxy el sitio del script son pre y post, no este
+        mock_script: isProxy ? null : (payload.mockScript || null),
+        sse_loop: toBool(payload.sseLoop) ? 1 : 0
     };
 }
 
@@ -193,6 +212,7 @@ async function getRoute(id) {
     if (!route) return null;
 
     route.conditions = await sqliteService.getConditionalResponses(routeId);
+    route.sequence = await sqliteService.getAllRouteSequence(routeId);
 
     if (route.tiporespuesta === 'proxy') {
         route.fallbacks = await sqliteService.getAllProxyFallbacks(routeId);
@@ -221,18 +241,26 @@ async function createRoute(payload, options = {}) {
     const result = await dbRun(
         `INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders,
             activo, orden, fileName, filePath, fileMimeType, tags, operationId, summary, description,
-            requestBodyExample, proxy_timeout, proxy_request_headers, proxy_request_params, proxy_pre_script, proxy_post_script)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            requestBodyExample, proxy_timeout, proxy_request_headers, proxy_request_params, proxy_pre_script, proxy_post_script,
+            recording, recording_mode, latency_mode, latency_ms, latency_max_ms, fault_rate, fault_type, fault_status,
+            templating, sequence_mode, mock_script, sse_loop)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [columns.tipo, columns.ruta, columns.codigo, columns.respuesta, columns.tiporespuesta,
          columns.esperaActiva, columns.isRegex, columns.customHeaders, columns.activo, orden,
          file.fileName || null, file.filePath || null, file.fileMimeType || null,
          columns.tags, columns.operationId, columns.summary, columns.description, columns.requestBodyExample,
          columns.proxy_timeout, columns.proxy_request_headers, columns.proxy_request_params,
-         columns.proxy_pre_script, columns.proxy_post_script]
+         columns.proxy_pre_script, columns.proxy_post_script, columns.recording, columns.recording_mode,
+         columns.latency_mode, columns.latency_ms, columns.latency_max_ms,
+         columns.fault_rate, columns.fault_type, columns.fault_status, columns.templating,
+         columns.sequence_mode, columns.mock_script, columns.sse_loop]
     );
 
     if (Array.isArray(payload.conditions)) {
         await sqliteService.saveConditionalResponses(result.lastID, payload.conditions);
+    }
+    if (Array.isArray(payload.sequence)) {
+        await sqliteService.saveRouteSequence(result.lastID, payload.sequence);
     }
 
     console.log(`[ROUTES] Ruta creada con id ${result.lastID} y orden ${orden}`);
@@ -272,18 +300,26 @@ async function updateRoute(id, payload, options = {}) {
         `UPDATE rutas SET tipo = ?, ruta = ?, codigo = ?, respuesta = ?, tiporespuesta = ?, esperaActiva = ?,
             isRegex = ?, customHeaders = ?, activo = ?, orden = ?, fileName = ?, filePath = ?, fileMimeType = ?,
             tags = ?, operationId = ?, summary = ?, description = ?, requestBodyExample = ?, proxy_timeout = ?,
-            proxy_request_headers = ?, proxy_request_params = ?, proxy_pre_script = ?, proxy_post_script = ?
+            proxy_request_headers = ?, proxy_request_params = ?, proxy_pre_script = ?, proxy_post_script = ?,
+            recording = ?, recording_mode = ?, latency_mode = ?, latency_ms = ?, latency_max_ms = ?,
+            fault_rate = ?, fault_type = ?, fault_status = ?, templating = ?, sequence_mode = ?, mock_script = ?, sse_loop = ?
          WHERE id = ?`,
         [columns.tipo, columns.ruta, columns.codigo, columns.respuesta, columns.tiporespuesta,
          columns.esperaActiva, columns.isRegex, columns.customHeaders, columns.activo, orden,
          file.fileName, file.filePath, file.fileMimeType,
          columns.tags, columns.operationId, columns.summary, columns.description, columns.requestBodyExample,
          columns.proxy_timeout, columns.proxy_request_headers, columns.proxy_request_params,
-         columns.proxy_pre_script, columns.proxy_post_script, routeId]
+         columns.proxy_pre_script, columns.proxy_post_script, columns.recording, columns.recording_mode,
+         columns.latency_mode, columns.latency_ms, columns.latency_max_ms,
+         columns.fault_rate, columns.fault_type, columns.fault_status, columns.templating,
+         columns.sequence_mode, columns.mock_script, columns.sse_loop, routeId]
     );
 
     if (Array.isArray(payload.conditions)) {
         await sqliteService.saveConditionalResponses(routeId, payload.conditions);
+    }
+    if (Array.isArray(payload.sequence)) {
+        await sqliteService.saveRouteSequence(routeId, payload.sequence);
     }
 
     // Borrar el fichero antiguo si dejó de usarse
@@ -332,6 +368,27 @@ const ERROR_TYPES = ['timeout', 'connection', 'http5xx', 'all'];
  * llamante tuviera que hacerlo en dos pasos, cualquier despiste dejaría
  * condiciones colgando de un fallback que ya no existe.
  */
+/**
+ * Guarda solo los pasos del escenario, sin tocar el resto de la ruta
+ */
+async function saveSequence(routeId, pasos, modo) {
+    const route = await dbGet('SELECT id, tiporespuesta FROM rutas WHERE id = ?', [Number(routeId)]);
+    if (!route) {
+        throw new RouteValidationError(`Route ${routeId} not found`);
+    }
+    await sqliteService.saveRouteSequence(Number(routeId), Array.isArray(pasos) ? pasos : []);
+    if (modo === 'loop' || modo === 'stick') {
+        await dbRun('UPDATE rutas SET sequence_mode = ? WHERE id = ?', [modo, Number(routeId)]);
+    }
+
+    // Cambiar los pasos y dejar el contador a medias haría que la primera
+    // llamada después de editar empezase por el paso tres. Va aquí y no en cada
+    // superficie para que el panel y el MCP no puedan divergir en esto
+    scenarioService.reiniciar(Number(routeId));
+    console.log(`[ROUTES] Secuencia de la ruta ${routeId} guardada (${(pasos || []).length} pasos)`);
+    return true;
+}
+
 async function saveFallbacks(routeId, fallbacks) {
     if (!Array.isArray(fallbacks)) {
         throw new RouteValidationError('fallbacks must be an array');
@@ -529,14 +586,22 @@ async function duplicateRoute(id, newPath) {
         `INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders,
             activo, orden, fileName, filePath, fileMimeType, tags, operationId, summary, description,
             requestBodyExample, proxy_timeout, proxy_request_headers, proxy_request_params, proxy_pre_script,
-            proxy_post_script, graphql_schema, graphql_proxy_url)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            proxy_post_script, graphql_schema, graphql_proxy_url, recording, recording_mode,
+            latency_mode, latency_ms, latency_max_ms, fault_rate, fault_type, fault_status, templating,
+            sequence_mode, mock_script, sse_loop)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [original.tipo, newPath, original.codigo, original.respuesta, original.tiporespuesta,
          original.esperaActiva, original.isRegex, original.customHeaders, original.activo, orden,
          fileName, filePath, fileMimeType, original.tags, original.operationId, original.summary,
          original.description, original.requestBodyExample, original.proxy_timeout,
          original.proxy_request_headers, original.proxy_request_params, original.proxy_pre_script,
-         original.proxy_post_script, original.graphql_schema, original.graphql_proxy_url]
+         original.proxy_post_script, original.graphql_schema, original.graphql_proxy_url,
+         // La grabación no se copia: es un modo de operación, no configuración,
+         // y duplicar una ruta no debería poner a grabar una segunda en silencio
+         0, original.recording_mode,
+         original.latency_mode, original.latency_ms, original.latency_max_ms,
+         original.fault_rate, original.fault_type, original.fault_status, original.templating,
+         original.sequence_mode, original.mock_script, original.sse_loop]
     );
 
     const nuevoId = result.lastID;
@@ -545,6 +610,9 @@ async function duplicateRoute(id, newPath) {
     // carcasa vacía justo en los tipos que más configuración llevan
     const condiciones = await sqliteService.getConditionalResponses(Number(id));
     if (condiciones.length) await sqliteService.saveConditionalResponses(nuevoId, condiciones);
+
+    const pasos = await sqliteService.getAllRouteSequence(Number(id));
+    if (pasos.length) await sqliteService.saveRouteSequence(nuevoId, pasos);
 
     if (isProxy) {
         const fallbacks = await sqliteService.getAllProxyFallbacks(Number(id));
@@ -594,6 +662,7 @@ module.exports = {
     createRoute,
     updateRoute,
     deleteRoute,
+    saveSequence,
     saveFallbacks,
     saveFallbackConditions,
     saveGraphQLOperations,

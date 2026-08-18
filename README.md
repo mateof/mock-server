@@ -35,6 +35,7 @@ A powerful HTTP mocking and proxying application built with Express.js and Node.
 | **Empty** | Empty 204 responses |
 | **GraphQL** | GraphQL endpoint with per-operation mock/proxy support |
 | **WebSocket** | WebSocket endpoint with configurable message handlers |
+| **SSE** | `text/event-stream` with timed events and optional looping |
 | **Proxy** | Forward requests to backend servers |
 | **Redirect** | HTTP 301 redirects |
 
@@ -47,6 +48,62 @@ A powerful HTTP mocking and proxying application built with Express.js and Node.
 - **Regex Route Matching** - Test routes with regex patterns in UI
   - Validation with test URL
   - Separate path extraction for proxies
+
+- **Server-Sent Events** - `text/event-stream` responses with timed events
+  - The body is the event list: name, data and the delay before each one
+  - Optional looping, for heartbeats
+  - Stops cleanly when the client disconnects
+  - See [SSE Documentation](docs/sse.md) for details
+
+- **Call Verification** - Assert what actually happened, from the assistant
+  - "Was /orders called, how many times, and with what body?"
+  - Expectations (`times`, `at_least`, `at_most`) come back as pass or fail
+  - Matches on path, method, resulting status and a substring of the request body
+  - Turns the server into a contract-testing tool: build the flow, run it, check it
+
+- **Bulk Enable and Disable** - Turn whole sets of routes on or off
+  - By selection, or by tag straight from the tag filter
+  - "Disable everything tagged payments" makes tags operational, not just labels
+  - Disabling lets traffic fall through to a proxy again without deleting the mocks
+  - `set_routes_active` over MCP, by ids or by tag name
+
+- **Per-Route Usage** - See which routes are actually used, and which are dead
+  - Calls, last use, average duration and error count, under each route in the list
+  - Taken from the log, so retention bounds it
+  - `route_usage` over MCP, for finding dead routes before a cleanup
+
+- **Scripts on Mock Routes** - The same `ms.*` engine the proxy uses, now on mocks
+  - Runs last: after conditions, the scenario step and templating
+  - Reads the request (`ms.request.json()`, headers, query) and rewrites code, headers and body
+  - The escape hatch for whatever the declarative features cannot express
+  - See [Scripting Documentation](docs/proxy-scripting.md) for details
+
+- **Stateful Scenarios** - Answer differently depending on how many times a route was called
+  - First `pending`, then `processing`, then `done`: what simulates a polling flow
+  - A step can cover several consecutive calls, and the sequence can stick on the last or loop
+  - `callCount` is also available inside conditional criteria and templates
+  - See [Scenarios Documentation](docs/scenarios.md) for details
+
+- **Dynamic Responses** - Echo the request, generate values, stop returning the same id forever
+  - `{{body.userId}}`, `{{query.page}}`, `{{params.id}}`, `{{headers.x-request-id}}`
+  - Generators: `{{uuid()}}`, `{{now('+7d')}}`, `{{randomInt(1,100)}}`, `{{pick('a','b')}}`
+  - Fallbacks with `??`, and casts so a query parameter can enter JSON as a number
+  - Off by default per route, because a response can legitimately contain `{{...}}`
+  - See [Dynamic Responses Documentation](docs/templating.md) for details
+
+- **Latency and Fault Injection** - Make a route slow, unreliable, or both
+  - Fixed or random delay, per route, on mocks and proxies alike
+  - Failure rate as a percentage, answering an error code, dropping the connection, or answering with no body
+  - On a proxy the delay happens before calling the backend, and an injected fault never reaches it
+  - This is what exercises timeouts, retries and degradation, which an instant mock cannot
+  - See [Latency and Faults Documentation](docs/faults.md) for details
+
+- **Traffic Recording** - Turn real traffic into mocks instead of writing them by hand
+  - Recording mode on a proxy route: every backend response becomes a mock route
+  - "Save as mock" on any line of the log, and bulk conversion from the current filters
+  - Recorded routes are created inactive, so they do not shadow the proxy that captured them
+  - Available over MCP: "mock everything that went through /orders in the last hour"
+  - See [Recording Documentation](docs/recording.md) for details
 
 - **Custom Headers** - Add, modify, or remove response headers
   - Array-based configuration: `{action: "set"|"remove", name, value}`
@@ -220,6 +277,17 @@ podman compose up -d --build
 | `MOCK_SERVER_UPDATE_CHECK` | true | Set to `false` to never contact the registry |
 | `MOCK_SERVER_UPDATE_CHECK_HOURS` | 6 | How long the registry answer is cached |
 | `MOCK_SERVER_IMAGE` | mateof/mock-server | Image to check for newer versions |
+| `MOCK_SERVER_DATA_DIR` | `code/data` | Where the database, uploads and auto-import folder live |
+
+### Testing
+
+| Command | What it runs |
+|---------|--------------|
+| `npm test` | Unit and integration tests (Jest) |
+| `npm run test:e2e` | Browser smoke tests (Playwright, Chromium) |
+| `npm run test:all` | Both |
+
+Browser tests run the server against their own data directory, so they never touch your database. See [Testing Documentation](docs/testing.md) for details.
 
 ### Data Persistence
 

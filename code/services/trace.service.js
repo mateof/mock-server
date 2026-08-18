@@ -27,6 +27,10 @@ const PASOS = {
     PROXY_REQUEST: 'proxy-request',
     PROXY_RESPONSE: 'proxy-response',
     FALLBACK: 'fallback',
+    SEQUENCE: 'sequence',
+    TEMPLATE: 'template',
+    LATENCY: 'latency',
+    FAULT: 'fault',
     RESPONSE: 'response'
 };
 
@@ -92,7 +96,14 @@ function middleware(req, res, next) {
         step(PASOS.REQUEST, {
             message: `${ctx.method} ${ctx.url}`,
             duration: 0,
-            details: { headers: cabecerasSeguras(req.headers), query: req.query }
+            details: {
+                headers: cabecerasSeguras(req.headers),
+                query: req.query,
+                // El cuerpo se guarda aquí y no solo en el detalle del proxy:
+                // sin esto no se puede comprobar después con qué se llamó a una
+                // ruta mock, que es la mitad de para lo que sirve el log
+                body: cuerpoSeguro(req)
+            }
         });
 
         // 'finish' salta cuando la respuesta ya se envió del todo, incluido el
@@ -107,6 +118,41 @@ function middleware(req, res, next) {
 
         next();
     });
+}
+
+// Cuánto del cuerpo se guarda. El log ya recorta el detalle entero a 20 KB;
+// esto acota el cuerpo por su cuenta para que no se coma el resto del detalle
+const MAX_CUERPO = 8 * 1024;
+
+/**
+ * El cuerpo de la petición, acotado. Se prefiere el crudo porque es lo que
+ * llegó de verdad: un formulario o un cuerpo no-JSON ya vienen convertidos en
+ * req.body y no se parecerían a lo que envió quien llama.
+ */
+function cuerpoSeguro(req) {
+    try {
+        let texto = null;
+        if (req.rawBody && req.rawBody.length) {
+            texto = req.rawBody.toString('utf8');
+        } else if (req.body && typeof req.body === 'object' && Object.keys(req.body).length) {
+            texto = JSON.stringify(req.body);
+        } else if (typeof req.body === 'string' && req.body) {
+            texto = req.body;
+        }
+
+        if (!texto) return null;
+        if (texto.length > MAX_CUERPO) {
+            return { truncated: true, text: texto.substring(0, MAX_CUERPO) };
+        }
+        // Si es JSON se guarda parseado, que es más útil para leerlo y buscarlo
+        try {
+            return JSON.parse(texto);
+        } catch (e) {
+            return texto;
+        }
+    } catch (e) {
+        return null;
+    }
 }
 
 // La autorización y las cookies no tienen por qué quedarse escritas en la BD

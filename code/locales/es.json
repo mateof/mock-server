@@ -118,7 +118,13 @@
       "graphqlSchemaHelp": "Ingresa la URL de un endpoint GraphQL. Se enviará una consulta de introspección para extraer el schema y generar respuestas mock automáticamente.",
       "graphqlProxyHelp": "URL del endpoint GraphQL remoto. Las operaciones en modo 'Proxy' reenviarán la query a esta URL en lugar de devolver datos mock.",
       "wsHelp": "Define el comportamiento de este endpoint WebSocket. Añade mensajes para enviar al conectar, en respuesta a mensajes entrantes (por patrón) o periódicamente.",
-      "proxyTransformHelp": "Modifica la petición antes de enviarla al backend y la respuesta antes de devolverla, como haría un BFF. Las reglas se aplican primero y el script después, así que el script tiene la última palabra."
+      "proxyTransformHelp": "Modifica la petición antes de enviarla al backend y la respuesta antes de devolverla, como haría un BFF. Las reglas se aplican primero y el script después, así que el script tiene la última palabra.",
+      "proxyRecordingHelp": "Guarda como ruta mock cada respuesta del backend. Nacen desactivadas a propósito: un mock activo tapa a este proxy y no habría más que grabar. Actívalas cuando termines la sesión.",
+      "faultsHelp": "Hace que la ruta tarde, falle, o las dos cosas. Es lo que hace falta para probar timeouts, reintentos y degradación, que un mock que responde al instante no ejercita. En una ruta proxy el retardo se aplica antes de llamar al backend y un fallo provocado nunca llega a él.",
+      "templatingDesc": "Sustituye {{...}} en el cuerpo y en las cabeceras por datos de la petición o valores generados. Viene apagado porque una respuesta puede llevar {{...}} de forma legítima.",
+      "sequenceHelp": "Hace que la ruta responda distinto según la vez que se llame: primera pending, segunda processing, tercera done. Es lo que simula un flujo con sondeo, que las condiciones no pueden porque solo miran la petición y en un sondeo todas son iguales. El paso gana sobre las condiciones. El contador vive en memoria y se reinicia al reiniciar el servidor.",
+      "mockScriptHelp": "Transforma la respuesta con JavaScript antes de enviarla. Corre el último: ve el cuerpo definitivo, después de las condiciones, el escenario y la plantilla. Puede leer la petición con ms.request.json() y cambiar la respuesta con ms.response.code, ms.response.headers y ms.response.setBody().",
+      "sseHelp": "El cuerpo es la lista de eventos en JSON. `delay` es lo que se espera ANTES de mandar ese evento. Al acabar se cierra la conexión, salvo que actives el bucle."
     },
     "proxyTimeout": "Timeout de Petición",
     "proxyFallbacks": "Respuestas de Fallback",
@@ -173,7 +179,43 @@
     "paramNamePlaceholder": "Nombre de parámetro",
     "valuePlaceholder": "Valor",
     "scriptValid": "Script válido",
-    "editorFallback": "El editor avanzado no se pudo cargar. Puedes escribir el script igualmente, pero sin autocompletado."
+    "editorFallback": "El editor avanzado no se pudo cargar. Puedes escribir el script igualmente, pero sin autocompletado.",
+    "proxyRecording": "Modo grabación",
+    "proxyRecordingUpdate": "Actualizar la ruta si ya existe",
+    "proxyRecordingSkip": "No tocar las rutas que ya existen",
+    "faults": "Latencia y fallos",
+    "latencyMode": "Latencia",
+    "latencyNone": "Sin latencia",
+    "latencyFixed": "Retardo fijo",
+    "latencyRandom": "Retardo aleatorio",
+    "latencyMs": "Retardo",
+    "latencyRange": "Entre",
+    "faultRate": "Porcentaje de fallos",
+    "faultType": "Qué pasa al fallar",
+    "faultTypeError": "Responder un código de error",
+    "faultTypeReset": "Cortar la conexión",
+    "faultTypeEmpty": "Responder el código sin cuerpo",
+    "faultStatus": "Código del fallo",
+    "templating": "Respuesta dinámica",
+    "templatingData": "Datos de la petición",
+    "templatingGenerators": "Generadores",
+    "templatingDefaults": "Valor por defecto",
+    "templatingQuoting": "Comillas en JSON",
+    "sequence": "Escenario con estado",
+    "sequenceMode": "Al acabar la secuencia",
+    "sequenceStick": "Repetir el último paso",
+    "sequenceLoop": "Volver a empezar",
+    "sequenceStepName": "Nombre del paso (pending, processing...)",
+    "sequenceRepeat": "Llamadas",
+    "sequenceEmpty": "Sin pasos: la ruta responde siempre igual",
+    "sequenceSteps": "{{count}} pasos",
+    "sequenceReset": "Reiniciar",
+    "sequenceResetHint": "Vuelve al primer paso sin tocar la configuración",
+    "sequenceResetDone": "Escenario reiniciado",
+    "mockScript": "Script de la respuesta",
+    "scriptReference": "Referencia de la API ms.*",
+    "sseLoop": "Repetir los eventos en bucle",
+    "sseExample": "Formato de los eventos"
   },
   "responseTypes": {
     "json": "JSON",
@@ -186,7 +228,8 @@
     "proxy": "Proxy",
     "graphql": "GraphQL",
     "websocket": "WebSocket",
-    "empty": "Sin Body"
+    "empty": "Sin Body",
+    "sse": "SSE (eventos en streaming)"
   },
   "buttons": {
     "save": "Guardar",
@@ -306,7 +349,10 @@
     "updatingOrder": "Error actualizando orden",
     "creatingTag": "Error creando tag",
     "savingGraphQLOperations": "Error guardando operaciones GraphQL",
-    "importingGraphQLSchema": "Error importando schema GraphQL"
+    "importingGraphQLSchema": "Error importando schema GraphQL",
+    "savingSequence": "Error guardando el escenario",
+    "generic": "Ha ocurrido un error",
+    "savingWSMessages": "Error guardando los mensajes de WebSocket"
   },
   "empty": {
     "noHeaders": "No hay headers configurados",
@@ -409,7 +455,13 @@
   "bulk": {
     "selectAll": "Seleccionar todo",
     "deleteSelected": "Eliminar seleccionadas",
-    "confirmMessage": "¿Estás seguro de que deseas eliminar las rutas seleccionadas?"
+    "confirmMessage": "¿Estás seguro de que deseas eliminar las rutas seleccionadas?",
+    "enable": "Activar",
+    "disable": "Desactivar",
+    "enabled": "{{n}} rutas activadas",
+    "disabled": "{{n}} rutas desactivadas",
+    "enableTag": "Activar todas las rutas con este tag",
+    "disableTag": "Desactivar todas las rutas con este tag"
   },
   "duplicate": {
     "newRoute": "Nueva ruta",
@@ -691,6 +743,34 @@
     "traceFilter": "Filtrar por esta traza",
     "traceFilterHint": "Pulsa para ver solo las líneas de esta petición",
     "traceSteps": "pasos",
-    "traceRoute": "ruta"
+    "traceRoute": "ruta",
+    "toMocks": "Crear mocks",
+    "toMocksHint": "Convierte en rutas mock el tráfico proxy que estás viendo",
+    "saveAsMock": "Guardar como mock",
+    "confirmToMocks": "¿Convertir en rutas mock el tráfico proxy que casa con los filtros actuales?\n\nSe crearán desactivadas: una ruta mock activa tapa al proxy del que salió. Actívalas cuando las hayas revisado.",
+    "toMocksDone": "{{created}} rutas creadas, {{updated}} actualizadas, {{skipped}} descartadas",
+    "toMocksNone": "No hay tráfico proxy convertible con estos filtros",
+    "mockCreated": "Ruta {{path}} creada a partir del tráfico grabado",
+    "mockFailed": "No se pudo crear el mock: {{reason}}",
+    "reason": {
+      "truncated": "el log recortó el cuerpo y el mock saldría incompleto",
+      "binary": "la respuesta es binaria y no cabe en una ruta de texto",
+      "reserved": "la ruta usa un prefijo reservado",
+      "exists": "ya existe una ruta para ese método y camino",
+      "not-found": "la entrada ya no está en el log",
+      "no-response": "la entrada no guarda la respuesta del backend"
+    }
+  },
+  "usage": {
+    "calls": "{{n}} llamadas",
+    "never": "sin usar",
+    "justNow": "ahora mismo",
+    "secondsAgo": "hace {{n}} s",
+    "minutesAgo": "hace {{n}} min",
+    "hoursAgo": "hace {{n}} h",
+    "daysAgo": "hace {{n}} d",
+    "hint": "Llamadas registradas en el log, con la última y la duración media",
+    "neverHint": "No hay ninguna llamada a esta ruta en el log",
+    "errorsHint": "Respuestas con código 400 o superior"
   }
 }

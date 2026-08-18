@@ -13,9 +13,12 @@ const scriptRunner = require('../services/script-runner.service');
 const routesService = require('../services/routes.service');
 const logService = require('../services/log.service');
 const versionService = require('../services/version.service');
+const recordingService = require('../services/recording.service');
+const scenarioService = require('../services/scenario.service');
+const config = require('../services/paths');
 
 // Configuración de multer para subida de archivos
-const UPLOADS_DIR = path.join(__dirname, '..', 'data', 'uploads');
+const UPLOADS_DIR = path.join(config.DATA_DIR, 'uploads');
 
 // Asegurar que existe el directorio de uploads
 if (!fs.existsSync(UPLOADS_DIR)) {
@@ -188,6 +191,50 @@ router.post('/delete-bulk', async function(req, res) {
     } catch (err) {
         console.error('[API] Error en bulk delete:', err.message);
 
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+/* Activar o desactivar varias rutas de golpe, por id o por tag */
+router.post('/routes/bulk-active', async function(req, res) {
+    const activo = req.body.active ? 1 : 0;
+    const db = sqliteService.getDatabase();
+
+    try {
+        let ids = Array.isArray(req.body.ids) ? req.body.ids.map(Number).filter(n => !isNaN(n)) : null;
+
+        // Por tag: los tags viven serializados dentro de la propia fila, así que
+        // hay que mirarlos en JavaScript en vez de con un WHERE
+        if (!ids && req.body.tagId) {
+            const rutas = await routesService.listRoutes({});
+            ids = rutas.filter(r => {
+                if (!r.tags) return false;
+                try {
+                    return JSON.parse(r.tags).some(tag => tag.id === req.body.tagId);
+                } catch (e) {
+                    return false;
+                }
+            }).map(r => r.id);
+        }
+
+        if (!ids || ids.length === 0) {
+            return res.status(400).json({ success: false, error: 'No routes matched' });
+        }
+
+        const huecos = ids.map(() => '?').join(',');
+        const cambiadas = await new Promise((resolve, reject) => {
+            db.run(`UPDATE rutas SET activo = ? WHERE id IN (${huecos})`, [activo, ...ids], function(err) {
+                if (err) reject(err); else resolve(this.changes);
+            });
+        });
+
+        // Entre las afectadas puede haber proxys, y su configuración vive en memoria
+        await pm.reloadProxyConfigs();
+
+        console.log(`[API] ${cambiadas} rutas ${activo ? 'activadas' : 'desactivadas'}`);
+        res.json({ success: true, updated: cambiadas, active: !!activo, ids });
+    } catch (err) {
+        console.error(`[API] Error en el cambio masivo de estado: ${err.message}`);
         res.status(500).json({ success: false, error: err.message });
     }
 });
@@ -388,6 +435,90 @@ router.delete('/logs', async function(req, res) {
         console.error(`[API] Error vaciando el log: ${err.message}`);
         res.status(500).json({ error: err.message });
     }
+});
+
+/* Convertir una línea del log en una ruta mock */
+router.post('/logs/:id/mock', async function(req, res) {
+    try {
+        const resultado = await recordingService.desdeEntradaDeLog(req.params.id, {
+            mode: req.body.mode,
+            activo: req.body.active === undefined ? true : !!req.body.active,
+            tags: req.body.tags
+        });
+        if (resultado.action === 'skipped') {
+            return res.status(422).json({ success: false, ...resultado });
+        }
+        res.json({ success: true, ...resultado });
+    } catch (err) {
+        console.error(`[API] Error creando el mock desde el log: ${err.message}`);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/* Convertir en mocks todo lo que casa con unos filtros */
+router.post('/logs/mocks', async function(req, res) {
+    try {
+        const resumen = await recordingService.desdeFiltrosDeLog({
+            from: req.body.from,
+            to: req.body.to,
+            method: req.body.method,
+            status: req.body.status,
+            url: req.body.url,
+            search: req.body.search,
+            routeId: req.body.routeId,
+            traceId: req.body.traceId,
+            limit: req.body.limit
+        }, {
+            mode: req.body.mode,
+            activo: !!req.body.active,
+            tags: req.body.tags
+        });
+        res.json({ success: true, ...resumen });
+    } catch (err) {
+        console.error(`[API] Error creando mocks desde el log: ${err.message}`);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/* Uso por ruta: cuántas llamadas y cuándo fue la última */
+router.get('/routes/usage', async function(req, res) {
+    try {
+        res.json({ usage: await logService.usoPorRuta({ from: req.query.from }) });
+    } catch (err) {
+        console.error(`[API] Error calculando el uso por ruta: ${err.message}`);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ===== ESCENARIOS =====
+
+/* Guardar los pasos del escenario de una ruta */
+router.post('/routes/:id/sequence', async function(req, res) {
+    try {
+        await routesService.saveSequence(req.params.id, req.body.sequence, req.body.mode);
+        res.json({ success: true });
+    } catch (err) {
+        const codigo = err.name === 'RouteValidationError' ? 400 : 500;
+        console.error(`[API] Error guardando la secuencia: ${err.message}`);
+        res.status(codigo).json({ error: err.message });
+    }
+});
+
+/* Reiniciar el contador: vuelve a empezar el escenario sin tocar la configuración */
+router.post('/routes/:id/sequence/reset', function(req, res) {
+    scenarioService.reiniciar(req.params.id);
+    res.json({ success: true, route_id: Number(req.params.id), calls: 0 });
+});
+
+/* Reiniciar todos los contadores a la vez */
+router.post('/scenarios/reset', function(req, res) {
+    const total = scenarioService.reiniciar();
+    res.json({ success: true, reset: total });
+});
+
+/* Cuántas llamadas lleva cada escenario en marcha */
+router.get('/scenarios', function(req, res) {
+    res.json({ scenarios: scenarioService.estado() });
 });
 
 // ===== CONEXIONES MCP =====

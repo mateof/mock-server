@@ -9,6 +9,10 @@
         <button type="button" class="btn-modern btn-modern-secondary" onclick="LogsView.refresh()">
           <i class="fa fa-refresh"></i> <%= __('logs.refresh') %>
         </button>
+        <button type="button" class="btn-modern btn-modern-secondary" onclick="LogsView.mocksFromResults()"
+                title="<%= __('logs.toMocksHint') %>">
+          <i class="fa fa-record-vinyl"></i> <%= __('logs.toMocks') %>
+        </button>
         <button type="button" class="btn-modern btn-modern-danger" onclick="LogsView.clear()">
           <i class="fa fa-trash"></i> <%= __('logs.clear') %>
         </button>
@@ -155,7 +159,7 @@
               <th><%= __('logs.url') %></th>
               <th style="width: 70px;"><%= __('logs.status') %></th>
               <th style="width: 80px;"><%= __('logs.duration') %></th>
-              <th style="width: 40px;"></th>
+              <th style="width: 96px;"></th>
             </tr>
           </thead>
           <tbody id="logsBody"></tbody>
@@ -286,7 +290,9 @@
       const iconos = {
         request: 'fa-sign-in', route: 'fa-sitemap', condition: 'fa-code-fork',
         wait: 'fa-pause', script: 'fa-magic', 'proxy-request': 'fa-arrow-right',
-        'proxy-response': 'fa-arrow-left', fallback: 'fa-life-ring', response: 'fa-sign-out'
+        'proxy-response': 'fa-arrow-left', fallback: 'fa-life-ring',
+        sequence: 'fa-list-ol', template: 'fa-code', latency: 'fa-hourglass-half',
+        fault: 'fa-bolt', response: 'fa-sign-out'
       };
 
       document.getElementById('traceTimeline').innerHTML = traza.entries.map((e, i) => {
@@ -477,6 +483,11 @@
       const botonTraza = e.trace_id
         ? `<button class="btn-icon" onclick="event.stopPropagation(); LogsView.openTrace('${e.trace_id}')" title="${t('logs.traceOpen')}"><i class="fa fa-project-diagram"></i></button>`
         : '';
+      // Solo el tráfico proxy detallado lleva dentro la respuesta del backend,
+      // que es lo único con lo que se puede construir un mock
+      const botonMock = (e.type === 'proxy-detailed' && e.details && typeof e.details === 'object')
+        ? `<button class="btn-icon" onclick="event.stopPropagation(); LogsView.mockFromEntry(${e.id})" title="${t('logs.saveAsMock')}"><i class="fa fa-download"></i></button>`
+        : '';
       const abierta = this.expandidas.has(e.id);
 
       return `
@@ -488,7 +499,7 @@
           <td class="logs-url" title="${this.esc(e.message || '')}">${this.esc(e.url || e.message || '')}</td>
           <td>${e.status !== null && e.status !== undefined ? `<span class="logs-status logs-status-${String(e.status)[0]}xx">${e.status}</span>` : ''}</td>
           <td>${e.duration !== null && e.duration !== undefined ? e.duration + ' ms' : ''}</td>
-          <td class="logs-actions">${botonTraza}${detalle}</td>
+          <td class="logs-actions">${botonMock}${botonTraza}${detalle}</td>
         </tr>
         ${abierta ? `<tr class="logs-detail-row"><td colspan="7"><pre class="logs-detail">${this.esc(JSON.stringify(e.details, null, 2))}</pre></td></tr>` : ''}
       `;
@@ -540,6 +551,81 @@
         const boton = document.getElementById(`clear-${id}`);
         if (boton) boton.style.display = activo ? 'inline-flex' : 'none';
       });
+    },
+
+    // t() devuelve la propia clave cuando no la encuentra, así que hay que
+    // compararla para poder caer en el motivo crudo que manda el servidor
+    motivo(razon) {
+      const clave = 'logs.reason.' + razon;
+      const texto = t(clave);
+      return texto === clave ? razon : texto;
+    },
+
+    /**
+     * Convierte una línea concreta en una ruta mock.
+     *
+     * Se crea activa: pedirlo sobre una entrada concreta es una decisión
+     * explícita y es una ruta sola, así que taparla al proxy es lo que se busca.
+     */
+    async mockFromEntry(id) {
+      try {
+        const r = await fetch(`/api/logs/${id}/mock`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ active: true })
+        });
+        const datos = await r.json();
+
+        if (!r.ok || datos.success === false) {
+          showToast(t('logs.mockFailed').replace('{{reason}}', this.motivo(datos.reason)), 'warning');
+          return;
+        }
+        showToast(t('logs.mockCreated').replace('{{path}}', datos.ruta), 'success');
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    },
+
+    /**
+     * Convierte en mocks todo el tráfico proxy que casa con los filtros
+     * puestos. Nacen desactivadas: activarlas de golpe taparía al proxy del que
+     * salieron, y lo normal es querer revisarlas antes.
+     */
+    async mocksFromResults() {
+      if (!confirm(t('logs.confirmToMocks'))) return;
+
+      const p = this.parametros();
+      const cuerpo = { active: false, limit: 1000 };
+      for (const [clave, valor] of p.entries()) {
+        // El nivel y el tipo no viajan: la conversión ya se limita al tráfico
+        // proxy detallado, que es el único que lleva la respuesta dentro
+        if (clave === 'level' || clave === 'type') continue;
+        cuerpo[clave] = valor;
+      }
+
+      try {
+        const r = await fetch('/api/logs/mocks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(cuerpo)
+        });
+        const datos = await r.json();
+
+        if (!r.ok) {
+          showToast(datos.error || t('logs.mockFailed'), 'error');
+          return;
+        }
+        if (!datos.created && !datos.updated) {
+          showToast(t('logs.toMocksNone'), 'warning');
+          return;
+        }
+        showToast(t('logs.toMocksDone')
+          .replace('{{created}}', datos.created)
+          .replace('{{updated}}', datos.updated)
+          .replace('{{skipped}}', datos.skipped), 'success');
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
     },
 
     async clear() {

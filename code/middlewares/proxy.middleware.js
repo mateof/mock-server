@@ -2,6 +2,7 @@ const sqliteService = require('../services/sqlite.service');
 const criteriaService = require('../services/criteria-evaluator.service');
 const scriptRunner = require('../services/script-runner.service');
 const trace = require('../services/trace.service');
+const faultService = require('../services/fault.service');
 const http = require('http');
 const https = require('https');
 const zlib = require('zlib');
@@ -190,7 +191,13 @@ async function loadProxyConfigs() {
             requestHeaders: p.proxy_request_headers || null,
             requestParams: p.proxy_request_params || null,
             preScript: p.proxy_pre_script || null,
-            postScript: p.proxy_post_script || null
+            postScript: p.proxy_post_script || null,
+            // Modo grabación: cada respuesta del backend se guarda como mock
+            recording: p.recording === 1,
+            recordingMode: p.recording_mode || 'update',
+            // Se normaliza al cargar y no en cada petición: la configuración
+            // solo cambia al guardar la ruta, que ya fuerza una recarga
+            chaos: faultService.configuracion(p)
         };
     }));
 
@@ -457,6 +464,34 @@ async function configureProxy(app) {
         if (!proxyConfig) {
             console.log(`[PROXY] Sin proxy configurado, pasando al siguiente middleware`);
             return next();
+        }
+
+        // Latencia y fallos provocados, antes de salir hacia el backend: un
+        // fallo simulado no debe molestar al backend real, y el retardo tiene
+        // que sumarse al suyo, no solaparse
+        const chaos = proxyConfig.chaos;
+        if (chaos && faultService.estaActiva(chaos)) {
+            const retardo = faultService.calcularRetardo(chaos);
+            if (retardo > 0) {
+                trace.step(trace.PASOS.LATENCY, {
+                    message: `Latencia provocada: ${retardo} ms`,
+                    details: { mode: chaos.modo, delay_ms: retardo, min: chaos.min, max: chaos.max }
+                });
+                await faultService.esperar(retardo);
+            }
+
+            if (faultService.tocaFallar(chaos)) {
+                trace.step(trace.PASOS.FAULT, {
+                    message: `Fallo provocado (${chaos.tipoFallo})`,
+                    level: 'error',
+                    status: chaos.tipoFallo === 'reset' ? null : Number(chaos.codigoFallo),
+                    details: { type: chaos.tipoFallo, rate: chaos.porcentajeFallo, status: chaos.codigoFallo }
+                });
+                faultService.provocarFallo(chaos, res);
+                log.fault(req.method, requestPath, chaos.tipoFallo === 'reset' ? null : Number(chaos.codigoFallo),
+                    Date.now() - requestStart, `fallo provocado (${chaos.tipoFallo})`);
+                return;
+            }
         }
 
         try {
@@ -739,6 +774,22 @@ async function configureProxy(app) {
                         responseHeaders: headers,
                         responseBody
                     });
+
+                    // La grabación va aquí y no en el log porque necesita el
+                    // búfer entero: parseResponseBody recorta a 10 KB, y un
+                    // mock con el cuerpo cortado no sirve para nada
+                    if (proxyConfig.recording) {
+                        // Se pide tarde a propósito: routes.service depende de
+                        // este middleware, así que exigirlo arriba cerraría el ciclo
+                        const recording = require('../services/recording.service');
+                        recording.grabarIntercambio(proxyConfig, {
+                            method: req.method,
+                            url: requestPath,
+                            status: statusCode,
+                            headers,
+                            bodyBuffer
+                        }).catch(err => console.error(`[REC] ${err.message}`));
+                    }
                 };
 
                 // Con script de respuesta no se puede ir escribiendo según llega:
