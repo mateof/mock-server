@@ -40,6 +40,13 @@ A powerful HTTP mocking and proxying application built with Express.js and Node.
   - Validation with test URL
   - Separate path extraction for proxies
 
+- **Traffic Recording** - Turn real traffic into mocks instead of writing them by hand
+  - Recording mode on a proxy route: every backend response becomes a mock route
+  - "Save as mock" on any line of the log, and bulk conversion from the current filters
+  - Recorded routes are created inactive, so they do not shadow the proxy that captured them
+  - Available over MCP: "mock everything that went through /orders in the last hour"
+  - See [Recording Documentation](docs/recording.md) for details
+
 - **Custom Headers** - Add, modify, or remove response headers
   - Array-based configuration: `{action: "set"|"remove", name, value}`
   - Applied to both mock and proxy responses

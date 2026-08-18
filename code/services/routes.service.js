@@ -149,7 +149,9 @@ function buildColumns(payload) {
         proxy_request_headers: isProxy ? asJsonText(payload.proxyRequestHeaders) : null,
         proxy_request_params: isProxy ? asJsonText(payload.proxyRequestParams) : null,
         proxy_pre_script: isProxy ? (payload.proxyPreScript || null) : null,
-        proxy_post_script: isProxy ? (payload.proxyPostScript || null) : null
+        proxy_post_script: isProxy ? (payload.proxyPostScript || null) : null,
+        recording: isProxy && toBool(payload.recording) ? 1 : 0,
+        recording_mode: isProxy ? (payload.recordingMode === 'skip' ? 'skip' : 'update') : null
     };
 }
 
@@ -221,14 +223,15 @@ async function createRoute(payload, options = {}) {
     const result = await dbRun(
         `INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders,
             activo, orden, fileName, filePath, fileMimeType, tags, operationId, summary, description,
-            requestBodyExample, proxy_timeout, proxy_request_headers, proxy_request_params, proxy_pre_script, proxy_post_script)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            requestBodyExample, proxy_timeout, proxy_request_headers, proxy_request_params, proxy_pre_script, proxy_post_script,
+            recording, recording_mode)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [columns.tipo, columns.ruta, columns.codigo, columns.respuesta, columns.tiporespuesta,
          columns.esperaActiva, columns.isRegex, columns.customHeaders, columns.activo, orden,
          file.fileName || null, file.filePath || null, file.fileMimeType || null,
          columns.tags, columns.operationId, columns.summary, columns.description, columns.requestBodyExample,
          columns.proxy_timeout, columns.proxy_request_headers, columns.proxy_request_params,
-         columns.proxy_pre_script, columns.proxy_post_script]
+         columns.proxy_pre_script, columns.proxy_post_script, columns.recording, columns.recording_mode]
     );
 
     if (Array.isArray(payload.conditions)) {
@@ -272,14 +275,15 @@ async function updateRoute(id, payload, options = {}) {
         `UPDATE rutas SET tipo = ?, ruta = ?, codigo = ?, respuesta = ?, tiporespuesta = ?, esperaActiva = ?,
             isRegex = ?, customHeaders = ?, activo = ?, orden = ?, fileName = ?, filePath = ?, fileMimeType = ?,
             tags = ?, operationId = ?, summary = ?, description = ?, requestBodyExample = ?, proxy_timeout = ?,
-            proxy_request_headers = ?, proxy_request_params = ?, proxy_pre_script = ?, proxy_post_script = ?
+            proxy_request_headers = ?, proxy_request_params = ?, proxy_pre_script = ?, proxy_post_script = ?,
+            recording = ?, recording_mode = ?
          WHERE id = ?`,
         [columns.tipo, columns.ruta, columns.codigo, columns.respuesta, columns.tiporespuesta,
          columns.esperaActiva, columns.isRegex, columns.customHeaders, columns.activo, orden,
          file.fileName, file.filePath, file.fileMimeType,
          columns.tags, columns.operationId, columns.summary, columns.description, columns.requestBodyExample,
          columns.proxy_timeout, columns.proxy_request_headers, columns.proxy_request_params,
-         columns.proxy_pre_script, columns.proxy_post_script, routeId]
+         columns.proxy_pre_script, columns.proxy_post_script, columns.recording, columns.recording_mode, routeId]
     );
 
     if (Array.isArray(payload.conditions)) {
@@ -529,14 +533,17 @@ async function duplicateRoute(id, newPath) {
         `INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders,
             activo, orden, fileName, filePath, fileMimeType, tags, operationId, summary, description,
             requestBodyExample, proxy_timeout, proxy_request_headers, proxy_request_params, proxy_pre_script,
-            proxy_post_script, graphql_schema, graphql_proxy_url)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            proxy_post_script, graphql_schema, graphql_proxy_url, recording, recording_mode)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [original.tipo, newPath, original.codigo, original.respuesta, original.tiporespuesta,
          original.esperaActiva, original.isRegex, original.customHeaders, original.activo, orden,
          fileName, filePath, fileMimeType, original.tags, original.operationId, original.summary,
          original.description, original.requestBodyExample, original.proxy_timeout,
          original.proxy_request_headers, original.proxy_request_params, original.proxy_pre_script,
-         original.proxy_post_script, original.graphql_schema, original.graphql_proxy_url]
+         original.proxy_post_script, original.graphql_schema, original.graphql_proxy_url,
+         // La grabación no se copia: es un modo de operación, no configuración,
+         // y duplicar una ruta no debería poner a grabar una segunda en silencio
+         0, original.recording_mode]
     );
 
     const nuevoId = result.lastID;

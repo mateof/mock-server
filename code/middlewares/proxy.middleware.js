@@ -190,7 +190,10 @@ async function loadProxyConfigs() {
             requestHeaders: p.proxy_request_headers || null,
             requestParams: p.proxy_request_params || null,
             preScript: p.proxy_pre_script || null,
-            postScript: p.proxy_post_script || null
+            postScript: p.proxy_post_script || null,
+            // Modo grabación: cada respuesta del backend se guarda como mock
+            recording: p.recording === 1,
+            recordingMode: p.recording_mode || 'update'
         };
     }));
 
@@ -739,6 +742,22 @@ async function configureProxy(app) {
                         responseHeaders: headers,
                         responseBody
                     });
+
+                    // La grabación va aquí y no en el log porque necesita el
+                    // búfer entero: parseResponseBody recorta a 10 KB, y un
+                    // mock con el cuerpo cortado no sirve para nada
+                    if (proxyConfig.recording) {
+                        // Se pide tarde a propósito: routes.service depende de
+                        // este middleware, así que exigirlo arriba cerraría el ciclo
+                        const recording = require('../services/recording.service');
+                        recording.grabarIntercambio(proxyConfig, {
+                            method: req.method,
+                            url: requestPath,
+                            status: statusCode,
+                            headers,
+                            bodyBuffer
+                        }).catch(err => console.error(`[REC] ${err.message}`));
+                    }
                 };
 
                 // Con script de respuesta no se puede ir escribiendo según llega:

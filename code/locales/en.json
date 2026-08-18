@@ -118,7 +118,8 @@
       "graphqlSchemaHelp": "Enter the URL of a GraphQL endpoint. An introspection query will be sent to extract the schema and automatically generate mock responses.",
       "graphqlProxyHelp": "URL of the remote GraphQL endpoint. Operations set to 'Proxy' mode will forward the query to this URL instead of returning mock data.",
       "wsHelp": "Define how this WebSocket endpoint behaves. Add messages to send on connect, in response to incoming messages (by pattern matching), or periodically.",
-      "proxyTransformHelp": "Change the request before it reaches the backend and the response before it goes back, the way a BFF would. Rules are applied first and the script afterwards, so the script has the final say."
+      "proxyTransformHelp": "Change the request before it reaches the backend and the response before it goes back, the way a BFF would. Rules are applied first and the script afterwards, so the script has the final say.",
+      "proxyRecordingHelp": "Saves every backend response as a mock route. They are created inactive on purpose: an active mock shadows this proxy and there would be nothing left to record. Activate them when the session is done."
     },
     "proxyTimeout": "Request Timeout",
     "proxyFallbacks": "Fallback Responses",
@@ -173,7 +174,10 @@
     "paramNamePlaceholder": "Parameter name",
     "valuePlaceholder": "Value",
     "scriptValid": "Valid script",
-    "editorFallback": "The rich editor could not be loaded. You can still write the script, just without autocomplete."
+    "editorFallback": "The rich editor could not be loaded. You can still write the script, just without autocomplete.",
+    "proxyRecording": "Recording mode",
+    "proxyRecordingUpdate": "Update the route if it already exists",
+    "proxyRecordingSkip": "Leave existing routes alone"
   },
   "responseTypes": {
     "json": "JSON",
@@ -691,6 +695,22 @@
     "traceFilter": "Filter by this trace",
     "traceFilterHint": "Click to see only the lines of this request",
     "traceSteps": "steps",
-    "traceRoute": "route"
+    "traceRoute": "route",
+    "toMocks": "Create mocks",
+    "toMocksHint": "Turn the proxied traffic you are looking at into mock routes",
+    "saveAsMock": "Save as mock",
+    "confirmToMocks": "Turn the proxied traffic matching the current filters into mock routes?\n\nThey are created inactive: an active mock route shadows the proxy it came from. Activate them once you have reviewed them.",
+    "toMocksDone": "{{created}} routes created, {{updated}} updated, {{skipped}} skipped",
+    "toMocksNone": "No convertible proxied traffic with these filters",
+    "mockCreated": "Route {{path}} created from the recorded traffic",
+    "mockFailed": "Could not create the mock: {{reason}}",
+    "reason": {
+      "truncated": "the log truncated the body, so the mock would be incomplete",
+      "binary": "the response is binary and does not fit in a text route",
+      "reserved": "the path uses a reserved prefix",
+      "exists": "a route already exists for that method and path",
+      "not-found": "the entry is no longer in the log",
+      "no-response": "the entry does not store the backend response"
+    }
   }
 }

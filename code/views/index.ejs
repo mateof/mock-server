@@ -1249,7 +1249,7 @@
   function checkRespuesta() {
     const tipoResp = document.getElementById("tiporespuesta").value;
     showElements(['#divtresp', '#divtipo', '#divruta', '#divcodresp', '#divresp', '#divEsperaActiva', '#divMetadata', '#divHeaders', '#divConditions']);
-    hideElements(['#divDestino', '#divFile', '#divProxyTimeout', '#divFallbacks', '#divProxyTransform', '#divGraphQL', '#divWebSocket']);
+    hideElements(['#divDestino', '#divFile', '#divProxyTimeout', '#divProxyRecording', '#divFallbacks', '#divProxyTransform', '#divGraphQL', '#divWebSocket']);
 
     // Nav panel: show conditions/fallbacks/graphql/websocket dividers based on type
     document.getElementById('navDividerConditions').style.display = '';
@@ -1266,7 +1266,7 @@
       // Los headers sí se muestran: en un proxy son los de la respuesta, y el
       // servidor ya los aplicaba aunque el formulario los tuviera ocultos.
       hideElements(['#divtipo', '#divcodresp', '#divEsperaActiva', '#divresp', '#divFile', '#divMetadata', '#divConditions']);
-      showElements(['#divDestino', '#divProxyTimeout', '#divFallbacks', '#divProxyTransform', '#divHeaders']);
+      showElements(['#divDestino', '#divProxyTimeout', '#divProxyRecording', '#divFallbacks', '#divProxyTransform', '#divHeaders']);
       // Se descarga aquí, no al cargar la página: solo lo necesita quien
       // configura un proxy
       ScriptEditors.montar().then(() => ScriptEditors.sincronizar());
@@ -5586,6 +5586,8 @@
     document.getElementById("requestBodyExample").value = '';
     // Limpiar proxy timeout, fallbacks y transformaciones
     document.getElementById("proxyTimeout").value = '30000';
+    document.getElementById("proxyRecording").checked = false;
+    document.getElementById("proxyRecordingMode").value = 'update';
     clearFallbacks();
     ProxyTransform.clearAll();
   }
@@ -5599,6 +5601,8 @@
       document.getElementById("respuesta").value = '';
       // Proxy timeout
       document.getElementById("proxyTimeout").value = obj.proxy_timeout || 30000;
+      document.getElementById("proxyRecording").checked = obj.recording === 1;
+      document.getElementById("proxyRecordingMode").value = obj.recording_mode || 'update';
     } else {
       document.getElementById("respuesta").value = obj.respuesta || '';
       document.getElementById("destinoProxy").value = '';
@@ -5694,6 +5698,8 @@
     if (tiporespuesta === 'proxy') {
       const proxyTimeout = document.getElementById("proxyTimeout").value || 30000;
       formData.append('proxyTimeout', proxyTimeout);
+      formData.append('recording', document.getElementById("proxyRecording").checked);
+      formData.append('recordingMode', document.getElementById("proxyRecordingMode").value);
       ProxyTransform.appendTo(formData);
     }
 
@@ -5808,6 +5814,8 @@
     if (tiporespuesta === 'proxy') {
       const proxyTimeout = document.getElementById("proxyTimeout").value || 30000;
       formData.append('proxyTimeout', proxyTimeout);
+      formData.append('recording', document.getElementById("proxyRecording").checked);
+      formData.append('recordingMode', document.getElementById("proxyRecordingMode").value);
       ProxyTransform.appendTo(formData);
     }
 

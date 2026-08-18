@@ -194,6 +194,24 @@
                 </small>
               </div>
 
+              <!-- Modo grabación -->
+              <div class="alert-modern alert-modern-info" id="divProxyRecording" style="display: none;">
+                <i class="fa fa-record-vinyl alert-icon" aria-hidden="true"></i>
+                <div class="alert-content">
+                  <div class="alert-title"><%= __('form.proxyRecording') %></div>
+                  <div class="alert-text"><%= __('form.help.proxyRecordingHelp') %></div>
+                  <select class="form-control-modern" id="proxyRecordingMode" name="recordingMode"
+                          style="max-width: 260px; margin-top: 0.5rem;">
+                    <option value="update"><%= __('form.proxyRecordingUpdate') %></option>
+                    <option value="skip"><%= __('form.proxyRecordingSkip') %></option>
+                  </select>
+                </div>
+                <label class="switch-modern" for="proxyRecording">
+                  <input type="checkbox" id="proxyRecording" name="recording">
+                  <span class="slider"></span>
+                </label>
+              </div>
+
               <!-- Proxy Fallbacks -->
               <div class="collapsible-section" id="divFallbacks" style="display: none; margin-top: 1.25rem;">
                 <div class="collapsible-header" onclick="toggleFallbacksSection()">

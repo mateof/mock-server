@@ -26,6 +26,7 @@ const routesService = require('./routes.service');
 const criteriaService = require('./criteria-evaluator.service');
 const scriptRunner = require('./script-runner.service');
 const logService = require('./log.service');
+const recordingService = require('./recording.service');
 const { log } = require('./socket.service');
 const { version } = require('../package.json');
 
@@ -99,6 +100,8 @@ function toPayload(args, base = {}) {
     if (args.proxy_request_params !== undefined) payload.proxyRequestParams = args.proxy_request_params;
     if (args.proxy_pre_script !== undefined) payload.proxyPreScript = args.proxy_pre_script;
     if (args.proxy_post_script !== undefined) payload.proxyPostScript = args.proxy_post_script;
+    if (args.recording !== undefined) payload.recording = args.recording;
+    if (args.recording_mode !== undefined) payload.recordingMode = args.recording_mode;
 
     if (args.conditions !== undefined) {
         payload.conditions = args.conditions.map(c => ({
@@ -153,6 +156,8 @@ function toRouteView(row, { detailed = false } = {}) {
         view.proxy_request_params = parse(row.proxy_request_params) || [];
         view.proxy_pre_script = row.proxy_pre_script || null;
         view.proxy_post_script = row.proxy_post_script || null;
+        view.recording = row.recording === 1;
+        view.recording_mode = row.recording_mode || 'update';
         view.fallbacks = (row.fallbacks || []).map(f => ({
             id: f.id,
             name: f.nombre,
@@ -404,7 +409,10 @@ function buildServer() {
             proxyRequestHeaders: ruta.proxy_request_headers,
             proxyRequestParams: ruta.proxy_request_params,
             proxyPreScript: ruta.proxy_pre_script,
-            proxyPostScript: ruta.proxy_post_script
+            proxyPostScript: ruta.proxy_post_script,
+            // Sin esto, tocar la transformación apagaría la grabación de paso
+            recording: ruta.recording === 1,
+            recordingMode: ruta.recording_mode
         }), { file: 'keep' });
 
         log.success(`🤖 MCP: transformación actualizada en la ruta ${args.id}`);
@@ -617,6 +625,106 @@ function buildServer() {
     }, async ({ id }) => run('delete_tag', async () => {
         await sqliteService.deleteTag(id);
         return ok({ deleted: true, id });
+    }));
+
+    // ===== GRABACIÓN =====
+
+    server.registerTool('set_route_recording', {
+        title: 'Turn recording on or off',
+        description: 'Puts a proxy route into recording mode: every backend response is saved as a mock route. Recorded routes are created INACTIVE, because an active mock outranks the proxy and would stop any further traffic reaching the backend. Activate them with update_route once the session is captured.',
+        inputSchema: {
+            id: z.number(),
+            recording: z.boolean(),
+            mode: z.enum(['update', 'skip']).optional().describe('What to do when a mock for that method and path already exists. Default: update')
+        }
+    }, async (args) => run('set_route_recording', async () => {
+        const ruta = await routesService.getRoute(args.id);
+        if (!ruta) return fail(`No existe la ruta ${args.id}`);
+        if (ruta.tiporespuesta !== 'proxy') {
+            return fail(`La ruta ${args.id} es de tipo "${ruta.tiporespuesta}"; la grabación solo existe en rutas proxy`);
+        }
+
+        await routesService.updateRoute(args.id, {
+            tipo: ruta.tipo,
+            ruta: ruta.ruta,
+            codigo: ruta.codigo,
+            respuesta: ruta.respuesta,
+            tiporespuesta: ruta.tiporespuesta,
+            esperaActiva: ruta.esperaActiva,
+            isRegex: ruta.isRegex,
+            customHeaders: ruta.customHeaders,
+            activo: ruta.activo,
+            tags: ruta.tags,
+            proxyTimeout: ruta.proxy_timeout,
+            proxyRequestHeaders: ruta.proxy_request_headers,
+            proxyRequestParams: ruta.proxy_request_params,
+            proxyPreScript: ruta.proxy_pre_script,
+            proxyPostScript: ruta.proxy_post_script,
+            recording: args.recording,
+            recordingMode: args.mode || ruta.recording_mode
+        }, { file: 'keep' });
+
+        log.success(`🤖 MCP: grabación ${args.recording ? 'activada' : 'desactivada'} en la ruta ${args.id}`);
+        const actualizada = await routesService.getRoute(args.id);
+        return ok({ updated: true, route: toRouteView(actualizada, { detailed: true }) });
+    }));
+
+    server.registerTool('create_mocks_from_logs', {
+        title: 'Turn recorded traffic into mocks',
+        description: 'Creates mock routes from proxied traffic already in the log: "everything that went through /orders in the last hour". Takes the newest response for each method and path, so repeated calls yield one route, not one per call. Entries whose body the log truncated, or whose response is binary, are reported as skipped instead of producing a broken mock.',
+        inputSchema: {
+            url: z.string().optional().describe('Substring of the path, e.g. /orders'),
+            from: z.number().optional().describe('Epoch ms, lower bound'),
+            to: z.number().optional().describe('Epoch ms, upper bound'),
+            method: z.string().optional(),
+            status: z.string().optional().describe('Exact code (404) or family (2xx)'),
+            trace_id: z.string().optional(),
+            limit: z.number().optional().describe('How many log entries to examine, max 1000'),
+            active: z.boolean().optional().describe('Whether the created routes are active. Default false, so they do not shadow the proxy they came from'),
+            mode: z.enum(['update', 'skip']).optional().describe('What to do when the mock already exists. Default: update'),
+            tags: z.array(z.string()).optional()
+        }
+    }, async (args) => run('create_mocks_from_logs', async () => {
+        const resumen = await recordingService.desdeFiltrosDeLog({
+            url: args.url,
+            from: args.from,
+            to: args.to,
+            method: args.method,
+            status: args.status,
+            traceId: args.trace_id,
+            limit: args.limit
+        }, {
+            activo: !!args.active,
+            mode: args.mode,
+            tags: args.tags
+        });
+
+        log.success(`🤖 MCP: ${resumen.created} rutas creadas y ${resumen.updated} actualizadas desde el log`);
+        return ok(resumen);
+    }));
+
+    server.registerTool('create_mock_from_log_entry', {
+        title: 'Turn one log line into a mock',
+        description: 'Creates a mock route from a single log entry, using its id as returned by query_logs. The route is created active, because asking for one specific entry is an explicit choice.',
+        inputSchema: {
+            log_id: z.number(),
+            active: z.boolean().optional(),
+            mode: z.enum(['update', 'skip']).optional(),
+            tags: z.array(z.string()).optional()
+        }
+    }, async (args) => run('create_mock_from_log_entry', async () => {
+        const resultado = await recordingService.desdeEntradaDeLog(args.log_id, {
+            activo: args.active === undefined ? true : args.active,
+            mode: args.mode,
+            tags: args.tags
+        });
+
+        if (resultado.action === 'skipped') {
+            return fail(`No se pudo convertir la entrada ${args.log_id}: ${resultado.reason}`);
+        }
+
+        log.success(`🤖 MCP: ruta ${resultado.id} ${resultado.action} desde la entrada ${args.log_id} del log`);
+        return ok(resultado);
     }));
 
     server.registerTool('validate_script', {

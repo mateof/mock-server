@@ -118,7 +118,8 @@
       "graphqlSchemaHelp": "Ingresa la URL de un endpoint GraphQL. Se enviará una consulta de introspección para extraer el schema y generar respuestas mock automáticamente.",
       "graphqlProxyHelp": "URL del endpoint GraphQL remoto. Las operaciones en modo 'Proxy' reenviarán la query a esta URL en lugar de devolver datos mock.",
       "wsHelp": "Define el comportamiento de este endpoint WebSocket. Añade mensajes para enviar al conectar, en respuesta a mensajes entrantes (por patrón) o periódicamente.",
-      "proxyTransformHelp": "Modifica la petición antes de enviarla al backend y la respuesta antes de devolverla, como haría un BFF. Las reglas se aplican primero y el script después, así que el script tiene la última palabra."
+      "proxyTransformHelp": "Modifica la petición antes de enviarla al backend y la respuesta antes de devolverla, como haría un BFF. Las reglas se aplican primero y el script después, así que el script tiene la última palabra.",
+      "proxyRecordingHelp": "Guarda como ruta mock cada respuesta del backend. Nacen desactivadas a propósito: un mock activo tapa a este proxy y no habría más que grabar. Actívalas cuando termines la sesión."
     },
     "proxyTimeout": "Timeout de Petición",
     "proxyFallbacks": "Respuestas de Fallback",
@@ -173,7 +174,10 @@
     "paramNamePlaceholder": "Nombre de parámetro",
     "valuePlaceholder": "Valor",
     "scriptValid": "Script válido",
-    "editorFallback": "El editor avanzado no se pudo cargar. Puedes escribir el script igualmente, pero sin autocompletado."
+    "editorFallback": "El editor avanzado no se pudo cargar. Puedes escribir el script igualmente, pero sin autocompletado.",
+    "proxyRecording": "Modo grabación",
+    "proxyRecordingUpdate": "Actualizar la ruta si ya existe",
+    "proxyRecordingSkip": "No tocar las rutas que ya existen"
   },
   "responseTypes": {
     "json": "JSON",
@@ -691,6 +695,22 @@
     "traceFilter": "Filtrar por esta traza",
     "traceFilterHint": "Pulsa para ver solo las líneas de esta petición",
     "traceSteps": "pasos",
-    "traceRoute": "ruta"
+    "traceRoute": "ruta",
+    "toMocks": "Crear mocks",
+    "toMocksHint": "Convierte en rutas mock el tráfico proxy que estás viendo",
+    "saveAsMock": "Guardar como mock",
+    "confirmToMocks": "¿Convertir en rutas mock el tráfico proxy que casa con los filtros actuales?\n\nSe crearán desactivadas: una ruta mock activa tapa al proxy del que salió. Actívalas cuando las hayas revisado.",
+    "toMocksDone": "{{created}} rutas creadas, {{updated}} actualizadas, {{skipped}} descartadas",
+    "toMocksNone": "No hay tráfico proxy convertible con estos filtros",
+    "mockCreated": "Ruta {{path}} creada a partir del tráfico grabado",
+    "mockFailed": "No se pudo crear el mock: {{reason}}",
+    "reason": {
+      "truncated": "el log recortó el cuerpo y el mock saldría incompleto",
+      "binary": "la respuesta es binaria y no cabe en una ruta de texto",
+      "reserved": "la ruta usa un prefijo reservado",
+      "exists": "ya existe una ruta para ese método y camino",
+      "not-found": "la entrada ya no está en el log",
+      "no-response": "la entrada no guarda la respuesta del backend"
+    }
   }
 }

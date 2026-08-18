@@ -13,6 +13,7 @@ const scriptRunner = require('../services/script-runner.service');
 const routesService = require('../services/routes.service');
 const logService = require('../services/log.service');
 const versionService = require('../services/version.service');
+const recordingService = require('../services/recording.service');
 
 // Configuración de multer para subida de archivos
 const UPLOADS_DIR = path.join(__dirname, '..', 'data', 'uploads');
@@ -386,6 +387,49 @@ router.delete('/logs', async function(req, res) {
         res.json({ success: true, deleted: eliminados });
     } catch (err) {
         console.error(`[API] Error vaciando el log: ${err.message}`);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/* Convertir una línea del log en una ruta mock */
+router.post('/logs/:id/mock', async function(req, res) {
+    try {
+        const resultado = await recordingService.desdeEntradaDeLog(req.params.id, {
+            mode: req.body.mode,
+            activo: req.body.active === undefined ? true : !!req.body.active,
+            tags: req.body.tags
+        });
+        if (resultado.action === 'skipped') {
+            return res.status(422).json({ success: false, ...resultado });
+        }
+        res.json({ success: true, ...resultado });
+    } catch (err) {
+        console.error(`[API] Error creando el mock desde el log: ${err.message}`);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/* Convertir en mocks todo lo que casa con unos filtros */
+router.post('/logs/mocks', async function(req, res) {
+    try {
+        const resumen = await recordingService.desdeFiltrosDeLog({
+            from: req.body.from,
+            to: req.body.to,
+            method: req.body.method,
+            status: req.body.status,
+            url: req.body.url,
+            search: req.body.search,
+            routeId: req.body.routeId,
+            traceId: req.body.traceId,
+            limit: req.body.limit
+        }, {
+            mode: req.body.mode,
+            activo: !!req.body.active,
+            tags: req.body.tags
+        });
+        res.json({ success: true, ...resumen });
+    } catch (err) {
+        console.error(`[API] Error creando mocks desde el log: ${err.message}`);
         res.status(500).json({ error: err.message });
     }
 });

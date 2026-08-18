@@ -197,6 +197,9 @@ async function createTables(newdb) {
     await addColumn(newdb, 'proxy_request_params', 'TEXT');
     await addColumn(newdb, 'proxy_pre_script', 'TEXT');
     await addColumn(newdb, 'proxy_post_script', 'TEXT');
+    // Modo grabación: convierte en mocks lo que va respondiendo el backend
+    await addColumn(newdb, 'recording', 'INTEGER DEFAULT 0');
+    await addColumn(newdb, 'recording_mode', "TEXT DEFAULT 'update'");
 
     // Crear índices para optimizar búsquedas de rutas
     await new Promise((resolve) => {

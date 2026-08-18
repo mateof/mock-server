@@ -77,6 +77,16 @@ The server is stateless on purpose. A tool-only server needs nothing between cal
 | `reorder_routes` | Sets which route wins when several match |
 | `create_tag` / `delete_tag` | Manages tags |
 
+### Recording
+
+| Tool | What it does |
+|------|--------------|
+| `set_route_recording` | Puts a proxy route into recording mode: every backend response becomes a mock route |
+| `create_mocks_from_logs` | Turns traffic already in the log into mocks: "everything that went through /orders in the last hour" |
+| `create_mock_from_log_entry` | Turns one log line into a mock, by the id `query_logs` returns |
+
+Recorded routes are created **inactive**, because a mock outranks the proxy and an active one would stop any further traffic reaching the backend. Activate them with `update_route` once the session is captured. See [Recording](recording.md) for the whole picture.
+
 ### Building a flow
 
 Some route types are inert until their pieces are configured, so the order matters:
@@ -107,6 +117,10 @@ The assistant would call `create_route` and then `set_route_conditions`, and can
 > The `/legacy` proxy needs an API key added and the response trimmed to the fields the app uses.
 
 `set_proxy_transform` with `request_headers` and a `post_script`. It can try the script with `validate_script` before saving it.
+
+> Mock everything that went through `/orders` in the last hour.
+
+`create_mocks_from_logs` with `url` and `from`. It keeps the newest response for each method and path, so repeated calls give one route each, and reports what it could not convert instead of writing a broken mock.
 
 ## What the assistant cannot do
 
