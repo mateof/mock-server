@@ -2425,6 +2425,175 @@
     body.style.display = body.style.display === 'none' ? 'block' : 'none';
   }
 
+  // ===== ESCENARIO CON ESTADO =====
+
+  let sequenceCounter = 0;
+  // La ruta que se está editando, para poder reiniciar su contador sin cerrar
+  let sequenceRouteId = null;
+
+  function toggleSequenceSection() {
+    const body = document.querySelector('#divSequence .collapsible-body');
+    body.style.display = body.style.display === 'none' ? 'block' : 'none';
+  }
+
+  function addSequenceRow(data = {}) {
+    sequenceCounter++;
+    const container = document.getElementById('sequenceContainer');
+    document.getElementById('noSequenceMsg').style.display = 'none';
+
+    const card = document.createElement('div');
+    card.className = 'condition-card';
+    card.id = `sequence-${sequenceCounter}`;
+    card.dataset.order = sequenceCounter;
+
+    card.innerHTML = `
+      <div class="condition-header">
+        <span class="sequence-step-number" id="sequence-number-${sequenceCounter}"></span>
+        <input type="text" class="form-control-modern condition-name"
+               placeholder="${t('form.sequenceStepName')}"
+               id="sequence-name-${sequenceCounter}"
+               value="${escapeHtml(data.nombre || '')}">
+        <label class="switch-modern" style="margin-left: auto;">
+          <input type="checkbox" id="sequence-active-${sequenceCounter}" ${data.activo !== false ? 'checked' : ''}>
+          <span class="slider"></span>
+        </label>
+        <button class="btn-icon btn-icon-danger" type="button" onclick="removeSequenceRow(${sequenceCounter})" title="${t('buttons.delete')}">
+          <i class="fa fa-trash"></i>
+        </button>
+      </div>
+      <div class="condition-body">
+        <div class="override-row">
+          <div class="form-group-modern" style="flex: 0 0 100px;">
+            <label class="form-label-modern">${t('table.code')}</label>
+            <input type="text" class="form-control-modern" id="sequence-code-${sequenceCounter}"
+                   placeholder="-" value="${escapeHtml(data.codigo || '')}">
+          </div>
+          <div class="form-group-modern" style="flex: 0 0 150px;">
+            <label class="form-label-modern">${t('table.type')}</label>
+            <select class="form-control-modern form-select-modern" id="sequence-type-${sequenceCounter}">
+              <option value="">${t('form.useDefault')}</option>
+              <option value="json" ${data.tiporespuesta === 'json' ? 'selected' : ''}>JSON</option>
+              <option value="xml" ${data.tiporespuesta === 'xml' ? 'selected' : ''}>XML</option>
+              <option value="text" ${data.tiporespuesta === 'text' ? 'selected' : ''}>Text</option>
+              <option value="html" ${data.tiporespuesta === 'html' ? 'selected' : ''}>HTML</option>
+              <option value="empty" ${data.tiporespuesta === 'empty' ? 'selected' : ''}>Empty</option>
+            </select>
+          </div>
+          <div class="form-group-modern" style="flex: 0 0 130px;">
+            <label class="form-label-modern">${t('form.sequenceRepeat')}</label>
+            <input type="number" class="form-control-modern" id="sequence-repeat-${sequenceCounter}"
+                   min="1" max="1000" value="${parseInt(data.repeticiones) || 1}">
+          </div>
+        </div>
+        <div class="form-group-modern">
+          <label class="form-label-modern">${t('form.response')}</label>
+          <textarea class="form-control-modern" id="sequence-response-${sequenceCounter}"
+                    placeholder="${t('form.placeholder.leaveEmpty')}"
+                    rows="3">${escapeHtml(data.respuesta || '')}</textarea>
+        </div>
+      </div>`;
+
+    container.appendChild(card);
+    renumberSequence();
+  }
+
+  function removeSequenceRow(id) {
+    const card = document.getElementById(`sequence-${id}`);
+    if (card) card.remove();
+    if (document.getElementById('sequenceContainer').children.length === 0) {
+      document.getElementById('noSequenceMsg').style.display = 'block';
+    }
+    renumberSequence();
+  }
+
+  /**
+   * El número de paso se recalcula al añadir o quitar: si fuera fijo, borrar el
+   * segundo paso dejaría una secuencia 1, 3, 4 y nadie sabría cuál va primero
+   */
+  function renumberSequence() {
+    const tarjetas = document.querySelectorAll('#sequenceContainer .condition-card');
+    let acumulado = 0;
+    tarjetas.forEach((card, idx) => {
+      const id = card.id.replace('sequence-', '');
+      const veces = parseInt(document.getElementById(`sequence-repeat-${id}`)?.value) || 1;
+      const desde = acumulado + 1;
+      acumulado += veces;
+      const etiqueta = document.getElementById(`sequence-number-${id}`);
+      if (etiqueta) {
+        // Con repeticiones se enseña el tramo de llamadas que cubre el paso
+        etiqueta.textContent = veces > 1 ? `${desde}-${acumulado}` : String(desde);
+      }
+    });
+
+    const badge = document.getElementById('sequenceBadge');
+    badge.textContent = tarjetas.length
+      ? t('form.sequenceSteps').replace('{{count}}', tarjetas.length)
+      : '';
+    badge.style.display = tarjetas.length ? '' : 'none';
+    document.getElementById('sequenceResetBtn').style.display =
+      tarjetas.length && sequenceRouteId ? '' : 'none';
+  }
+
+  function getSequence() {
+    const pasos = [];
+    const tarjetas = Array.from(document.querySelectorAll('#sequenceContainer .condition-card'));
+
+    tarjetas.forEach((card, idx) => {
+      const id = card.id.replace('sequence-', '');
+      pasos.push({
+        orden: idx,
+        nombre: document.getElementById(`sequence-name-${id}`).value.trim() || null,
+        codigo: document.getElementById(`sequence-code-${id}`).value.trim() || null,
+        tiporespuesta: document.getElementById(`sequence-type-${id}`).value || null,
+        respuesta: document.getElementById(`sequence-response-${id}`).value || null,
+        repeticiones: parseInt(document.getElementById(`sequence-repeat-${id}`).value) || 1,
+        activo: document.getElementById(`sequence-active-${id}`).checked
+      });
+    });
+
+    return pasos;
+  }
+
+  function setSequence(pasos, modo) {
+    clearSequence();
+    document.getElementById('sequenceMode').value = modo === 'loop' ? 'loop' : 'stick';
+    if (Array.isArray(pasos)) pasos.forEach(p => addSequenceRow(p));
+    renumberSequence();
+  }
+
+  function clearSequence() {
+    document.getElementById('sequenceContainer').innerHTML = '';
+    document.getElementById('noSequenceMsg').style.display = 'block';
+    document.getElementById('sequenceMode').value = 'stick';
+    sequenceCounter = 0;
+    renumberSequence();
+  }
+
+  /**
+   * Guarda los pasos aparte de la ruta, igual que las condiciones: la ruta ya
+   * existe cuando esto corre, y así el id está disponible
+   */
+  async function saveSequenceFor(routeId) {
+    const sequence = getSequence();
+    const mode = document.getElementById('sequenceMode').value;
+    // Se manda siempre, también vacío: es como se borra un escenario
+    const respuesta = await fetch(`/api/routes/${routeId}/sequence`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sequence, mode })
+    });
+    if (!respuesta.ok) {
+      const err = await respuesta.json().catch(() => ({}));
+      showToast(err.error || t('errors.savingSequence'), 'error');
+    }
+  }
+
+  async function resetSequenceCounter() {
+    if (!sequenceRouteId) return;
+    await fetch(`/api/routes/${sequenceRouteId}/sequence/reset`, { method: 'POST' });
+    showToast(t('form.sequenceResetDone'), 'success');
+  }
+
   // La chuleta de sintaxis solo estorba si no se usan plantillas
   function updateTemplatingFields() {
     const activo = document.getElementById('templating').checked;
@@ -5635,6 +5804,8 @@
     document.getElementById("faultType").value = 'error';
     document.getElementById("faultStatus").value = '500';
     document.getElementById("templating").checked = false;
+    sequenceRouteId = null;
+    clearSequence();
     updateFaultsFields();
     updateTemplatingFields();
     clearFallbacks();
@@ -5663,6 +5834,8 @@
     document.getElementById("faultType").value = obj.fault_type || 'error';
     document.getElementById("faultStatus").value = obj.fault_status || '500';
     document.getElementById("templating").checked = obj.templating === 1;
+    sequenceRouteId = obj.id;
+    setSequence(obj.sequence, obj.sequence_mode);
     updateFaultsFields();
     updateTemplatingFields();
     document.getElementById("tiporespuesta").value = obj.tiporespuesta;
@@ -5782,6 +5955,11 @@
 
     if (response.status === 200) {
       const result = await response.json();
+
+      // Guardar el escenario, si lo hay
+      if (result.id && getSequence().length > 0) {
+        await saveSequenceFor(result.id);
+      }
 
       // Guardar condiciones si hay alguna
       const conditions = getConditions();
@@ -5910,6 +6088,9 @@
     });
 
     if (response.status === 200) {
+      // Siempre, también vacío: es como se quita un escenario que ya existía
+      await saveSequenceFor(id);
+
       // Guardar condiciones
       const conditions = getConditions();
       if (conditions.length > 0) {

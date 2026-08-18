@@ -6,6 +6,7 @@ const semaphore = require('../services/semaphore.service');
 const trace = require('../services/trace.service');
 const faultService = require('../services/fault.service');
 const templateService = require('../services/template.service');
+const scenarioService = require('../services/scenario.service');
 const moment = require("moment");
 const path = require("path");
 const fs = require("fs");
@@ -149,6 +150,10 @@ async function checkRoute(req, res, next) {
         let responseBody = rute.respuesta;
         let responseHeaders = rute.customHeaders;
 
+        // Una sola vez por petición: si se consultara en cada sitio, el criterio
+        // y la plantilla verían números distintos dentro de la misma llamada
+        const numeroLlamada = scenarioService.registrarLlamada(rute.id);
+
         // Evaluar condiciones ANTES de la espera activa (para mostrar la respuesta real en pending list)
         try {
             const conditions = await sqliteService.getConditionalResponses(rute.id);
@@ -162,7 +167,10 @@ async function checkRoute(req, res, next) {
                     path: req.path || url,
                     query: req.query || {},
                     params: extractPathParams(rute, url),
-                    method: method.toLowerCase()
+                    method: method.toLowerCase(),
+                    // Número de esta llamada a la ruta, para condiciones que
+                    // dependen de cuántas van y no de lo que trae la petición
+                    callCount: numeroLlamada
                 };
 
                 // Evaluar condiciones en orden (primera que match gana)
@@ -317,11 +325,46 @@ async function checkRoute(req, res, next) {
             }
         }
 
+        // Escenario: el paso que toca según la vez que se llama. Va después de
+        // las condiciones y gana sobre ellas: "a la tercera, done" es una regla
+        // sobre el flujo entero, más de fuera que cualquier criterio de petición
+        try {
+            const pasos = await sqliteService.getRouteSequence(rute.id);
+            if (pasos.length > 0) {
+                const elegido = scenarioService.pasoParaLlamada(
+                    pasos, numeroLlamada, rute.sequence_mode || 'stick');
+
+                if (elegido) {
+                    const paso = elegido.paso;
+                    trace.step(trace.PASOS.SEQUENCE, {
+                        message: `Paso ${elegido.posicion + 1}/${elegido.total}` +
+                                 `${paso.nombre ? ` "${paso.nombre}"` : ''} (llamada ${numeroLlamada})`,
+                        details: {
+                            call: numeroLlamada,
+                            step: elegido.posicion + 1,
+                            steps: elegido.total,
+                            name: paso.nombre,
+                            mode: rute.sequence_mode || 'stick',
+                            exhausted: elegido.agotada
+                        }
+                    });
+
+                    if (paso.codigo) responseCode = Number(paso.codigo);
+                    if (paso.tiporespuesta) responseType = paso.tiporespuesta;
+                    if (paso.respuesta !== null && paso.respuesta !== undefined) responseBody = paso.respuesta;
+                    if (paso.customHeaders) responseHeaders = paso.customHeaders;
+                }
+            }
+        } catch (seqErr) {
+            console.error(`[ROUTE] Error aplicando la secuencia: ${seqErr.message}`);
+        }
+
         // Plantillas en el cuerpo y en las cabeceras. Va después de las
         // condiciones a propósito: la respuesta que se renderiza es la que
         // ganó, no la de por defecto
         if (rute.templating === 1) {
             const contexto = templateService.contextoDePeticion(req, extractPathParams(rute, url));
+            contexto.callCount = numeroLlamada;
             const esJson = responseType === 'json';
 
             if (templateService.tienePlantilla(responseBody)) {

@@ -74,6 +74,8 @@ The server is stateless on purpose. A tool-only server needs nothing between cal
 | `set_graphql_operations` | Sets the operations of a GraphQL route |
 | `import_graphql_schema` | Introspects a real GraphQL endpoint and generates the operations |
 | `set_websocket_messages` | Sets the on-connect, on-message and periodic handlers |
+| `set_route_sequence` | Stateful scenario: answers by call number, for polling flows |
+| `reset_route_sequence` | Puts a scenario back to its first step |
 | `set_route_faults` | Latency and fault injection: makes a route slow, unreliable, or both |
 | `create_route` / `update_route` with `templating` | Turns on `{{...}}` substitution in the body and headers |
 | `reorder_routes` | Sets which route wins when several match |

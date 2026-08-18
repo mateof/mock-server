@@ -291,7 +291,8 @@
         request: 'fa-sign-in', route: 'fa-sitemap', condition: 'fa-code-fork',
         wait: 'fa-pause', script: 'fa-magic', 'proxy-request': 'fa-arrow-right',
         'proxy-response': 'fa-arrow-left', fallback: 'fa-life-ring',
-        template: 'fa-code', latency: 'fa-hourglass-half', fault: 'fa-bolt', response: 'fa-sign-out'
+        sequence: 'fa-list-ol', template: 'fa-code', latency: 'fa-hourglass-half',
+        fault: 'fa-bolt', response: 'fa-sign-out'
       };
 
       document.getElementById('traceTimeline').innerHTML = traza.entries.map((e, i) => {

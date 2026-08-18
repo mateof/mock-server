@@ -27,6 +27,7 @@ const criteriaService = require('./criteria-evaluator.service');
 const scriptRunner = require('./script-runner.service');
 const logService = require('./log.service');
 const recordingService = require('./recording.service');
+const scenarioService = require('./scenario.service');
 const { log } = require('./socket.service');
 const { version } = require('../package.json');
 
@@ -116,7 +117,8 @@ function baseFromRoute(ruta) {
         faultRate: ruta.fault_rate,
         faultType: ruta.fault_type,
         faultStatus: ruta.fault_status,
-        templating: ruta.templating === 1
+        templating: ruta.templating === 1,
+        sequenceMode: ruta.sequence_mode
     };
 }
 
@@ -157,6 +159,7 @@ function toPayload(args, base = {}) {
     if (args.fault_type !== undefined) payload.faultType = args.fault_type;
     if (args.fault_status !== undefined) payload.faultStatus = args.fault_status;
     if (args.templating !== undefined) payload.templating = args.templating;
+    if (args.sequence_mode !== undefined) payload.sequenceMode = args.sequence_mode;
 
     if (args.conditions !== undefined) {
         payload.conditions = args.conditions.map(c => ({
@@ -205,6 +208,19 @@ function toRouteView(row, { detailed = false } = {}) {
     view.description = row.description || null;
     view.custom_headers = parse(row.customHeaders) || [];
     if (row.templating === 1) view.templating = true;
+
+    if (Array.isArray(row.sequence) && row.sequence.length) {
+        view.sequence_mode = row.sequence_mode || 'stick';
+        view.sequence = row.sequence.map(p => ({
+            name: p.nombre,
+            status_code: p.codigo,
+            response_type: p.tiporespuesta,
+            response: p.respuesta,
+            repeat: p.repeticiones || 1,
+            active: p.activo !== 0
+        }));
+        view.calls_so_far = scenarioService.llamadas(row.id);
+    }
 
     // Solo se asoma cuando hay algo configurado: en la inmensa mayoría de
     // rutas sería ruido en cada respuesta
@@ -677,6 +693,52 @@ function buildServer() {
     }, async ({ id }) => run('delete_tag', async () => {
         await sqliteService.deleteTag(id);
         return ok({ deleted: true, id });
+    }));
+
+    server.registerTool('set_route_sequence', {
+        title: 'Set a stateful scenario',
+        description: 'Makes a route answer differently depending on how many times it has been called: first pending, then processing, then done. This is what simulates polling flows, which conditional responses cannot: conditions only look at the request, and in a poll every request is identical. The sequence wins over conditional responses. The call counter lives in memory and resets when the server restarts or when reset_route_sequence is called.',
+        inputSchema: {
+            id: z.number(),
+            mode: z.enum(['stick', 'loop']).optional().describe("What happens after the last step: 'stick' repeats it (default), 'loop' starts over"),
+            sequence: z.array(z.object({
+                name: z.string().optional().describe('Label for the step, shown in the trace'),
+                status_code: z.string().optional(),
+                response_type: z.enum(RESPONSE_TYPES).optional(),
+                response: z.string().optional(),
+                repeat: z.number().optional().describe('How many consecutive calls this step covers. Default 1'),
+                active: z.boolean().optional()
+            })).describe('Steps in order. An empty array removes the scenario')
+        }
+    }, async (args) => run('set_route_sequence', async () => {
+        const ruta = await routesService.getRoute(args.id);
+        if (!ruta) return fail(`No existe la ruta ${args.id}`);
+        if (ruta.tiporespuesta === 'proxy') {
+            return fail(`La ruta ${args.id} es proxy; los escenarios solo existen en rutas mock`);
+        }
+
+        await routesService.saveSequence(args.id, (args.sequence || []).map(p => ({
+            nombre: p.name || null,
+            codigo: p.status_code || null,
+            tiporespuesta: p.response_type || null,
+            respuesta: p.response === undefined ? null : p.response,
+            repeticiones: p.repeat || 1,
+            activo: p.active !== false
+        })), args.mode);
+
+        log.success(`🤖 MCP: escenario de la ruta ${args.id} actualizado (${(args.sequence || []).length} pasos)`);
+        const actualizada = await routesService.getRoute(args.id);
+        return ok({ updated: true, route: toRouteView(actualizada, { detailed: true }) });
+    }));
+
+    server.registerTool('reset_route_sequence', {
+        title: 'Restart a scenario',
+        description: 'Puts the call counter back to zero so the scenario starts from its first step again. Without an id, every scenario is reset.',
+        inputSchema: { id: z.number().optional() }
+    }, async (args) => run('reset_route_sequence', async () => {
+        const total = scenarioService.reiniciar(args.id);
+        log.success(`🤖 MCP: escenario reiniciado${args.id ? ` en la ruta ${args.id}` : ' (todas las rutas)'}`);
+        return ok({ reset: true, id: args.id ?? null, cleared: total });
     }));
 
     server.registerTool('set_route_faults', {

@@ -14,6 +14,7 @@ const routesService = require('../services/routes.service');
 const logService = require('../services/log.service');
 const versionService = require('../services/version.service');
 const recordingService = require('../services/recording.service');
+const scenarioService = require('../services/scenario.service');
 
 // Configuración de multer para subida de archivos
 const UPLOADS_DIR = path.join(__dirname, '..', 'data', 'uploads');
@@ -432,6 +433,37 @@ router.post('/logs/mocks', async function(req, res) {
         console.error(`[API] Error creando mocks desde el log: ${err.message}`);
         res.status(500).json({ error: err.message });
     }
+});
+
+// ===== ESCENARIOS =====
+
+/* Guardar los pasos del escenario de una ruta */
+router.post('/routes/:id/sequence', async function(req, res) {
+    try {
+        await routesService.saveSequence(req.params.id, req.body.sequence, req.body.mode);
+        res.json({ success: true });
+    } catch (err) {
+        const codigo = err.name === 'RouteValidationError' ? 400 : 500;
+        console.error(`[API] Error guardando la secuencia: ${err.message}`);
+        res.status(codigo).json({ error: err.message });
+    }
+});
+
+/* Reiniciar el contador: vuelve a empezar el escenario sin tocar la configuración */
+router.post('/routes/:id/sequence/reset', function(req, res) {
+    scenarioService.reiniciar(req.params.id);
+    res.json({ success: true, route_id: Number(req.params.id), calls: 0 });
+});
+
+/* Reiniciar todos los contadores a la vez */
+router.post('/scenarios/reset', function(req, res) {
+    const total = scenarioService.reiniciar();
+    res.json({ success: true, reset: total });
+});
+
+/* Cuántas llamadas lleva cada escenario en marcha */
+router.get('/scenarios', function(req, res) {
+    res.json({ scenarios: scenarioService.estado() });
 });
 
 // ===== CONEXIONES MCP =====

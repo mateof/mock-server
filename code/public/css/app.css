@@ -4754,3 +4754,20 @@ table.dataTable.no-footer {
 .ws-tester-json {
   color: var(--text-secondary);
 }
+
+/* Número de paso del escenario: se recalcula al añadir o quitar, así que
+   necesita ancho fijo para que la lista no baile */
+.sequence-step-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.25rem;
+    height: 1.75rem;
+    padding: 0 0.5rem;
+    border-radius: 0.375rem;
+    background: var(--primary);
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 600;
+    flex-shrink: 0;
+}

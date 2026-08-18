@@ -121,7 +121,8 @@
       "proxyTransformHelp": "Change the request before it reaches the backend and the response before it goes back, the way a BFF would. Rules are applied first and the script afterwards, so the script has the final say.",
       "proxyRecordingHelp": "Saves every backend response as a mock route. They are created inactive on purpose: an active mock shadows this proxy and there would be nothing left to record. Activate them when the session is done.",
       "faultsHelp": "Makes the route slow, unreliable, or both. This is what you need to test timeouts, retries and degradation, which a mock that always answers instantly cannot exercise. On a proxy route the delay happens before calling the backend, and an injected fault never reaches it.",
-      "templatingDesc": "Replaces {{...}} in the body and headers with request data or generated values. Off by default, because a response can legitimately contain {{...}}."
+      "templatingDesc": "Replaces {{...}} in the body and headers with request data or generated values. Off by default, because a response can legitimately contain {{...}}.",
+      "sequenceHelp": "Makes the route answer differently depending on how many times it has been called: first pending, then processing, then done. This is what simulates a polling flow, which conditions cannot: they only look at the request, and in a poll every request is identical. The step wins over conditions. The counter lives in memory and resets when the server restarts."
     },
     "proxyTimeout": "Request Timeout",
     "proxyFallbacks": "Fallback Responses",
@@ -197,7 +198,18 @@
     "templatingData": "Request data",
     "templatingGenerators": "Generators",
     "templatingDefaults": "Fallback value",
-    "templatingQuoting": "Quoting in JSON"
+    "templatingQuoting": "Quoting in JSON",
+    "sequence": "Stateful scenario",
+    "sequenceMode": "When the sequence ends",
+    "sequenceStick": "Repeat the last step",
+    "sequenceLoop": "Start over",
+    "sequenceStepName": "Step name (pending, processing...)",
+    "sequenceRepeat": "Calls",
+    "sequenceEmpty": "No steps: the route always answers the same",
+    "sequenceSteps": "{{count}} steps",
+    "sequenceReset": "Restart",
+    "sequenceResetHint": "Back to the first step, without touching the configuration",
+    "sequenceResetDone": "Scenario restarted"
   },
   "responseTypes": {
     "json": "JSON",
@@ -330,7 +342,8 @@
     "updatingOrder": "Error updating order",
     "creatingTag": "Error creating tag",
     "savingGraphQLOperations": "Error saving GraphQL operations",
-    "importingGraphQLSchema": "Error importing GraphQL schema"
+    "importingGraphQLSchema": "Error importing GraphQL schema",
+    "savingSequence": "Error saving the scenario"
   },
   "empty": {
     "noHeaders": "No headers configured",

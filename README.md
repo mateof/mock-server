@@ -40,6 +40,12 @@ A powerful HTTP mocking and proxying application built with Express.js and Node.
   - Validation with test URL
   - Separate path extraction for proxies
 
+- **Stateful Scenarios** - Answer differently depending on how many times a route was called
+  - First `pending`, then `processing`, then `done`: what simulates a polling flow
+  - A step can cover several consecutive calls, and the sequence can stick on the last or loop
+  - `callCount` is also available inside conditional criteria and templates
+  - See [Scenarios Documentation](docs/scenarios.md) for details
+
 - **Dynamic Responses** - Echo the request, generate values, stop returning the same id forever
   - `{{body.userId}}`, `{{query.page}}`, `{{params.id}}`, `{{headers.x-request-id}}`
   - Generators: `{{uuid()}}`, `{{now('+7d')}}`, `{{randomInt(1,100)}}`, `{{pick('a','b')}}`

@@ -160,6 +160,10 @@ function evaluateCriteria(expression, context) {
             query: Object.freeze(context.query || {}),
             params: Object.freeze(context.params || {}),
             method: (context.method || '').toLowerCase(),
+            // Cuántas veces se ha llamado ya a esta ruta, empezando por 1.
+            // Es lo único del contexto que no sale de la petición: permite
+            // criterios sobre el flujo, no solo sobre lo que llega
+            callCount: Number(context.callCount) || 0,
         };
 
         // Crear contexto VM aislado
@@ -195,6 +199,8 @@ function getExamples() {
         { expression: "body.userId > 100", description: "Propiedad del body" },
         { expression: "query.debug === 'true'", description: "Query param" },
         { expression: "method === 'post'", description: "Método HTTP" },
+    { expression: "callCount === 1", description: "Solo en la primera llamada" },
+    { expression: "callCount > 3", description: "A partir de la cuarta llamada" },
         { expression: "hasKey(body, 'email') && isNotEmpty(body.email)", description: "Verificar campo existe y no vacío" },
         { expression: "match(path, '/users/\\\\d+')", description: "Path con regex" },
         { expression: "includes(headers['content-type'], 'json')", description: "Header contiene valor" },
