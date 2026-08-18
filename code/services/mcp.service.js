@@ -32,6 +32,11 @@ const { log } = require('./socket.service');
 const { version } = require('../package.json');
 
 const RESPONSE_TYPES = ['json', 'xml', 'soap', 'text', 'html', 'page', 'empty', 'sse', 'file', 'graphql', 'websocket', 'proxy'];
+
+// Lo que puede imponer un paso, una condición o un fallback: solo lo que se
+// construye a partir de un cuerpo de texto. Lo demás lo resuelve otro camino y
+// puesto ahí se servía como texto plano sin avisar.
+const BODY_RESPONSE_TYPES = routesService.BODY_RESPONSE_TYPES;
 const HTTP_METHODS = ['get', 'post', 'put', 'delete', 'patch', 'options', 'head', 'any'];
 
 // ===== ESQUEMAS REUTILIZADOS =====
@@ -46,7 +51,7 @@ const conditionSchema = z.object({
     name: z.string().optional().describe('Descriptive name for the condition'),
     criteria: z.string().describe("JavaScript expression over headers, body, query, path, params and method. E.g. headers['x-api-key'] === 'premium'"),
     status_code: z.string().optional().describe('Status code to return when the condition matches'),
-    response_type: z.enum(RESPONSE_TYPES).optional(),
+    response_type: z.enum(BODY_RESPONSE_TYPES).optional(),
     response: z.string().optional().describe('Body to return when the condition matches')
 });
 
@@ -506,7 +511,7 @@ function buildServer() {
                 path_pattern: z.string().describe('Regex against the path sent to the backend. Use .* for everything'),
                 error_types: z.array(z.enum(['timeout', 'connection', 'http5xx', 'all'])).describe('Which failures trigger it'),
                 status_code: z.string().optional().describe("Status code to answer with (200 by default)"),
-                response_type: z.enum(RESPONSE_TYPES).optional(),
+                response_type: z.enum(BODY_RESPONSE_TYPES).optional(),
                 response: z.string().optional(),
                 conditions: z.array(conditionSchema).optional().describe('Refines the answer depending on the request')
             })).describe('The full list; an empty list removes all of them')
@@ -828,7 +833,7 @@ function buildServer() {
             sequence: z.array(z.object({
                 name: z.string().optional().describe('Label for the step, shown in the trace'),
                 status_code: z.string().optional(),
-                response_type: z.enum(RESPONSE_TYPES).optional(),
+                response_type: z.enum(BODY_RESPONSE_TYPES).optional(),
                 response: z.string().optional(),
                 repeat: z.number().optional().describe('How many consecutive calls this step covers. Default 1'),
                 active: z.boolean().optional()

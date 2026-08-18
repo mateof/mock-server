@@ -39,6 +39,21 @@ const MAX_SALIDA = 1024 * 1024;
 
 const PATRON = /\{\{([^{}]+)\}\}/g;
 
+/**
+ * Marca de "no reconozco esto".
+ *
+ * Se distingue de `undefined` a propósito, porque son dos cosas distintas:
+ *
+ *   {{body.noExiste}}  -> te entiendo, pero ese dato no viene  -> vacío
+ *   {{nombre}}         -> no sé qué es esto                    -> se deja tal cual
+ *
+ * Lo segundo casi nunca va dirigido a este motor: es una plantilla de
+ * Handlebars servida como fixture, un ejemplo de documentación, o un generador
+ * mal escrito. Vaciarlo destruía contenido ajeno en silencio, y encima dejaba
+ * los errores de escritura invisibles.
+ */
+const NO_RECONOCIDO = Symbol('no-reconocido');
+
 // ===== GENERADORES =====
 
 const GENERADORES = {
@@ -224,6 +239,13 @@ function resolverExpresion(expresion, contexto) {
 
     // Generador con o sin paréntesis: uuid, uuid(), randomInt(1,10)
     const llamada = limpia.match(/^([a-zA-Z_][\w]*)\s*(?:\((.*)\))?$/s);
+
+    // Con paréntesis y sin generador que corresponda es una llamada a algo que
+    // no existe: `{{uuidd()}}`. Nadie escribe eso queriendo un hueco vacío
+    if (llamada && !GENERADORES[llamada[1]] && llamada[2] !== undefined) {
+        return NO_RECONOCIDO;
+    }
+
     if (llamada && GENERADORES[llamada[1]]) {
         try {
             // Los argumentos se resuelven igual que cualquier otra expresión,
@@ -242,6 +264,14 @@ function resolverExpresion(expresion, contexto) {
     if (limpia === 'false') return false;
     if (limpia === 'null') return null;
 
+    // La raíz decide: `body`, `query`, `headers`... son nuestras aunque el campo
+    // concreto no venga. Cualquier otra cosa no es una expresión de este motor
+    const raiz = limpia
+        .replace(/\[(['"]?)([^\]]+?)\1\]/g, '.$2')
+        .split('.')[0]
+        .trim();
+    if (!(raiz in contexto)) return NO_RECONOCIDO;
+
     return leerCamino(contexto, limpia);
 }
 
@@ -252,12 +282,21 @@ function resolver(expresion, contexto) {
     const partes = expresion.split('??');
     const valor = resolverExpresion(partes[0], contexto);
 
-    // Vacío cuenta como ausente: `{{query.page ?? 1}}` con ?page= debe dar 1,
-    // no una cadena vacía que rompa el JSON
-    const falta = valor === undefined || valor === null || valor === '';
-    if (falta && partes.length > 1) {
-        return resolverExpresion(partes.slice(1).join('??'), contexto);
+    if (partes.length > 1) {
+        // Escribir `??` es decir "esto es una expresión mía, y sé que puede
+        // faltar", así que aquí ni siquiera lo no reconocido se deja intacto:
+        // se usa el valor por defecto, que es justo para lo que se puso
+        const falta = valor === undefined || valor === null || valor === ''
+            || valor === NO_RECONOCIDO;
+        if (falta) {
+            const porDefecto = resolverExpresion(partes.slice(1).join('??'), contexto);
+            // Un defecto que tampoco se reconoce vale como ausente, no se
+            // devuelve el texto crudo del defecto
+            return porDefecto === NO_RECONOCIDO ? undefined : porDefecto;
+        }
+        return valor;
     }
+
     return valor;
 }
 
@@ -288,7 +327,7 @@ function posicionesDentroDeCadena(texto) {
 }
 
 function comoTextoPlano(valor) {
-    if (valor === undefined || valor === null) return '';
+    if (valor === undefined || valor === null || valor === NO_RECONOCIDO) return '';
     if (typeof valor === 'object') {
         try { return JSON.stringify(valor); } catch (e) { return ''; }
     }
@@ -317,11 +356,25 @@ function render(plantilla, contexto = {}, opciones = {}) {
     PATRON.lastIndex = 0;
     while ((coincidencia = PATRON.exec(plantilla)) !== null) {
         const valor = resolver(coincidencia[1], contexto);
+        const fueraDeComillas = esJson && !dentro[coincidencia.index];
         let texto;
 
-        if (esJson && !dentro[coincidencia.index]) {
-            // Fuera de comillas: su JSON, para que un número entre como número
-            texto = valor === undefined ? 'null' : JSON.stringify(valor);
+        if (valor === NO_RECONOCIDO && !fueraDeComillas) {
+            // Se devuelve la expresión entera, tal y como estaba escrita.
+            //
+            // Dentro de una cadena JSON hay que escaparla igual: si lleva
+            // comillas (`{{pick("a")}}`), meterla cruda partiría el documento.
+            texto = esJson
+                ? JSON.stringify(coincidencia[0]).slice(1, -1)
+                : coincidencia[0];
+        } else if (fueraDeComillas) {
+            // Fuera de comillas no hay nada que respetar: un `{{...}}` ahí no
+            // sería JSON válido de ninguna manera, así que solo puede ser una
+            // expresión de este motor. Se resuelve siempre, y lo que falte es
+            // `null`, que mantiene el cuerpo parseable
+            texto = (valor === undefined || valor === NO_RECONOCIDO)
+                ? 'null'
+                : JSON.stringify(valor);
         } else if (esJson) {
             // Dentro de comillas: escapado, sin las comillas exteriores
             const plano = comoTextoPlano(valor);
@@ -368,6 +421,7 @@ function tienePlantilla(texto) {
 
 module.exports = {
     render,
+    NO_RECONOCIDO,
     contextoDePeticion,
     tienePlantilla,
     resolver,

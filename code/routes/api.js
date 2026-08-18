@@ -624,9 +624,15 @@ router.put('/conditions/:routeId', async function(req, res) {
     }
 
     try {
+        // Mismo cedazo que al crear la ruta: un tipo que este camino no sabe
+        // servir se rechaza aquí, no al llegar la primera petición
+        routesService.validateConditions(conditions);
         await sqliteService.saveConditionalResponses(req.params.routeId, conditions);
         res.json({ success: true });
     } catch (err) {
+        if (err.name === 'RouteValidationError') {
+            return res.status(400).json({ success: false, error: err.message });
+        }
         console.error(`[API] Error guardando condiciones: ${err.message}`);
         res.status(500).json({ success: false, error: err.message });
     }

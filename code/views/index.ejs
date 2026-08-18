@@ -1328,6 +1328,9 @@
     // En una ruta mock el script vive aquí; en una proxy, en las transformaciones
     document.getElementById('divMockScript').style.display = '';
     document.getElementById('divSse').style.display = tipoResp === 'sse' ? '' : 'none';
+    // El índice decide qué secciones tienen sentido para este tipo. Se llama al
+    // final del todo, más abajo, cuando ya están aplicados los show/hide
+    setTimeout(() => RouteNavigation.sincronizarSecciones(tipoResp), 0);
     // Se descarga solo cuando hace falta, igual que en el proxy
     ScriptEditors.montar().then(() => ScriptEditors.sincronizar());
 
@@ -2588,8 +2591,11 @@
               <option value="">${t('form.useDefault')}</option>
               <option value="json" ${data.tiporespuesta === 'json' ? 'selected' : ''}>JSON</option>
               <option value="xml" ${data.tiporespuesta === 'xml' ? 'selected' : ''}>XML</option>
+              <option value="soap" ${data.tiporespuesta === 'soap' ? 'selected' : ''}>SOAP</option>
               <option value="text" ${data.tiporespuesta === 'text' ? 'selected' : ''}>Text</option>
               <option value="html" ${data.tiporespuesta === 'html' ? 'selected' : ''}>HTML</option>
+              <option value="page" ${data.tiporespuesta === 'page' ? 'selected' : ''}>Page</option>
+              <option value="sse" ${data.tiporespuesta === 'sse' ? 'selected' : ''}>SSE</option>
               <option value="empty" ${data.tiporespuesta === 'empty' ? 'selected' : ''}>Empty</option>
             </select>
           </div>
@@ -2756,8 +2762,26 @@
   // Initialize TagsModule on page load
   document.addEventListener('DOMContentLoaded', () => TagsModule.init());
 
+  /**
+   * Mantiene al día el resumen del índice.
+   *
+   * Delegado en el modal entero en vez de un listener por control: hay
+   * cuarenta y pico campos y varios se crean sobre la marcha (condiciones,
+   * pasos), así que engancharlos uno a uno se quedaría corto en cuanto se
+   * añada el siguiente.
+   */
+  document.addEventListener('DOMContentLoaded', () => {
+    const modal = document.getElementById('routesModal');
+    if (!modal) return;
+    const refrescar = () => RouteNavigation.actualizarResumenes();
+    modal.addEventListener('change', refrescar);
+    modal.addEventListener('input', refrescar);
+  });
+
   // ===== ROUTE NAVIGATION PANEL =====
   const RouteNavigation = {
+    /** Sección visible ahora mismo. */
+    seccionActual: 'respuesta',
     navContainer: null,
     navFallbacksContainer: null,
     contentPanel: null,
@@ -3108,7 +3132,177 @@
     },
 
     // ===== NAVIGATION =====
+    /**
+     * Enseña una sección y esconde las demás.
+     *
+     * No toca `style.display`: eso ya lo usa checkRespuesta() para esconder lo
+     * que no aplica a cada tipo de ruta, y pelearse por el mismo atributo haría
+     * que el último en escribir ganara. Con una clase aparte las dos reglas se
+     * componen: un bloque se ve si NI la sección NI el tipo lo esconden.
+     */
+    showSection(clave) {
+      this.seccionActual = clave;
+
+      document.querySelectorAll('#routeContentPanel [data-section]').forEach(bloque => {
+        bloque.classList.toggle('is-section-hidden', bloque.dataset.section !== clave);
+      });
+
+      document.querySelectorAll('.route-nav-section').forEach(item => {
+        item.classList.toggle('active', item.dataset.sectionKey === clave);
+      });
+
+      // Las listas de items (condiciones, fallbacks...) solo pintan cuando su
+      // sección está delante; si no, sobran en el índice
+      const enVariacion = clave === 'variacion';
+      const enProxy = clave === 'proxy';
+      const enRespuesta = clave === 'respuesta';
+      const mostrar = (id, cuando) => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = cuando ? '' : 'none';
+      };
+      mostrar('navDividerConditions', enVariacion);
+      mostrar('routeNavConditions', enVariacion);
+      mostrar('navDividerFallbacks', enProxy && this.hayFallbacks());
+      mostrar('routeNavFallbacks', enProxy && this.hayFallbacks());
+      mostrar('navDividerGraphQL', enRespuesta && this.hayGraphQL());
+      mostrar('routeNavGraphQL', enRespuesta && this.hayGraphQL());
+      mostrar('navDividerWebSocket', enRespuesta && this.hayWebSocket());
+      mostrar('routeNavWebSocket', enRespuesta && this.hayWebSocket());
+
+      // Lo plegable de la sección se abre al entrar. Plegado tenía sentido
+      // cuando todo vivía en la misma pila y había que poder saltarlo; ahora
+      // que has navegado hasta aquí a propósito, es un clic de más para nada.
+      document.querySelectorAll(`#routeContentPanel [data-section="${clave}"] .collapsible-body`)
+        .forEach(cuerpo => { cuerpo.style.display = 'block'; });
+
+      // El panel vuelve arriba: quedarse a media altura de la sección anterior
+      // hace parecer que no ha cambiado nada
+      const panel = document.getElementById('routeContentPanel');
+      if (panel) panel.scrollTop = 0;
+    },
+
+    hayFallbacks() {
+      const c = document.getElementById('routeNavFallbacks');
+      return !!(c && c.children.length);
+    },
+    hayGraphQL() {
+      const c = document.getElementById('routeNavGraphQL');
+      return !!(c && c.children.length);
+    },
+    hayWebSocket() {
+      const c = document.getElementById('routeNavWebSocket');
+      return !!(c && c.children.length);
+    },
+
+    /**
+     * Qué secciones tienen sentido según el tipo de ruta.
+     *
+     * Si la sección visible deja de aplicar (se pasa de mock a proxy estando en
+     * "Respuesta"), se salta a la primera que sí, o el panel se quedaría vacío.
+     */
+    sincronizarSecciones(tipoRespuesta) {
+      const esProxy = tipoRespuesta === 'proxy';
+      const aplica = {
+        respuesta: !esProxy,
+        proxy: esProxy,
+        // Un proxy resuelve sus variantes con fallbacks, no con condiciones
+        variacion: !esProxy,
+        comportamiento: true,
+        organizacion: !esProxy
+      };
+
+      document.querySelectorAll('.route-nav-section').forEach(item => {
+        item.style.display = aplica[item.dataset.sectionKey] ? '' : 'none';
+      });
+
+      if (!aplica[this.seccionActual]) {
+        this.showSection(esProxy ? 'proxy' : 'respuesta');
+      } else {
+        this.showSection(this.seccionActual);
+      }
+      this.actualizarResumenes();
+    },
+
+    /**
+     * Resumen de cada sección en el índice.
+     *
+     * Es la mitad del valor de esto: sin él habría que entrar sección por
+     * sección para saber si una ruta lleva latencia, escenario o script.
+     */
+    actualizarResumenes() {
+      const valor = (id) => document.getElementById(id)?.value ?? '';
+      const marcado = (id) => !!document.getElementById(id)?.checked;
+      const poner = (clave, texto) => {
+        const el = document.getElementById(`navState-${clave}`);
+        if (el) el.textContent = texto || '';
+      };
+
+      const respuesta = [valor('tiporespuesta').toUpperCase()];
+      if (valor('tiporespuesta') === 'sse' && marcado('sseLoop')) respuesta.push(t('form.stateLoop'));
+      const cabeceras = document.querySelectorAll('#headersContainer .header-row').length;
+      if (cabeceras) respuesta.push(t('form.stateHeaders').replace('{{count}}', cabeceras));
+      poner('respuesta', respuesta.join(' · '));
+
+      const variacion = [];
+      const condiciones = document.querySelectorAll('#conditionsContainer .condition-card').length;
+      if (condiciones) variacion.push(t('form.stateConditions').replace('{{count}}', condiciones));
+      const pasos = document.querySelectorAll('#sequenceContainer .condition-card').length;
+      if (pasos) variacion.push(t('form.stateSteps').replace('{{count}}', pasos));
+      if (marcado('templating')) variacion.push(t('form.stateTemplating'));
+      if (document.getElementById('mockScript')?.value.trim()) variacion.push(t('form.stateScript'));
+      poner('variacion', variacion.join(' · '));
+
+      const comportamiento = [];
+      const modo = valor('latencyMode');
+      if (modo === 'fixed') comportamiento.push(`${valor('latencyMs') || 0} ms`);
+      if (modo === 'random') comportamiento.push(`${valor('latencyMs') || 0}-${valor('latencyMaxMs') || 0} ms`);
+      const fallos = parseInt(valor('faultRate')) || 0;
+      if (fallos) comportamiento.push(`${fallos}% ${t('form.stateFaults')}`);
+      if (marcado('esperaActiva')) comportamiento.push(t('form.waitMode'));
+      if (!marcado('rutaActiva')) comportamiento.push(t('form.stateInactive'));
+      poner('comportamiento', comportamiento.join(' · '));
+
+      // Con una sección a la vez se pierde de vista qué ruta se está editando;
+      // la cabecera del índice es el sitio natural para recordarlo
+      const titulo = document.getElementById('routeNavTitle');
+      if (titulo) {
+        const camino = valor('ruta').trim();
+        titulo.textContent = camino || t('form.navigationTree');
+      }
+
+      // Los tags viven en el módulo, no en el DOM: no hay contenedor que contar
+      const tags = (typeof TagsModule !== 'undefined' && TagsModule.selectedTags)
+        ? TagsModule.selectedTags.length : 0;
+      const conMetadatos = ['operationId', 'summary', 'description']
+        .some(campo => valor(campo).trim());
+      const organizacion = [];
+      if (tags) organizacion.push(t('form.stateTags').replace('{{count}}', tags));
+      if (conMetadatos) organizacion.push(t('form.metadata').toLowerCase());
+      poner('organizacion', organizacion.join(' · '));
+
+      const proxy = [];
+      if (document.getElementById('proxyPreScript')?.value.trim()
+          || document.getElementById('proxyPostScript')?.value.trim()) {
+        proxy.push(t('form.stateScript'));
+      }
+      const fb = document.querySelectorAll('#fallbacksContainer .fallback-card').length;
+      if (fb) proxy.push(t('form.stateFallbacks').replace('{{count}}', fb));
+      if (marcado('proxyRecording')) proxy.push(t('form.stateRecording'));
+      poner('proxy', proxy.join(' · '));
+    },
+
     navigateTo(targetId, fallbackId = null) {
+      // Pulsar una condición en el índice tiene que llevar a su sección, o el
+      // scroll iría a un bloque que ahora mismo está escondido y no pasaría nada
+      const seccionDe = (id) => {
+        if (id.startsWith('condition-')) return 'variacion';
+        if (id.startsWith('fallback-') || id.startsWith('fc-')) return 'proxy';
+        if (id.startsWith('graphql-op-') || id.startsWith('ws-')) return 'respuesta';
+        return null;
+      };
+      const seccion = seccionDe(targetId);
+      if (seccion && seccion !== this.seccionActual) this.showSection(seccion);
+
       const target = document.getElementById(targetId);
       if (!target) return;
 
@@ -3377,8 +3571,11 @@
                 <option value="">${t('form.useDefault')}</option>
                 <option value="json" ${data.tiporespuesta === 'json' ? 'selected' : ''}>JSON</option>
                 <option value="xml" ${data.tiporespuesta === 'xml' ? 'selected' : ''}>XML</option>
+                <option value="soap" ${data.tiporespuesta === 'soap' ? 'selected' : ''}>SOAP</option>
                 <option value="text" ${data.tiporespuesta === 'text' ? 'selected' : ''}>Text</option>
                 <option value="html" ${data.tiporespuesta === 'html' ? 'selected' : ''}>HTML</option>
+                <option value="page" ${data.tiporespuesta === 'page' ? 'selected' : ''}>Page</option>
+                <option value="sse" ${data.tiporespuesta === 'sse' ? 'selected' : ''}>SSE</option>
                 <option value="empty" ${data.tiporespuesta === 'empty' ? 'selected' : ''}>Empty</option>
               </select>
             </div>

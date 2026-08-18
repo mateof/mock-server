@@ -173,3 +173,96 @@ test.describe('pantalla de log', () => {
         await expect(page.locator('#logsBody')).toContainText('/e2e/solo-post');
     });
 });
+
+/**
+ * El formulario de ruta se enseña por secciones.
+ *
+ * Antes eran veinticuatro bloques en una columna, tres pantallas y media de
+ * scroll. Estas pruebas cubren lo que se rompe en silencio al reorganizar:
+ * que cada sección enseñe lo suyo, que el índice resuma lo configurado, y que
+ * cambiar el tipo de ruta no deje al usuario encerrado.
+ */
+test.describe('secciones del formulario de ruta', () => {
+
+    async function abrirFormulario(page) {
+        await page.goto('/');
+        await page.click('button:has-text("Nueva ruta"), button:has-text("New route"), button:has-text("Nova ruta")');
+        await expect(page.locator('#routesModal')).toBeVisible();
+    }
+
+    test('abre en Ruta y respuesta, con el cuerpo a la vista', async ({ page }) => {
+        await abrirFormulario(page);
+
+        await expect(page.locator('.route-nav-section.active')).toContainText(/Ruta y respuesta|Route and response|Ruta e resposta/);
+        await expect(page.locator('#respuesta')).toBeVisible();
+        // Lo de otras secciones no debe estar delante
+        await expect(page.locator('#divFaults')).not.toBeVisible();
+    });
+
+    test('cambiar de sección cambia lo que se ve', async ({ page }) => {
+        await abrirFormulario(page);
+
+        await page.click('.route-nav-section[data-section-key="comportamiento"]');
+        await expect(page.locator('#latencyMode')).toBeVisible();
+        await expect(page.locator('#respuesta')).not.toBeVisible();
+
+        await page.click('.route-nav-section[data-section-key="respuesta"]');
+        await expect(page.locator('#respuesta')).toBeVisible();
+        await expect(page.locator('#latencyMode')).not.toBeVisible();
+    });
+
+    test('el índice resume lo que hay configurado', async ({ page }) => {
+        await abrirFormulario(page);
+
+        await page.click('.route-nav-section[data-section-key="comportamiento"]');
+        await page.selectOption('#latencyMode', 'fixed');
+        await page.fill('#latencyMs', '400');
+        await page.fill('#faultRate', '10');
+
+        // Sin abrir la sección se ve lo que lleva puesto, que es la gracia
+        await expect(page.locator('#navState-comportamiento')).toContainText('400 ms');
+        await expect(page.locator('#navState-comportamiento')).toContainText('10%');
+    });
+
+    test('se puede volver a mock después de elegir proxy', async ({ page }) => {
+        // Regresión: el selector de tipo vivía dentro de la sección "Respuesta",
+        // así que al pasar a proxy se escondía con ella y no había forma de
+        // deshacerlo sin cerrar el formulario
+        await abrirFormulario(page);
+
+        await page.selectOption('#tiporespuesta', 'proxy');
+        await expect(page.locator('#destinoProxy')).toBeVisible();
+        await expect(page.locator('#tiporespuesta')).toBeVisible();
+
+        await page.selectOption('#tiporespuesta', 'json');
+        await expect(page.locator('#respuesta')).toBeVisible();
+    });
+
+    test('las secciones se ajustan al tipo de ruta', async ({ page }) => {
+        await abrirFormulario(page);
+
+        const visibles = async () =>
+            page.locator('.route-nav-section:visible').evaluateAll(
+                nodos => nodos.map(n => n.dataset.sectionKey));
+
+        expect(await visibles()).toEqual(['respuesta', 'variacion', 'comportamiento', 'organizacion']);
+
+        await page.selectOption('#tiporespuesta', 'proxy');
+        // Un proxy no tiene cuerpo propio ni condiciones: resuelve con fallbacks
+        expect(await visibles()).toEqual(['proxy', 'comportamiento']);
+    });
+
+    test('editar una ruta existente carga sus secciones', async ({ page, request }) => {
+        await crearRuta(request, { ruta: '/e2e/para-editar', respuesta: '{"x":1}' });
+
+        await page.goto('/');
+        await expect(page.locator('#dtList')).toContainText('/e2e/para-editar');
+        await page.locator('#dtList tr', { hasText: '/e2e/para-editar' })
+            .locator('button[title*="dit"], button[title*="ditar"]').first().click();
+
+        await expect(page.locator('#routesModal')).toBeVisible();
+        await expect(page.locator('#ruta')).toHaveValue('/e2e/para-editar');
+        // La cabecera del índice recuerda qué ruta se edita
+        await expect(page.locator('#routeNavTitle')).toContainText('/e2e/para-editar');
+    });
+});

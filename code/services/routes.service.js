@@ -28,6 +28,33 @@ const UPLOADS_DIR = path.join(config.DATA_DIR, 'uploads');
 // ensombrecida y el usuario no entendería por qué no responde nunca
 const RESERVED_PREFIXES = ['/api', '/mcp'];
 
+/**
+ * Tipos que un paso de escenario, una condición o un fallback pueden imponer.
+ *
+ * Son los que producen un cuerpo a partir del campo `respuesta`, que es lo
+ * único que esas tres cosas guardan. Los que faltan no se dejan fuera por
+ * gusto:
+ *
+ * - `file` necesita un fichero subido, y aquí solo hay texto.
+ * - `graphql` necesita sus operaciones, que cuelgan de la ruta y no del paso.
+ * - `proxy` y `websocket` los resuelve otro middleware, que mira el tipo de la
+ *   RUTA y no el que resuelve el paso: puestos aquí se servían como texto
+ *   plano y en silencio, que es la peor de las respuestas posibles.
+ *
+ * Se comprueba al guardar y no al servir, para que el error salga cuando
+ * todavía se puede corregir.
+ */
+const BODY_RESPONSE_TYPES = ['json', 'xml', 'soap', 'text', 'html', 'page', 'empty', 'sse'];
+
+function validarTipoDeCuerpo(tipo, que) {
+    if (!tipo) return;
+    if (!BODY_RESPONSE_TYPES.includes(tipo)) {
+        throw new RouteValidationError(
+            `${que} cannot be of type "${tipo}". Allowed: ${BODY_RESPONSE_TYPES.join(', ')}`,
+        );
+    }
+}
+
 const PROXY_ORDER_START = 99999999;
 
 // ===== HELPERS =====
@@ -105,6 +132,12 @@ class RouteValidationError extends Error {
 /**
  * Comprueba lo que no puede depender de quién llama
  */
+function validateConditions(conditions) {
+    for (const condicion of Array.isArray(conditions) ? conditions : []) {
+        validarTipoDeCuerpo(condicion.tiporespuesta, 'A conditional response');
+    }
+}
+
 function validatePayload(payload) {
     if (isReservedRoute(payload.ruta)) {
         throw new RouteValidationError(`Routes starting with ${RESERVED_PREFIXES.join(' or ')} are reserved for internal use`);
@@ -117,6 +150,8 @@ function validatePayload(payload) {
             throw new RouteValidationError(`Invalid regular expression: ${e.message}`);
         }
     }
+
+    validateConditions(payload.conditions);
 
     for (const [campo, script] of [['proxyPreScript', payload.proxyPreScript],
                                   ['proxyPostScript', payload.proxyPostScript],
@@ -376,6 +411,10 @@ async function saveSequence(routeId, pasos, modo) {
     if (!route) {
         throw new RouteValidationError(`Route ${routeId} not found`);
     }
+    for (const paso of Array.isArray(pasos) ? pasos : []) {
+        validarTipoDeCuerpo(paso.tiporespuesta, 'A scenario step');
+    }
+
     await sqliteService.saveRouteSequence(Number(routeId), Array.isArray(pasos) ? pasos : []);
     if (modo === 'loop' || modo === 'stick') {
         await dbRun('UPDATE rutas SET sequence_mode = ? WHERE id = ?', [modo, Number(routeId)]);
@@ -649,6 +688,8 @@ async function duplicateRoute(id, newPath) {
 }
 
 module.exports = {
+    BODY_RESPONSE_TYPES,
+    validateConditions,
     UPLOADS_DIR,
     RESERVED_PREFIXES,
     ERROR_TYPES,
