@@ -75,6 +75,7 @@ The server is stateless on purpose. A tool-only server needs nothing between cal
 | `import_graphql_schema` | Introspects a real GraphQL endpoint and generates the operations |
 | `set_websocket_messages` | Sets the on-connect, on-message and periodic handlers |
 | `set_route_faults` | Latency and fault injection: makes a route slow, unreliable, or both |
+| `create_route` / `update_route` with `templating` | Turns on `{{...}}` substitution in the body and headers |
 | `reorder_routes` | Sets which route wins when several match |
 | `create_tag` / `delete_tag` | Manages tags |
 

@@ -159,7 +159,8 @@ function buildColumns(payload) {
         latency_max_ms: parseInt(payload.latencyMaxMs) || 0,
         fault_rate: parseInt(payload.faultRate) || 0,
         fault_type: faultService.TIPOS_FALLO.includes(payload.faultType) ? payload.faultType : 'error',
-        fault_status: String(payload.faultStatus || '500')
+        fault_status: String(payload.faultStatus || '500'),
+        templating: toBool(payload.templating) ? 1 : 0
     };
 }
 
@@ -232,8 +233,9 @@ async function createRoute(payload, options = {}) {
         `INSERT INTO rutas(tipo, ruta, codigo, respuesta, tiporespuesta, esperaActiva, isRegex, customHeaders,
             activo, orden, fileName, filePath, fileMimeType, tags, operationId, summary, description,
             requestBodyExample, proxy_timeout, proxy_request_headers, proxy_request_params, proxy_pre_script, proxy_post_script,
-            recording, recording_mode, latency_mode, latency_ms, latency_max_ms, fault_rate, fault_type, fault_status)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            recording, recording_mode, latency_mode, latency_ms, latency_max_ms, fault_rate, fault_type, fault_status,
+            templating)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [columns.tipo, columns.ruta, columns.codigo, columns.respuesta, columns.tiporespuesta,
          columns.esperaActiva, columns.isRegex, columns.customHeaders, columns.activo, orden,
          file.fileName || null, file.filePath || null, file.fileMimeType || null,
@@ -241,7 +243,7 @@ async function createRoute(payload, options = {}) {
          columns.proxy_timeout, columns.proxy_request_headers, columns.proxy_request_params,
          columns.proxy_pre_script, columns.proxy_post_script, columns.recording, columns.recording_mode,
          columns.latency_mode, columns.latency_ms, columns.latency_max_ms,
-         columns.fault_rate, columns.fault_type, columns.fault_status]
+         columns.fault_rate, columns.fault_type, columns.fault_status, columns.templating]
     );
 
     if (Array.isArray(payload.conditions)) {
@@ -287,7 +289,7 @@ async function updateRoute(id, payload, options = {}) {
             tags = ?, operationId = ?, summary = ?, description = ?, requestBodyExample = ?, proxy_timeout = ?,
             proxy_request_headers = ?, proxy_request_params = ?, proxy_pre_script = ?, proxy_post_script = ?,
             recording = ?, recording_mode = ?, latency_mode = ?, latency_ms = ?, latency_max_ms = ?,
-            fault_rate = ?, fault_type = ?, fault_status = ?
+            fault_rate = ?, fault_type = ?, fault_status = ?, templating = ?
          WHERE id = ?`,
         [columns.tipo, columns.ruta, columns.codigo, columns.respuesta, columns.tiporespuesta,
          columns.esperaActiva, columns.isRegex, columns.customHeaders, columns.activo, orden,
@@ -296,7 +298,7 @@ async function updateRoute(id, payload, options = {}) {
          columns.proxy_timeout, columns.proxy_request_headers, columns.proxy_request_params,
          columns.proxy_pre_script, columns.proxy_post_script, columns.recording, columns.recording_mode,
          columns.latency_mode, columns.latency_ms, columns.latency_max_ms,
-         columns.fault_rate, columns.fault_type, columns.fault_status, routeId]
+         columns.fault_rate, columns.fault_type, columns.fault_status, columns.templating, routeId]
     );
 
     if (Array.isArray(payload.conditions)) {
@@ -547,8 +549,8 @@ async function duplicateRoute(id, newPath) {
             activo, orden, fileName, filePath, fileMimeType, tags, operationId, summary, description,
             requestBodyExample, proxy_timeout, proxy_request_headers, proxy_request_params, proxy_pre_script,
             proxy_post_script, graphql_schema, graphql_proxy_url, recording, recording_mode,
-            latency_mode, latency_ms, latency_max_ms, fault_rate, fault_type, fault_status)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            latency_mode, latency_ms, latency_max_ms, fault_rate, fault_type, fault_status, templating)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [original.tipo, newPath, original.codigo, original.respuesta, original.tiporespuesta,
          original.esperaActiva, original.isRegex, original.customHeaders, original.activo, orden,
          fileName, filePath, fileMimeType, original.tags, original.operationId, original.summary,
@@ -559,7 +561,7 @@ async function duplicateRoute(id, newPath) {
          // y duplicar una ruta no debería poner a grabar una segunda en silencio
          0, original.recording_mode,
          original.latency_mode, original.latency_ms, original.latency_max_ms,
-         original.fault_rate, original.fault_type, original.fault_status]
+         original.fault_rate, original.fault_type, original.fault_status, original.templating]
     );
 
     const nuevoId = result.lastID;

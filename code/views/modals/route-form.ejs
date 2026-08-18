@@ -460,6 +460,49 @@
                 </label>
               </div>
 
+              <!-- Plantillas en la respuesta -->
+              <div class="alert-modern alert-modern-info" id="divTemplating">
+                <i class="fa fa-code alert-icon" aria-hidden="true"></i>
+                <div class="alert-content">
+                  <div class="alert-title"><%= __('form.templating') %></div>
+                  <div class="alert-text"><%= __('form.help.templatingDesc') %></div>
+                  <div class="conditions-reference" id="templatingReference" style="display: none; margin-top: 0.75rem;">
+                    <div><strong><%= __('form.templatingData') %>:</strong>
+                      <code>{{body.usuario.id}}</code>
+                      <code>{{query.page}}</code>
+                      <code>{{params.id}}</code>
+                      <code>{{headers.x-request-id}}</code>
+                      <code>{{method}}</code>
+                      <code>{{path}}</code>
+                    </div>
+                    <div><strong><%= __('form.templatingGenerators') %>:</strong>
+                      <code>{{uuid()}}</code>
+                      <code>{{now()}}</code>
+                      <code>{{now('+1d')}}</code>
+                      <code>{{date()}}</code>
+                      <code>{{timestamp()}}</code>
+                      <code>{{randomInt(1,100)}}</code>
+                      <code>{{randomFloat(0,10)}}</code>
+                      <code>{{randomString(8)}}</code>
+                      <code>{{randomBool()}}</code>
+                      <code>{{pick('alta','media','baja')}}</code>
+                    </div>
+                    <div><strong><%= __('form.templatingDefaults') %>:</strong>
+                      <code>{{body.nombre ?? 'anónimo'}}</code>
+                    </div>
+                    <div><strong><%= __('form.templatingQuoting') %>:</strong>
+                      <code>"nombre": "{{body.nombre}}"</code>
+                      <code>"id": {{body.id}}</code>
+                      <code>"tags": {{body.tags}}</code>
+                    </div>
+                  </div>
+                </div>
+                <label class="switch-modern" for="templating">
+                  <input type="checkbox" id="templating" name="templating" onchange="updateTemplatingFields()">
+                  <span class="slider"></span>
+                </label>
+              </div>
+
               <!-- Latencia y fallos provocados -->
               <div class="collapsible-section" id="divFaults" style="margin-top: 1.25rem;">
                 <div class="collapsible-header" onclick="toggleFaultsSection()">

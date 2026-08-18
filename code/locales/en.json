@@ -120,7 +120,8 @@
       "wsHelp": "Define how this WebSocket endpoint behaves. Add messages to send on connect, in response to incoming messages (by pattern matching), or periodically.",
       "proxyTransformHelp": "Change the request before it reaches the backend and the response before it goes back, the way a BFF would. Rules are applied first and the script afterwards, so the script has the final say.",
       "proxyRecordingHelp": "Saves every backend response as a mock route. They are created inactive on purpose: an active mock shadows this proxy and there would be nothing left to record. Activate them when the session is done.",
-      "faultsHelp": "Makes the route slow, unreliable, or both. This is what you need to test timeouts, retries and degradation, which a mock that always answers instantly cannot exercise. On a proxy route the delay happens before calling the backend, and an injected fault never reaches it."
+      "faultsHelp": "Makes the route slow, unreliable, or both. This is what you need to test timeouts, retries and degradation, which a mock that always answers instantly cannot exercise. On a proxy route the delay happens before calling the backend, and an injected fault never reaches it.",
+      "templatingDesc": "Replaces {{...}} in the body and headers with request data or generated values. Off by default, because a response can legitimately contain {{...}}."
     },
     "proxyTimeout": "Request Timeout",
     "proxyFallbacks": "Fallback Responses",
@@ -191,7 +192,12 @@
     "faultTypeError": "Answer an error code",
     "faultTypeReset": "Drop the connection",
     "faultTypeEmpty": "Answer the code with no body",
-    "faultStatus": "Failure status code"
+    "faultStatus": "Failure status code",
+    "templating": "Dynamic response",
+    "templatingData": "Request data",
+    "templatingGenerators": "Generators",
+    "templatingDefaults": "Fallback value",
+    "templatingQuoting": "Quoting in JSON"
   },
   "responseTypes": {
     "json": "JSON",

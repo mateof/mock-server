@@ -207,6 +207,10 @@ async function createTables(newdb) {
     await addColumn(newdb, 'fault_rate', 'INTEGER DEFAULT 0');
     await addColumn(newdb, 'fault_type', "TEXT DEFAULT 'error'");
     await addColumn(newdb, 'fault_status', "TEXT DEFAULT '500'");
+    // Plantillas en la respuesta. Desactivado por defecto: una respuesta puede
+    // llevar {{...}} de forma legítima y sustituirlo por sorpresa rompería
+    // rutas que ya funcionan
+    await addColumn(newdb, 'templating', 'INTEGER DEFAULT 0');
 
     // Crear índices para optimizar búsquedas de rutas
     await new Promise((resolve) => {

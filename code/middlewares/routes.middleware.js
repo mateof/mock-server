@@ -5,6 +5,7 @@ const graphqlService = require('../services/graphql.service');
 const semaphore = require('../services/semaphore.service');
 const trace = require('../services/trace.service');
 const faultService = require('../services/fault.service');
+const templateService = require('../services/template.service');
 const moment = require("moment");
 const path = require("path");
 const fs = require("fs");
@@ -313,6 +314,27 @@ async function checkRoute(req, res, next) {
                 faultService.provocarFallo(chaos, res);
                 log.error(`💥 ${method} ${url} ${describirFallo(chaos)} (${Date.now() - requestStart}ms)`);
                 return;
+            }
+        }
+
+        // Plantillas en el cuerpo y en las cabeceras. Va después de las
+        // condiciones a propósito: la respuesta que se renderiza es la que
+        // ganó, no la de por defecto
+        if (rute.templating === 1) {
+            const contexto = templateService.contextoDePeticion(req, extractPathParams(rute, url));
+            const esJson = responseType === 'json';
+
+            if (templateService.tienePlantilla(responseBody)) {
+                responseBody = templateService.render(responseBody, contexto, { json: esJson });
+                trace.step(trace.PASOS.TEMPLATE, {
+                    message: 'Plantilla aplicada a la respuesta',
+                    details: { response_type: responseType, json_mode: esJson }
+                });
+            }
+            // Las cabeceras son un JSON, así que se renderizan en modo JSON
+            // para que un valor con comillas no destroce el array
+            if (templateService.tienePlantilla(responseHeaders)) {
+                responseHeaders = templateService.render(responseHeaders, contexto, { json: true });
             }
         }
 

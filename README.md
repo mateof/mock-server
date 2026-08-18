@@ -40,6 +40,13 @@ A powerful HTTP mocking and proxying application built with Express.js and Node.
   - Validation with test URL
   - Separate path extraction for proxies
 
+- **Dynamic Responses** - Echo the request, generate values, stop returning the same id forever
+  - `{{body.userId}}`, `{{query.page}}`, `{{params.id}}`, `{{headers.x-request-id}}`
+  - Generators: `{{uuid()}}`, `{{now('+7d')}}`, `{{randomInt(1,100)}}`, `{{pick('a','b')}}`
+  - Fallbacks with `??`, and casts so a query parameter can enter JSON as a number
+  - Off by default per route, because a response can legitimately contain `{{...}}`
+  - See [Dynamic Responses Documentation](docs/templating.md) for details
+
 - **Latency and Fault Injection** - Make a route slow, unreliable, or both
   - Fixed or random delay, per route, on mocks and proxies alike
   - Failure rate as a percentage, answering an error code, dropping the connection, or answering with no body

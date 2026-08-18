@@ -2425,6 +2425,12 @@
     body.style.display = body.style.display === 'none' ? 'block' : 'none';
   }
 
+  // La chuleta de sintaxis solo estorba si no se usan plantillas
+  function updateTemplatingFields() {
+    const activo = document.getElementById('templating').checked;
+    document.getElementById('templatingReference').style.display = activo ? '' : 'none';
+  }
+
   function toggleFaultsSection() {
     const body = document.querySelector('#divFaults .collapsible-body');
     body.style.display = body.style.display === 'none' ? 'block' : 'none';
@@ -5628,7 +5634,9 @@
     document.getElementById("faultRate").value = '0';
     document.getElementById("faultType").value = 'error';
     document.getElementById("faultStatus").value = '500';
+    document.getElementById("templating").checked = false;
     updateFaultsFields();
+    updateTemplatingFields();
     clearFallbacks();
     ProxyTransform.clearAll();
   }
@@ -5654,7 +5662,9 @@
     document.getElementById("faultRate").value = obj.fault_rate || 0;
     document.getElementById("faultType").value = obj.fault_type || 'error';
     document.getElementById("faultStatus").value = obj.fault_status || '500';
+    document.getElementById("templating").checked = obj.templating === 1;
     updateFaultsFields();
+    updateTemplatingFields();
     document.getElementById("tiporespuesta").value = obj.tiporespuesta;
     document.getElementById("esperaActiva").checked = obj.esperaActiva ?? false;
     document.getElementById("rutaActiva").checked = obj.activo !== 0;
@@ -5749,6 +5759,7 @@
     formData.append('faultRate', document.getElementById("faultRate").value || 0);
     formData.append('faultType', document.getElementById("faultType").value);
     formData.append('faultStatus', document.getElementById("faultStatus").value || '500');
+    formData.append('templating', document.getElementById("templating").checked);
 
     // Proxy timeout y transformaciones de petición/respuesta
     if (tiporespuesta === 'proxy') {
@@ -5873,6 +5884,7 @@
     formData.append('faultRate', document.getElementById("faultRate").value || 0);
     formData.append('faultType', document.getElementById("faultType").value);
     formData.append('faultStatus', document.getElementById("faultStatus").value || '500');
+    formData.append('templating', document.getElementById("templating").checked);
 
     // Proxy timeout y transformaciones de petición/respuesta
     if (tiporespuesta === 'proxy') {

@@ -75,6 +75,7 @@ const routeFields = {
     fault_rate: z.number().optional().describe('Percentage of requests that fail on purpose, 0 to 100'),
     fault_type: z.enum(['error', 'reset', 'empty']).optional().describe("What failing means: 'error' answers fault_status with a JSON body, 'reset' drops the connection, 'empty' answers the code with no body"),
     fault_status: z.string().optional().describe("Status code used when fault_type is 'error' or 'empty'. Default '500'"),
+    templating: z.boolean().optional().describe("Resolve {{...}} placeholders in the response body and headers. Off by default, because a response can legitimately contain {{...}}. Use {{body.x}}, {{query.x}}, {{params.x}}, {{headers.x}}, generators like {{uuid()}}, {{now('+1d')}}, {{randomInt(1,100)}}, {{pick('a','b')}}, and {{x ?? 'fallback'}}. In JSON, quote it to get a string and leave it unquoted to get a number, array or object"),
     conditions: z.array(conditionSchema).optional().describe('Conditional responses, evaluated in order: the first match wins')
 };
 
@@ -114,7 +115,8 @@ function baseFromRoute(ruta) {
         latencyMaxMs: ruta.latency_max_ms,
         faultRate: ruta.fault_rate,
         faultType: ruta.fault_type,
-        faultStatus: ruta.fault_status
+        faultStatus: ruta.fault_status,
+        templating: ruta.templating === 1
     };
 }
 
@@ -154,6 +156,7 @@ function toPayload(args, base = {}) {
     if (args.fault_rate !== undefined) payload.faultRate = args.fault_rate;
     if (args.fault_type !== undefined) payload.faultType = args.fault_type;
     if (args.fault_status !== undefined) payload.faultStatus = args.fault_status;
+    if (args.templating !== undefined) payload.templating = args.templating;
 
     if (args.conditions !== undefined) {
         payload.conditions = args.conditions.map(c => ({
@@ -201,6 +204,7 @@ function toRouteView(row, { detailed = false } = {}) {
     view.response = row.respuesta;
     view.description = row.description || null;
     view.custom_headers = parse(row.customHeaders) || [];
+    if (row.templating === 1) view.templating = true;
 
     // Solo se asoma cuando hay algo configurado: en la inmensa mayoría de
     // rutas sería ruido en cada respuesta
