@@ -4822,3 +4822,48 @@ table.dataTable.no-footer {
     font-size: 0.7rem;
     padding: 0;
 }
+
+/* ===== SECCIONES DEL FORMULARIO DE RUTA =====
+   El formulario se enseña una sección cada vez. Esta clase la pone el índice
+   lateral; el filtrado por tipo de ruta sigue usando `style.display`, así que
+   son dos reglas independientes que se componen: un bloque se ve solo si
+   ninguna de las dos lo esconde. El !important es lo que evita que un
+   `display:''` en línea, que es lo que deja showElements(), lo reviva. */
+.is-section-hidden {
+    display: none !important;
+}
+
+/* Entrada de sección del índice: dos líneas, nombre y resumen de lo que hay */
+.route-nav-item.route-nav-section {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto auto;
+    column-gap: 0.55rem;
+    row-gap: 0.1rem;
+    align-items: center;
+    padding: 0.5rem 0.65rem;
+}
+
+.route-nav-item.route-nav-section > i {
+    grid-row: 1 / span 2;
+}
+
+.nav-section-state {
+    grid-column: 2;
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Vacío no debe dejar hueco: si no, las entradas sin nada configurado quedan
+   más altas que las demás y la lista baila */
+.nav-section-state:empty {
+    display: none;
+}
+
+.route-nav-item.route-nav-section.active .nav-section-state {
+    color: var(--text-secondary);
+}
