@@ -662,6 +662,54 @@
   // 'or' = la ruta lleva alguno de los tags; 'and' = los lleva todos
   let tagFilterMode = 'or';
 
+  // ===== USO POR RUTA =====
+  // Sale del log, así que la retención lo acota: lo que se podó ya no cuenta.
+  // Se guarda aparte de los datos de la tabla porque se refresca por su cuenta,
+  // sin volver a pedir las rutas enteras.
+  let routeUsage = {};
+
+  async function cargarUsoDeRutas({ repintar = true } = {}) {
+    try {
+      const datos = await fetch('/api/routes/usage').then(r => r.json());
+      routeUsage = datos.usage || {};
+      // invalidate() vuelve a pintar las celdas sin repetir la petición de rutas
+      if (repintar && typeof tabla !== 'undefined') tabla.rows().invalidate().draw(false);
+    } catch (e) {
+      console.warn('[uso] no se pudo cargar:', e.message);
+    }
+  }
+
+  /**
+   * "hace 3 min". Se corta en días: más allá, la fecha dice más que el hueco
+   */
+  function haceCuanto(ms) {
+    const segundos = Math.floor((Date.now() - ms) / 1000);
+    if (segundos < 5) return t('usage.justNow');
+    if (segundos < 60) return t('usage.secondsAgo').replace('{{n}}', segundos);
+    const minutos = Math.floor(segundos / 60);
+    if (minutos < 60) return t('usage.minutesAgo').replace('{{n}}', minutos);
+    const horas = Math.floor(minutos / 60);
+    if (horas < 24) return t('usage.hoursAgo').replace('{{n}}', horas);
+    return t('usage.daysAgo').replace('{{n}}', Math.floor(horas / 24));
+  }
+
+  function celdaDeUso(routeId) {
+    const uso = routeUsage[routeId];
+    if (!uso || !uso.calls) {
+      return `<span class="route-usage route-usage-none" title="${t('usage.neverHint')}">
+                <i class="fa fa-circle-o"></i> ${t('usage.never')}</span>`;
+    }
+
+    const errores = uso.errors
+      ? ` <span class="route-usage-errors" title="${t('usage.errorsHint')}">${uso.errors} ⚠</span>`
+      : '';
+    const media = uso.avg_duration !== null ? ` · ${uso.avg_duration} ms` : '';
+
+    return `<span class="route-usage" title="${t('usage.hint')}">
+              <i class="fa fa-history"></i> ${t('usage.calls').replace('{{n}}', uso.calls)} ·
+              ${haceCuanto(uso.last_call)}${media}</span>${errores}`;
+  }
+
   let tabla = $('#dtList').DataTable({
     ajax: {
       type: "GET",
@@ -743,6 +791,7 @@
           } catch (e) {}
         }
 
+        html += celdaDeUso(data.id);
         html += `</div>`;
         return html;
       }},
@@ -1231,6 +1280,14 @@
 
   // Initialize tag filter on page load
   document.addEventListener('DOMContentLoaded', initTagFilter);
+
+  // El uso se carga al arrancar y se refresca cada medio minuto: es información
+  // de contexto, no algo que haya que ver al segundo, y repintar la tabla más a
+  // menudo molestaría más de lo que aporta
+  document.addEventListener('DOMContentLoaded', () => {
+    cargarUsoDeRutas();
+    setInterval(() => cargarUsoDeRutas(), 30000);
+  });
 
   // ===== FORM FUNCTIONS =====
   const responsePlaceholders = {

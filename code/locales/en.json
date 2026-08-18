@@ -750,5 +750,17 @@
       "not-found": "the entry is no longer in the log",
       "no-response": "the entry does not store the backend response"
     }
+  },
+  "usage": {
+    "calls": "{{n}} calls",
+    "never": "unused",
+    "justNow": "just now",
+    "secondsAgo": "{{n}}s ago",
+    "minutesAgo": "{{n}}m ago",
+    "hoursAgo": "{{n}}h ago",
+    "daysAgo": "{{n}}d ago",
+    "hint": "Calls recorded in the log, with the last one and the average duration",
+    "neverHint": "No calls to this route are in the log",
+    "errorsHint": "Responses with status 400 or above"
   }
 }

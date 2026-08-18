@@ -750,5 +750,17 @@
       "not-found": "la entrada ya no está en el log",
       "no-response": "la entrada no guarda la respuesta del backend"
     }
+  },
+  "usage": {
+    "calls": "{{n}} llamadas",
+    "never": "sin usar",
+    "justNow": "ahora mismo",
+    "secondsAgo": "hace {{n}} s",
+    "minutesAgo": "hace {{n}} min",
+    "hoursAgo": "hace {{n}} h",
+    "daysAgo": "hace {{n}} d",
+    "hint": "Llamadas registradas en el log, con la última y la duración media",
+    "neverHint": "No hay ninguna llamada a esta ruta en el log",
+    "errorsHint": "Respuestas con código 400 o superior"
   }
 }

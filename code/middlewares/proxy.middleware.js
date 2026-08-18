@@ -488,8 +488,8 @@ async function configureProxy(app) {
                     details: { type: chaos.tipoFallo, rate: chaos.porcentajeFallo, status: chaos.codigoFallo }
                 });
                 faultService.provocarFallo(chaos, res);
-                log.proxyError(req.method, requestPath, proxyConfig.target,
-                    `Fallo provocado (${chaos.tipoFallo} ${chaos.codigoFallo})`);
+                log.fault(req.method, requestPath, chaos.tipoFallo === 'reset' ? null : Number(chaos.codigoFallo),
+                    Date.now() - requestStart, `fallo provocado (${chaos.tipoFallo})`);
                 return;
             }
         }

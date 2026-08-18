@@ -51,7 +51,10 @@ function record(entrada) {
         url: entrada.url || null,
         status: entrada.status === undefined || entrada.status === null ? null : Number(entrada.status),
         duration: entrada.duration === undefined || entrada.duration === null ? null : Number(entrada.duration),
-        route_id: entrada.routeId || null,
+        // Igual que la traza: si la petición ya sabe qué ruta la atiende, toda
+        // línea escrita durante ella queda asociada sin que quien la escribe
+        // tenga que pasarla. Es lo que permite contar el uso por ruta
+        route_id: entrada.routeId || traceContext.routeId(),
         target: entrada.target || null,
         message: entrada.message || null,
         details: entrada.details ? recortar(entrada.details) : null,
@@ -371,6 +374,48 @@ async function getTrace(traceId) {
     };
 }
 
+// Tipos que aparecen una sola vez por petición atendida. Contar cualquier
+// entrada daría números inflados, porque una petición escribe varias líneas
+const TIPOS_POR_PETICION = ['mock', 'proxy', 'proxy-detailed', 'redirect', 'empty', 'page'];
+
+/**
+ * Cuántas veces se ha usado cada ruta y cuándo fue la última.
+ *
+ * Sale del log, así que la retención lo acota: con el log podado a 50.000
+ * filas, lo de antes deja de contarse. Es lo correcto para "¿esta ruta se
+ * usa?", que es la pregunta que responde.
+ */
+async function usoPorRuta(filtros = {}) {
+    const where = ['route_id IS NOT NULL', `type IN (${TIPOS_POR_PETICION.map(() => '?').join(',')})`];
+    const params = [...TIPOS_POR_PETICION];
+
+    if (filtros.from) {
+        where.push('ts_ms >= ?');
+        params.push(Number(filtros.from));
+    }
+
+    const filas = await dbAll(
+        `SELECT route_id, COUNT(*) as total, MAX(ts_ms) as ultima,
+                SUM(CASE WHEN status >= 400 THEN 1 ELSE 0 END) as errores,
+                AVG(duration) as media
+         FROM logs
+         WHERE ${where.join(' AND ')}
+         GROUP BY route_id`,
+        params
+    );
+
+    const uso = {};
+    for (const f of filas) {
+        uso[f.route_id] = {
+            calls: f.total,
+            last_call: f.ultima,
+            errors: f.errores || 0,
+            avg_duration: f.media === null ? null : Math.round(f.media)
+        };
+    }
+    return uso;
+}
+
 async function clear(filtros = {}) {
     // Sin filtros borra todo; con ellos, solo lo que se está viendo
     const { clausula, params } = construirWhere(filtros);
@@ -399,6 +444,7 @@ module.exports = {
     record,
     flush,
     query,
+    usoPorRuta,
     getTrace,
     stats,
     clear,

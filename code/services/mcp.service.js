@@ -699,6 +699,42 @@ function buildServer() {
         return ok({ deleted: true, id });
     }));
 
+    server.registerTool('route_usage', {
+        title: 'Which routes are actually used',
+        description: 'Calls, last use, errors and average duration per route, taken from the log. Useful to find dead routes before cleaning up, or to confirm the traffic you expected actually landed. Bounded by log retention: what fell out of the log is no longer counted.',
+        inputSchema: {
+            since_ms: z.number().optional().describe('Epoch ms lower bound. Without it, everything still in the log'),
+            include_unused: z.boolean().optional().describe('Also list routes with no calls at all. Default true')
+        }
+    }, async (args) => run('route_usage', async () => {
+        const uso = await logService.usoPorRuta({ from: args.since_ms });
+        const rutas = await routesService.listRoutes({});
+        const incluirSinUso = args.include_unused !== false;
+
+        const filas = rutas
+            .map(r => {
+                const datos = uso[r.id] || { calls: 0, last_call: null, errors: 0, avg_duration: null };
+                return {
+                    id: r.id,
+                    method: r.tipo,
+                    path: r.ruta,
+                    active: r.activo !== 0,
+                    calls: datos.calls,
+                    last_call: datos.last_call ? new Date(datos.last_call).toISOString() : null,
+                    errors: datos.errors,
+                    avg_duration_ms: datos.avg_duration
+                };
+            })
+            .filter(r => incluirSinUso || r.calls > 0)
+            .sort((a, b) => b.calls - a.calls);
+
+        return ok({
+            routes: filas,
+            unused: filas.filter(r => r.calls === 0).length,
+            total: filas.length
+        });
+    }));
+
     server.registerTool('set_route_sequence', {
         title: 'Set a stateful scenario',
         description: 'Makes a route answer differently depending on how many times it has been called: first pending, then processing, then done. This is what simulates polling flows, which conditional responses cannot: conditions only look at the request, and in a poll every request is identical. The sequence wins over conditional responses. The call counter lives in memory and resets when the server restarts or when reset_route_sequence is called.',

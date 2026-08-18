@@ -435,6 +435,16 @@ router.post('/logs/mocks', async function(req, res) {
     }
 });
 
+/* Uso por ruta: cuántas llamadas y cuándo fue la última */
+router.get('/routes/usage', async function(req, res) {
+    try {
+        res.json({ usage: await logService.usoPorRuta({ from: req.query.from }) });
+    } catch (err) {
+        console.error(`[API] Error calculando el uso por ruta: ${err.message}`);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ===== ESCENARIOS =====
 
 /* Guardar los pasos del escenario de una ruta */

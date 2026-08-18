@@ -352,7 +352,8 @@ async function checkRoute(req, res, next) {
                     details: { type: chaos.tipoFallo, rate: chaos.porcentajeFallo, status: chaos.codigoFallo }
                 });
                 faultService.provocarFallo(chaos, res);
-                log.error(`💥 ${method} ${url} ${describirFallo(chaos)} (${Date.now() - requestStart}ms)`);
+                log.fault(method, url, chaos.tipoFallo === 'reset' ? null : Number(chaos.codigoFallo),
+                    Date.now() - requestStart, describirFallo(chaos));
                 return;
             }
         }
@@ -439,8 +440,8 @@ async function checkRoute(req, res, next) {
                     level: 'error',
                     details: { error: salida.error }
                 });
-                log.error(`📜 ${method} ${url}: ${salida.error}`);
                 res.status(500).json({ error: 'Mock script failed', message: salida.error });
+                log.fault(method, url, 500, Date.now() - requestStart, `script: ${salida.error}`);
                 return;
             }
 

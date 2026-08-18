@@ -4771,3 +4771,31 @@ table.dataTable.no-footer {
     font-weight: 600;
     flex-shrink: 0;
 }
+
+/* Uso de la ruta, bajo el camino. Discreto a propósito: es contexto, no un
+   dato que se consulte, y compite con el nombre de la ruta por la atención */
+.route-usage {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin-top: 0.25rem;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.route-usage i {
+    font-size: 0.68rem;
+    opacity: 0.8;
+}
+
+.route-usage-none {
+    opacity: 0.55;
+    font-style: italic;
+}
+
+.route-usage-errors {
+    margin-left: 0.35rem;
+    font-size: 0.72rem;
+    color: var(--danger);
+}

@@ -106,6 +106,16 @@ const log = {
             { method, url, target, status: statusCode, duration });
     },
 
+    /**
+     * Fallo provocado o script roto. Se emite con tipo de petición y no como
+     * error suelto para que cuente en el uso de la ruta: una llamada que
+     * revienta a propósito sigue siendo una llamada a esa ruta.
+     */
+    fault: (method, url, statusCode, duration, detalle) => {
+        emitLog(`💥 ${method} ${url} ${statusCode || '-'} ${detalle}`, LogType.MOCK,
+            { method, url, status: statusCode || null, duration, level: 'error' });
+    },
+
     proxyDetailed: (data) => {
         // El detalle completo se guarda tal cual: es lo que hace que el log
         // sirva para depurar después, no solo para ver que algo pasó

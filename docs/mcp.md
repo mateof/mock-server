@@ -59,6 +59,7 @@ The server is stateless on purpose. A tool-only server needs nothing between cal
 | `query_logs` | The recorded traffic: what arrived, what was answered, how long it took |
 | `log_stats` | Totals by level, type and status, durations and a histogram |
 | `get_trace` | The full story of one request in order, from the route that matched to the answer |
+| `route_usage` | Calls, last use, errors and average duration per route: which ones are dead |
 
 ### Writing
 

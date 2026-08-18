@@ -40,6 +40,11 @@ A powerful HTTP mocking and proxying application built with Express.js and Node.
   - Validation with test URL
   - Separate path extraction for proxies
 
+- **Per-Route Usage** - See which routes are actually used, and which are dead
+  - Calls, last use, average duration and error count, under each route in the list
+  - Taken from the log, so retention bounds it
+  - `route_usage` over MCP, for finding dead routes before a cleanup
+
 - **Scripts on Mock Routes** - The same `ms.*` engine the proxy uses, now on mocks
   - Runs last: after conditions, the scenario step and templating
   - Reads the request (`ms.request.json()`, headers, query) and rewrites code, headers and body
