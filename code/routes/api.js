@@ -194,6 +194,50 @@ router.post('/delete-bulk', async function(req, res) {
     }
 });
 
+/* Activar o desactivar varias rutas de golpe, por id o por tag */
+router.post('/routes/bulk-active', async function(req, res) {
+    const activo = req.body.active ? 1 : 0;
+    const db = sqliteService.getDatabase();
+
+    try {
+        let ids = Array.isArray(req.body.ids) ? req.body.ids.map(Number).filter(n => !isNaN(n)) : null;
+
+        // Por tag: los tags viven serializados dentro de la propia fila, así que
+        // hay que mirarlos en JavaScript en vez de con un WHERE
+        if (!ids && req.body.tagId) {
+            const rutas = await routesService.listRoutes({});
+            ids = rutas.filter(r => {
+                if (!r.tags) return false;
+                try {
+                    return JSON.parse(r.tags).some(tag => tag.id === req.body.tagId);
+                } catch (e) {
+                    return false;
+                }
+            }).map(r => r.id);
+        }
+
+        if (!ids || ids.length === 0) {
+            return res.status(400).json({ success: false, error: 'No routes matched' });
+        }
+
+        const huecos = ids.map(() => '?').join(',');
+        const cambiadas = await new Promise((resolve, reject) => {
+            db.run(`UPDATE rutas SET activo = ? WHERE id IN (${huecos})`, [activo, ...ids], function(err) {
+                if (err) reject(err); else resolve(this.changes);
+            });
+        });
+
+        // Entre las afectadas puede haber proxys, y su configuración vive en memoria
+        await pm.reloadProxyConfigs();
+
+        console.log(`[API] ${cambiadas} rutas ${activo ? 'activadas' : 'desactivadas'}`);
+        res.json({ success: true, updated: cambiadas, active: !!activo, ids });
+    } catch (err) {
+        console.error(`[API] Error en el cambio masivo de estado: ${err.message}`);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 router.get('/routes', function(req, res, next) {
     let sql = `SELECT * FROM rutas
            ORDER BY COALESCE(orden, 999999) ASC, id ASC`;

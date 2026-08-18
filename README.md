@@ -40,6 +40,12 @@ A powerful HTTP mocking and proxying application built with Express.js and Node.
   - Validation with test URL
   - Separate path extraction for proxies
 
+- **Bulk Enable and Disable** - Turn whole sets of routes on or off
+  - By selection, or by tag straight from the tag filter
+  - "Disable everything tagged payments" makes tags operational, not just labels
+  - Disabling lets traffic fall through to a proxy again without deleting the mocks
+  - `set_routes_active` over MCP, by ids or by tag name
+
 - **Per-Route Usage** - See which routes are actually used, and which are dead
   - Calls, last use, average duration and error count, under each route in the list
   - Taken from the log, so retention bounds it

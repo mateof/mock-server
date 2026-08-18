@@ -79,6 +79,7 @@ The server is stateless on purpose. A tool-only server needs nothing between cal
 | `reset_route_sequence` | Puts a scenario back to its first step |
 | `set_route_faults` | Latency and fault injection: makes a route slow, unreliable, or both |
 | `create_route` / `update_route` with `templating` | Turns on `{{...}}` substitution in the body and headers |
+| `set_routes_active` | Enables or disables a whole set of routes at once, by ids or by tag |
 | `reorder_routes` | Sets which route wins when several match |
 | `create_tag` / `delete_tag` | Manages tags |
 

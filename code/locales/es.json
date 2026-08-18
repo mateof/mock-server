@@ -451,7 +451,13 @@
   "bulk": {
     "selectAll": "Seleccionar todo",
     "deleteSelected": "Eliminar seleccionadas",
-    "confirmMessage": "¿Estás seguro de que deseas eliminar las rutas seleccionadas?"
+    "confirmMessage": "¿Estás seguro de que deseas eliminar las rutas seleccionadas?",
+    "enable": "Activar",
+    "disable": "Desactivar",
+    "enabled": "{{n}} rutas activadas",
+    "disabled": "{{n}} rutas desactivadas",
+    "enableTag": "Activar todas las rutas con este tag",
+    "disableTag": "Desactivar todas las rutas con este tag"
   },
   "duplicate": {
     "newRoute": "Nueva ruta",

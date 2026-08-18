@@ -4,6 +4,12 @@
     <div class="card-header-modern">
       <h2><i class="fa fa-sitemap"></i> <%= __('routes.title') %></h2>
       <div class="d-flex gap-2">
+        <button type="button" class="btn-modern btn-modern-success" id="bulkEnableBtn" onclick="bulkSetActive(true)" style="display: none;">
+          <i class="fa fa-check"></i> <span id="bulkEnableCount"></span>
+        </button>
+        <button type="button" class="btn-modern btn-modern-warning" id="bulkDisableBtn" onclick="bulkSetActive(false)" style="display: none;">
+          <i class="fa fa-ban"></i> <span id="bulkDisableCount"></span>
+        </button>
         <button type="button" class="btn-modern btn-modern-danger" id="bulkDeleteBtn" onclick="openBulkDeleteModal()" style="display: none;">
           <i class="fa fa-trash"></i> <span id="bulkDeleteCount"></span>
         </button>
@@ -1086,6 +1092,18 @@
               ${selectedFilterTags.includes(tag.id) ? 'checked' : ''}
               onchange="toggleTagFilter('${tag.id}')">
             <span class="badge-tag badge-tag-sm" style="background: ${tag.color};">${escapeHtml(tag.name)}</span>
+            <span class="tags-filter-actions">
+              <button type="button" class="btn-icon btn-icon-success btn-icon-xs"
+                      title="${t('bulk.enableTag')}"
+                      onclick="event.preventDefault(); event.stopPropagation(); setActiveByTag('${tag.id}', true)">
+                <i class="fa fa-check"></i>
+              </button>
+              <button type="button" class="btn-icon btn-icon-warning btn-icon-xs"
+                      title="${t('bulk.disableTag')}"
+                      onclick="event.preventDefault(); event.stopPropagation(); setActiveByTag('${tag.id}', false)">
+                <i class="fa fa-ban"></i>
+              </button>
+            </span>
           </label>
         `).join('');
 
@@ -5794,11 +5812,20 @@
     const checked = document.querySelectorAll('.route-select-check:checked');
     const btn = document.getElementById('bulkDeleteBtn');
     const count = document.getElementById('bulkDeleteCount');
+    const enable = document.getElementById('bulkEnableBtn');
+    const disable = document.getElementById('bulkDisableBtn');
+
     if (checked.length > 0) {
       btn.style.display = '';
       count.textContent = `${t('bulk.deleteSelected')} (${checked.length})`;
+      enable.style.display = '';
+      disable.style.display = '';
+      document.getElementById('bulkEnableCount').textContent = `${t('bulk.enable')} (${checked.length})`;
+      document.getElementById('bulkDisableCount').textContent = `${t('bulk.disable')} (${checked.length})`;
     } else {
       btn.style.display = 'none';
+      enable.style.display = 'none';
+      disable.style.display = 'none';
     }
     // Update select all checkbox state
     const all = document.querySelectorAll('.route-select-check');
@@ -5806,6 +5833,49 @@
     if (selectAll) {
       selectAll.checked = all.length > 0 && checked.length === all.length;
       selectAll.indeterminate = checked.length > 0 && checked.length < all.length;
+    }
+  }
+
+  /**
+   * Activa o desactiva lo seleccionado. Sin confirmación a propósito: es
+   * reversible con el botón de al lado, y pedirla en cada cambio de estado
+   * convertiría en un engorro lo que se usa justo para probar rápido
+   */
+  async function bulkSetActive(active) {
+    const checked = document.querySelectorAll('.route-select-check:checked');
+    if (checked.length === 0) return;
+
+    const ids = Array.from(checked).map(cb => parseInt(cb.dataset.id));
+    await aplicarEstadoMasivo({ ids, active });
+  }
+
+  /**
+   * Lo mismo, pero a todas las rutas que llevan un tag. Es lo que convierte los
+   * tags en algo operativo y no solo en una forma de clasificar
+   */
+  async function setActiveByTag(tagId, active) {
+    await aplicarEstadoMasivo({ tagId, active });
+  }
+
+  async function aplicarEstadoMasivo(cuerpo) {
+    try {
+      const r = await fetch('/api/routes/bulk-active', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cuerpo)
+      });
+      const datos = await r.json();
+
+      if (!r.ok || !datos.success) {
+        showToast(datos.error || t('errors.generic'), 'warning');
+        return;
+      }
+
+      showToast(t(cuerpo.active ? 'bulk.enabled' : 'bulk.disabled')
+        .replace('{{n}}', datos.updated), 'success');
+      tabla.ajax.reload(null, false);
+    } catch (e) {
+      showToast(e.message, 'error');
     }
   }
 

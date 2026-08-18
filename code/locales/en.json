@@ -451,7 +451,13 @@
   "bulk": {
     "selectAll": "Select all",
     "deleteSelected": "Delete selected",
-    "confirmMessage": "Are you sure you want to delete the selected routes?"
+    "confirmMessage": "Are you sure you want to delete the selected routes?",
+    "enable": "Enable",
+    "disable": "Disable",
+    "enabled": "{{n}} routes enabled",
+    "disabled": "{{n}} routes disabled",
+    "enableTag": "Enable every route with this tag",
+    "disableTag": "Disable every route with this tag"
   },
   "duplicate": {
     "newRoute": "New route",

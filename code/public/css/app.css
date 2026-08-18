@@ -4799,3 +4799,26 @@ table.dataTable.no-footer {
     font-size: 0.72rem;
     color: var(--danger);
 }
+
+/* Activar y desactivar por tag, dentro de su fila del filtro. Aparecen al
+   pasar por encima: si estuvieran siempre visibles, competirían con el propio
+   filtro, que es a lo que se viene */
+.tags-filter-actions {
+    margin-left: auto;
+    display: flex;
+    gap: 0.2rem;
+    opacity: 0;
+    transition: opacity 0.12s ease;
+}
+
+.tags-filter-option:hover .tags-filter-actions,
+.tags-filter-actions:focus-within {
+    opacity: 1;
+}
+
+.btn-icon-xs {
+    width: 1.5rem;
+    height: 1.5rem;
+    font-size: 0.7rem;
+    padding: 0;
+}

@@ -699,6 +699,57 @@ function buildServer() {
         return ok({ deleted: true, id });
     }));
 
+    server.registerTool('set_routes_active', {
+        title: 'Enable or disable routes in bulk',
+        description: 'Turns a whole set of routes on or off at once, by id or by tag. "Disable everything tagged payments" or "enable only the demo set". Disabling is how you let traffic fall through to a proxy again without deleting the mocks.',
+        inputSchema: {
+            active: z.boolean(),
+            ids: z.array(z.number()).optional().describe('Route ids. Takes precedence over tag'),
+            tag: z.string().optional().describe('Tag name or id: every route carrying it')
+        }
+    }, async (args) => run('set_routes_active', async () => {
+        const rutas = await routesService.listRoutes({});
+        let objetivo = [];
+
+        if (Array.isArray(args.ids) && args.ids.length) {
+            objetivo = rutas.filter(r => args.ids.includes(r.id));
+        } else if (args.tag) {
+            const buscado = String(args.tag).toLowerCase();
+            objetivo = rutas.filter(r => {
+                if (!r.tags) return false;
+                try {
+                    // Se admite el nombre o el id: el asistente ve nombres en
+                    // list_tags y pedirle que traduzca a id sería un paso de más
+                    return JSON.parse(r.tags).some(t =>
+                        t.id === args.tag || String(t.name).toLowerCase() === buscado);
+                } catch (e) {
+                    return false;
+                }
+            });
+        } else {
+            return fail('Hace falta ids o tag');
+        }
+
+        if (objetivo.length === 0) {
+            return fail(args.tag ? `Ninguna ruta lleva el tag "${args.tag}"` : 'Ninguna ruta con esos ids');
+        }
+
+        for (const ruta of objetivo) {
+            const completa = await routesService.getRoute(ruta.id);
+            await routesService.updateRoute(ruta.id, {
+                ...baseFromRoute(completa),
+                activo: args.active
+            }, { file: 'keep' });
+        }
+
+        log.success(`🤖 MCP: ${objetivo.length} rutas ${args.active ? 'activadas' : 'desactivadas'}`);
+        return ok({
+            updated: objetivo.length,
+            active: args.active,
+            routes: objetivo.map(r => ({ id: r.id, method: r.tipo, path: r.ruta }))
+        });
+    }));
+
     server.registerTool('route_usage', {
         title: 'Which routes are actually used',
         description: 'Calls, last use, errors and average duration per route, taken from the log. Useful to find dead routes before cleaning up, or to confirm the traffic you expected actually landed. Bounded by log retention: what fell out of the log is no longer counted.',
