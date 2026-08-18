@@ -46,7 +46,7 @@ That composes the two ideas without the scenario overriding you.
 
 ## In templates
 
-`{{callCount}}` is available when dynamic responses are on, so a body can report which call it is:
+`{{callCount}}` is available when [dynamic responses](templating.md) are on, so a body can report which call it is:
 
 ```json
 {"attempt": {{callCount}}, "status": "processing"}
