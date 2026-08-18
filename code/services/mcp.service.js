@@ -699,6 +699,35 @@ function buildServer() {
         return ok({ deleted: true, id });
     }));
 
+    server.registerTool('verify_calls', {
+        title: 'Check what was actually called',
+        description: 'Answers "was /orders called, how many times, and with what?". Give an expectation (times, at_least, at_most) and it reports whether it holds, so a flow can be built, exercised and then checked without leaving the conversation. Matches on the recorded request: path, method, resulting status and a substring of the body. Bounded by log retention.',
+        inputSchema: {
+            path: z.string().optional().describe('Substring of the path, e.g. /orders'),
+            method: z.string().optional(),
+            status: z.string().optional().describe('Exact code (404) or family (2xx) of the response given'),
+            body_contains: z.string().optional().describe('Substring that must appear in the recorded request body'),
+            since_ms: z.number().optional().describe('Epoch ms lower bound. Use it to check only what happened after a step'),
+            times: z.number().optional().describe('Expect exactly this many calls'),
+            at_least: z.number().optional(),
+            at_most: z.number().optional()
+        }
+    }, async (args) => run('verify_calls', async () => {
+        const resultado = await logService.verificarLlamadas({
+            path: args.path,
+            method: args.method,
+            status: args.status,
+            bodyContains: args.body_contains,
+            since: args.since_ms
+        }, {
+            times: args.times,
+            atLeast: args.at_least,
+            atMost: args.at_most
+        });
+
+        return ok(resultado);
+    }));
+
     server.registerTool('set_routes_active', {
         title: 'Enable or disable routes in bulk',
         description: 'Turns a whole set of routes on or off at once, by id or by tag. "Disable everything tagged payments" or "enable only the demo set". Disabling is how you let traffic fall through to a proxy again without deleting the mocks.',

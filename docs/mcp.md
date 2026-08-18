@@ -60,6 +60,7 @@ The server is stateless on purpose. A tool-only server needs nothing between cal
 | `log_stats` | Totals by level, type and status, durations and a histogram |
 | `get_trace` | The full story of one request in order, from the route that matched to the answer |
 | `route_usage` | Calls, last use, errors and average duration per route: which ones are dead |
+| `verify_calls` | Was it called, how many times, and with what? With pass/fail expectations |
 
 ### Writing
 
@@ -127,6 +128,10 @@ The assistant would call `create_route` and then `set_route_conditions`, and can
 > Mock everything that went through `/orders` in the last hour.
 
 `create_mocks_from_logs` with `url` and `from`. It keeps the newest response for each method and path, so repeated calls give one route each, and reports what it could not convert instead of writing a broken mock.
+
+> Check the app actually posted the order, once, with the right id.
+
+`verify_calls` with `path: "/orders"`, `method: "POST"`, `body_contains: "A-100"` and `times: 1`. It answers with `passed` plus the calls it matched, so a flow can be built, exercised and checked without leaving the conversation.
 
 ## What the assistant cannot do
 

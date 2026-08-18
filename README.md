@@ -40,6 +40,12 @@ A powerful HTTP mocking and proxying application built with Express.js and Node.
   - Validation with test URL
   - Separate path extraction for proxies
 
+- **Call Verification** - Assert what actually happened, from the assistant
+  - "Was /orders called, how many times, and with what body?"
+  - Expectations (`times`, `at_least`, `at_most`) come back as pass or fail
+  - Matches on path, method, resulting status and a substring of the request body
+  - Turns the server into a contract-testing tool: build the flow, run it, check it
+
 - **Bulk Enable and Disable** - Turn whole sets of routes on or off
   - By selection, or by tag straight from the tag filter
   - "Disable everything tagged payments" makes tags operational, not just labels
