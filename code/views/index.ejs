@@ -3205,6 +3205,9 @@
       const aplica = {
         respuesta: !esProxy,
         proxy: esProxy,
+        // La documentación vale para cualquier tipo, proxy incluido: explicar a
+        // qué backend apunta y cuándo usarlo es justo lo que hace falta ahí
+        documentacion: true,
         // Un proxy resuelve sus variantes con fallbacks, no con condiciones
         variacion: !esProxy,
         comportamiento: true,
@@ -3268,6 +3271,21 @@
       if (titulo) {
         const camino = valor('ruta').trim();
         titulo.textContent = camino || t('form.navigationTree');
+      }
+
+      const docs = valor('description').trim();
+      const palabras = docs ? docs.split(/\s+/).length : 0;
+      poner('documentacion', palabras
+        ? t('form.stateDocumented').replace('{{count}}', palabras)
+        : t('form.stateUndocumented'));
+
+      // El contador de al lado del campo sale de aquí y no de valuesForModal:
+      // allí corría antes de que el formulario hubiera cargado la descripción
+      const contador = document.getElementById('docsCounter');
+      if (contador) {
+        contador.textContent = palabras
+          ? t('form.stateDocumented').replace('{{count}}', palabras)
+          : '';
       }
 
       // Los tags viven en el módulo, no en el DOM: no hay contenedor que contar

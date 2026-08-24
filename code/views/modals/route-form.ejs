@@ -52,6 +52,13 @@
                 <span class="nav-section-state" id="navState-comportamiento"></span>
               </div>
 
+              <div class="route-nav-item route-nav-section" data-section-key="documentacion"
+                   onclick="RouteNavigation.showSection('documentacion')">
+                <i class="fa fa-book"></i>
+                <span class="nav-item-name"><%= __('form.sectionDocs') %></span>
+                <span class="nav-section-state" id="navState-documentacion"></span>
+              </div>
+
               <div class="route-nav-item route-nav-section" data-section-key="organizacion"
                    onclick="RouteNavigation.showSection('organizacion')">
                 <i class="fa fa-tags"></i>
@@ -691,6 +698,29 @@
               </div>
 
               <!-- Metadata (operationId, summary, description) -->
+              <!--
+                Documentación de la ruta.
+                Estaba metida como un textarea de tres líneas dentro de
+                "Metadata", junto al operationId, así que ni se encontraba ni
+                daba para escribir nada. Ahora es su propia sección: es donde se
+                dejan las instrucciones que tiene que leer quien use la ruta,
+                persona o asistente.
+              -->
+              <div class="form-group-modern" id="divDocs" data-section="documentacion">
+                <div class="form-label-row">
+                  <label class="form-label-modern" for="description">
+                    <i class="fa fa-book"></i> <%= __('form.docs') %>
+                  </label>
+                  <span class="docs-counter" id="docsCounter"></span>
+                </div>
+                <small style="color: var(--text-muted); margin-bottom: 0.75rem; display: block;">
+                  <%= __('form.help.docsHelp') %>
+                </small>
+                <textarea class="form-control-modern docs-editor" id="description" name="description"
+                          rows="16" spellcheck="true"
+                          placeholder="<%= __('form.placeholder.docs') %>"></textarea>
+              </div>
+
               <div class="collapsible-section" id="divMetadata" data-section="organizacion" style="margin-top: 1.25rem;">
                 <div class="collapsible-header" onclick="toggleMetadataSection()">
                   <h4><i class="fa fa-info-circle"></i> <%= __('form.metadata') %></h4>
@@ -706,10 +736,6 @@
                   <div class="form-group-modern">
                     <label class="form-label-modern" for="summary"><%= __('form.summary') %></label>
                     <input type="text" class="form-control-modern" id="summary" name="summary" placeholder="<%= __('form.placeholder.summary') %>">
-                  </div>
-                  <div class="form-group-modern">
-                    <label class="form-label-modern" for="description"><%= __('form.description') %></label>
-                    <textarea class="form-control-modern" id="description" name="description" rows="3" placeholder="<%= __('form.placeholder.description') %>"></textarea>
                   </div>
                   <div class="form-group-modern">
                     <div class="form-label-row">

@@ -189,7 +189,7 @@ function toPayload(args, base = {}) {
 /**
  * Fila de la tabla al vocabulario de la API MCP
  */
-function toRouteView(row, { detailed = false } = {}) {
+function toRouteView(row, { detailed = false, includeDocs = false } = {}) {
     if (!row) return null;
 
     const parse = (value) => {
@@ -213,10 +213,16 @@ function toRouteView(row, { detailed = false } = {}) {
     if (row.summary) view.summary = row.summary;
     if (row.operationId) view.operation_id = row.operationId;
 
+    // Que la ruta lleva instrucciones se dice siempre, aunque no se pidan:
+    // es lo que hace que el asistente sepa que hay algo que leer
+    if (row.description) view.has_docs = true;
+    if (includeDocs && row.description) view.docs = row.description;
+
     if (!detailed) return view;
 
     view.response = row.respuesta;
     view.description = row.description || null;
+    view.docs = row.description || null;
     view.custom_headers = parse(row.customHeaders) || [];
     if (row.templating === 1) view.templating = true;
     if (row.mock_script) view.mock_script = row.mock_script;
@@ -328,9 +334,12 @@ function buildServer() {
         const porTipo = {};
         rutas.forEach(r => { porTipo[r.tiporespuesta] = (porTipo[r.tiporespuesta] || 0) + 1; });
 
+        const documentadas = rutas.filter(r => r.description && r.description.trim()).length;
+
         return ok({
             version,
             total_routes: rutas.length,
+            documented_routes: documentadas,
             routes_by_type: porTipo,
             response_types: RESPONSE_TYPES,
             http_methods: HTTP_METHODS,
@@ -341,7 +350,8 @@ function buildServer() {
                 'On a proxy route, response is the target URL.',
                 'A graphql route needs set_graphql_operations (or import_graphql_schema) to answer anything.',
                 'A websocket route needs set_websocket_messages to do anything.',
-                'When several routes match, the lowest order wins; reorder_routes decides it.'
+                'When several routes match, the lowest order wins; reorder_routes decides it.',
+                'Routes can carry documentation: instructions on what they simulate and how they are meant to be used. list_routes flags them with has_docs and returns it with include_docs. Read it before changing a route you did not create, and leave your own with set_route_docs.'
             ],
             workflow: {
                 mock: 'create_route -> set_route_conditions',
@@ -354,21 +364,71 @@ function buildServer() {
 
     server.registerTool('list_routes', {
         title: 'List routes',
-        description: 'Lists the configured routes in priority order. Supports filtering by method, response type, state and free text.',
+        description: 'Lists the configured routes in priority order. Supports filtering by method, response type, state and free text. Routes carrying documentation are flagged with has_docs; pass include_docs to read that documentation in the same call, which is the cheap way to find out how the routes are meant to be used before touching them.',
         inputSchema: {
             method: z.enum(HTTP_METHODS).optional(),
             response_type: z.enum(RESPONSE_TYPES).optional(),
             active: z.boolean().optional(),
-            search: z.string().optional().describe('Searches the path, the summary and the operationId')
+            search: z.string().optional().describe('Searches the path, the summary, the operationId and the documentation'),
+            include_docs: z.boolean().optional().describe('Include each route\'s documentation in the listing. Off by default because it can be long'),
+            documented: z.boolean().optional().describe('Only routes that have documentation (true) or only those that lack it (false)')
         }
     }, async (args) => run('list_routes', async () => {
-        const rutas = await routesService.listRoutes({
+        let rutas = await routesService.listRoutes({
             tipo: args.method,
             tiporespuesta: args.response_type,
             activo: args.active,
             search: args.search
         });
-        return ok({ count: rutas.length, routes: rutas.map(r => toRouteView(r)) });
+
+        if (args.documented !== undefined) {
+            rutas = rutas.filter(r => Boolean(r.description && r.description.trim()) === args.documented);
+        }
+
+        return ok({
+            count: rutas.length,
+            documented: rutas.filter(r => r.description && r.description.trim()).length,
+            routes: rutas.map(r => toRouteView(r, { includeDocs: args.include_docs === true }))
+        });
+    }));
+
+    server.registerTool('get_route_docs', {
+        title: 'Read a route\'s documentation',
+        description: 'The instructions and notes written on a route: what it simulates, how it is meant to be called, what to be careful with. Read this before changing a route you did not create.',
+        inputSchema: { id: z.number() }
+    }, async (args) => run('get_route_docs', async () => {
+        const ruta = await routesService.getRoute(args.id);
+        if (!ruta) return fail(`No existe la ruta ${args.id}`);
+        return ok({
+            id: ruta.id,
+            method: ruta.tipo,
+            path: ruta.ruta,
+            docs: ruta.description || null,
+            documented: Boolean(ruta.description && ruta.description.trim())
+        });
+    }));
+
+    server.registerTool('set_route_docs', {
+        title: 'Write a route\'s documentation',
+        description: 'Replaces the documentation of a route. Markdown is the convention. Use it to leave instructions for whoever uses the route next, human or assistant: what it simulates, which headers it expects, what the scenario does. Only this field is touched, so nothing else about the route can be lost.',
+        inputSchema: {
+            id: z.number(),
+            docs: z.string().describe('The documentation. An empty string clears it'),
+            append: z.boolean().optional().describe('Add to the end of what is already there instead of replacing it')
+        }
+    }, async (args) => run('set_route_docs', async () => {
+        const ruta = await routesService.getRoute(args.id);
+        if (!ruta) return fail(`No existe la ruta ${args.id}`);
+
+        const previo = ruta.description || '';
+        const texto = args.append && previo
+            ? `${previo.trimEnd()}\n\n${args.docs}`
+            : args.docs;
+
+        await routesService.setDocs(args.id, texto);
+
+        log.success(`🤖 MCP: documentación ${texto.trim() ? 'actualizada' : 'borrada'} en la ruta ${args.id}`);
+        return ok({ updated: true, id: args.id, docs: texto || null });
     }));
 
     server.registerTool('get_route', {

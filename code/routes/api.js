@@ -480,6 +480,18 @@ router.post('/logs/mocks', async function(req, res) {
     }
 });
 
+/* Documentación de una ruta, aislada del resto de la configuración */
+router.put('/routes/:id/docs', async function(req, res) {
+    try {
+        await routesService.setDocs(req.params.id, req.body.docs);
+        res.json({ success: true });
+    } catch (err) {
+        const codigo = err.name === 'RouteValidationError' ? 404 : 500;
+        console.error(`[API] Error guardando la documentación: ${err.message}`);
+        res.status(codigo).json({ success: false, error: err.message });
+    }
+});
+
 /* Uso por ruta: cuántas llamadas y cuándo fue la última */
 router.get('/routes/usage', async function(req, res) {
     try {

@@ -245,11 +245,14 @@ test.describe('secciones del formulario de ruta', () => {
             page.locator('.route-nav-section:visible').evaluateAll(
                 nodos => nodos.map(n => n.dataset.sectionKey));
 
-        expect(await visibles()).toEqual(['respuesta', 'variacion', 'comportamiento', 'organizacion']);
+        expect(await visibles()).toEqual(
+            ['respuesta', 'variacion', 'comportamiento', 'documentacion', 'organizacion']);
 
         await page.selectOption('#tiporespuesta', 'proxy');
-        // Un proxy no tiene cuerpo propio ni condiciones: resuelve con fallbacks
-        expect(await visibles()).toEqual(['proxy', 'comportamiento']);
+        // Un proxy no tiene cuerpo propio ni condiciones: resuelve con fallbacks.
+        // La documentación sí le aplica: explicar a qué backend apunta y cuándo
+        // usarlo es justo lo que hace falta ahí
+        expect(await visibles()).toEqual(['proxy', 'comportamiento', 'documentacion']);
     });
 
     test('editar una ruta existente carga sus secciones', async ({ page, request }) => {
@@ -264,5 +267,87 @@ test.describe('secciones del formulario de ruta', () => {
         await expect(page.locator('#ruta')).toHaveValue('/e2e/para-editar');
         // La cabecera del índice recuerda qué ruta se edita
         await expect(page.locator('#routeNavTitle')).toContainText('/e2e/para-editar');
+    });
+});
+
+/**
+ * Documentación de la ruta.
+ *
+ * Es el sitio donde se dejan instrucciones para quien use la ruta después,
+ * persona o asistente. Lo que se prueba aquí es que el texto sobrevive el viaje
+ * completo: se escribe en el panel, se guarda, y sigue ahí al reabrir.
+ */
+test.describe('documentación de la ruta', () => {
+
+    test('tiene su propia sección, no escondida en Metadata', async ({ page }) => {
+        await page.goto('/');
+        await page.click('button:has-text("Nueva ruta"), button:has-text("New route"), button:has-text("Nova ruta")');
+        await expect(page.locator('#routesModal')).toBeVisible();
+
+        await page.click('.route-nav-section[data-section-key="documentacion"]');
+        await expect(page.locator('#description')).toBeVisible();
+
+        // Con sitio de sobra: como textarea de tres líneas no invitaba a escribir
+        const alto = (await page.locator('#description').boundingBox()).height;
+        expect(alto).toBeGreaterThan(250);
+    });
+
+    test('lo escrito se guarda y sigue ahí al reabrir', async ({ page }) => {
+        const texto = '## Qué simula\nEl listado de pedidos.\n\n## Ojo\nNecesita la cabecera X-Cliente.';
+
+        await page.goto('/');
+        await page.click('button:has-text("Nueva ruta"), button:has-text("New route"), button:has-text("Nova ruta")');
+        await page.fill('#ruta', '/e2e/documentada');
+        await page.fill('#respuesta', '{"ok":true}');
+        await page.click('.route-nav-section[data-section-key="documentacion"]');
+        await page.fill('#description', texto);
+        await page.click('#botonguardar');
+
+        await expect(page.locator('#dtList')).toContainText('/e2e/documentada', { timeout: 10000 });
+
+        await page.locator('#dtList tr', { hasText: '/e2e/documentada' })
+            .locator('button[title*="dit"]').first().click();
+        await expect(page.locator('#routesModal')).toBeVisible();
+        await page.click('.route-nav-section[data-section-key="documentacion"]');
+        await expect(page.locator('#description')).toHaveValue(texto);
+    });
+
+    test('el índice dice cuánta documentación hay sin abrirla', async ({ page }) => {
+        await page.goto('/');
+        await page.click('button:has-text("Nueva ruta"), button:has-text("New route"), button:has-text("Nova ruta")');
+
+        // Sin nada escrito lo dice, que es distinto de no decir nada
+        await expect(page.locator('#navState-documentacion')).not.toHaveText('');
+
+        await page.click('.route-nav-section[data-section-key="documentacion"]');
+        await page.fill('#description', 'una dos tres cuatro cinco');
+        await expect(page.locator('#navState-documentacion')).toContainText('5');
+    });
+
+    test('lo que escribe el asistente por API se ve en el panel', async ({ page, request }) => {
+        const id = await crearRuta(request, { ruta: '/e2e/docs-por-api' });
+
+        const r = await request.put(`/api/routes/${id}/docs`, {
+            data: { docs: '## Escrito desde fuera\nEsto lo dejó un asistente.' }
+        });
+        expect(r.ok()).toBeTruthy();
+
+        await page.goto('/');
+        await page.locator('#dtList tr', { hasText: '/e2e/docs-por-api' })
+            .locator('button[title*="dit"]').first().click();
+        await page.click('.route-nav-section[data-section-key="documentacion"]');
+        await expect(page.locator('#description')).toHaveValue(/Escrito desde fuera/);
+    });
+
+    test('guardar la documentación no toca el resto de la ruta', async ({ page, request }) => {
+        // El endpoint escribe una columna y nada más: es lo que hace seguro que
+        // un asistente documente una ruta que no configuró él
+        const id = await crearRuta(request, { ruta: '/e2e/intacta', codigo: '201', respuesta: '{"a":1}' });
+
+        await request.put(`/api/routes/${id}/docs`, { data: { docs: 'solo documentación' } });
+
+        const despues = await request.get('/e2e/intacta');
+        expect(despues.status()).toBe(201);
+        expect(await despues.json()).toEqual({ a: 1 });
     });
 });

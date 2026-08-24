@@ -226,9 +226,9 @@ async function listRoutes(filtros = {}) {
         params.push(toBool(filtros.activo) ? 1 : 0);
     }
     if (filtros.search) {
-        where.push('(ruta LIKE ? OR COALESCE(summary, "") LIKE ? OR COALESCE(operationId, "") LIKE ?)');
+        where.push('(ruta LIKE ? OR COALESCE(summary, "") LIKE ? OR COALESCE(operationId, "") LIKE ? OR COALESCE(description, "") LIKE ?)');
         const like = `%${filtros.search}%`;
-        params.push(like, like, like);
+        params.push(like, like, like, like);
     }
 
     const sql = `SELECT * FROM rutas
@@ -403,6 +403,28 @@ const ERROR_TYPES = ['timeout', 'connection', 'http5xx', 'all'];
  * llamante tuviera que hacerlo en dos pasos, cualquier despiste dejaría
  * condiciones colgando de un fallback que ya no existe.
  */
+/**
+ * Guarda solo la documentación.
+ *
+ * Aparte de updateRoute a propósito: esa reescribe la fila entera, así que
+ * escribir documentación por ahí obliga a reenviar los otros treinta campos y
+ * cualquier olvido los borra. Aquí se toca una columna y nada más, que es lo
+ * que hace seguro que un asistente documente una ruta que no configuró él.
+ */
+async function setDocs(routeId, texto) {
+    const route = await dbGet('SELECT id FROM rutas WHERE id = ?', [Number(routeId)]);
+    if (!route) {
+        throw new RouteValidationError(`Route ${routeId} not found`);
+    }
+
+    const limpio = (texto === undefined || texto === null) ? '' : String(texto);
+    await dbRun('UPDATE rutas SET description = ? WHERE id = ?',
+        [limpio.trim() ? limpio : null, Number(routeId)]);
+
+    console.log(`[ROUTES] Documentación de la ruta ${routeId} actualizada (${limpio.length} caracteres)`);
+    return true;
+}
+
 /**
  * Guarda solo los pasos del escenario, sin tocar el resto de la ruta
  */
@@ -703,6 +725,7 @@ module.exports = {
     createRoute,
     updateRoute,
     deleteRoute,
+    setDocs,
     saveSequence,
     saveFallbacks,
     saveFallbackConditions,
