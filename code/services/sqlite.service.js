@@ -286,6 +286,57 @@ async function createTables(newdb) {
         });
     });
 
+    // Reconciliación de los tags que llevan las rutas contra el registro.
+    //
+    // Una ruta creada por MCP podía traer tags que el registro no conocía, con
+    // un id inventado por quien llamó. Eso dejaba el desplegable de filtros
+    // vacío (se llena del registro) y, peor, el filtro casa por id, así que ni
+    // creando el tag después a mano se encontraba la ruta.
+    //
+    // Aquí se registran los que falten y se corrige el id al del registro. Es
+    // idempotente: en cuanto están alineados no vuelve a tocar nada.
+    await new Promise((resolve) => {
+        newdb.all(`SELECT id, tags FROM rutas WHERE tags IS NOT NULL AND tags != '' AND tags != '[]'`, [], async (err, rows) => {
+            if (err || !rows || rows.length === 0) return resolve();
+
+            let corregidas = 0;
+            for (const row of rows) {
+                let lista;
+                try {
+                    lista = JSON.parse(row.tags);
+                } catch (e) {
+                    continue;
+                }
+                if (!Array.isArray(lista) || lista.length === 0) continue;
+
+                const canonicos = [];
+                for (const tag of lista) {
+                    const nombre = typeof tag === 'string' ? tag : (tag && tag.name);
+                    if (!nombre || !String(nombre).trim()) continue;
+                    try {
+                        const fila = await getOrCreateTag(String(nombre), (tag && tag.color) || undefined);
+                        canonicos.push({ id: fila.id, name: fila.name, color: fila.color });
+                    } catch (e) {
+                        if (tag && tag.id) canonicos.push(tag);
+                    }
+                }
+
+                const nuevo = JSON.stringify(canonicos);
+                if (nuevo !== row.tags) {
+                    await new Promise((done) => {
+                        newdb.run('UPDATE rutas SET tags = ? WHERE id = ?', [nuevo, row.id], () => done());
+                    });
+                    corregidas += 1;
+                }
+            }
+
+            if (corregidas > 0) {
+                console.log(`[DB] Tags reconciliados con el registro en ${corregidas} ruta(s)`);
+            }
+            resolve();
+        });
+    });
+
     // Crear tabla de respuestas condicionales
     await new Promise((resolve) => {
         newdb.exec(`

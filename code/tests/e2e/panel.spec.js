@@ -351,3 +351,52 @@ test.describe('documentación de la ruta', () => {
         expect(await despues.json()).toEqual({ a: 1 });
     });
 });
+
+/**
+ * Tags puestos por quien no pasa por el panel (un asistente por MCP, la API).
+ *
+ * El registro de tags identifica por nombre y reparte uuids; el filtro del
+ * panel casa por id. Guardar en una ruta un tag que el registro no conoce
+ * dejaba el desplegable vacío, y si el tag se creaba después a mano, el id ya
+ * no coincidía y filtrar por él seguía sin encontrar la ruta.
+ */
+test.describe('tags creados fuera del panel', () => {
+
+    test('un tag nuevo aparece en el filtro y encuentra su ruta', async ({ page, request }) => {
+        // Sin id, que es justo lo que manda un asistente por MCP
+        await crearRuta(request, {
+            ruta: '/e2e/con-tag-externo',
+            tags: [{ name: 'e2e-externo', color: '#10b981' }]
+        });
+
+        await page.goto('/');
+        await page.click('#tagsFilterDropdown');
+        await expect(page.locator('#tagsFilterMenu')).toContainText('e2e-externo');
+
+        await page.locator('#tagsFilterMenu label', { hasText: 'e2e-externo' })
+            .locator('input').check();
+        await expect(page.locator('#dtList')).toContainText('/e2e/con-tag-externo');
+    });
+
+    test('reutiliza el tag que ya existía en vez de duplicarlo', async ({ page, request }) => {
+        const creado = await request.post('/api/tags', {
+            data: { name: 'e2e-compartido', color: '#6366f1' }
+        });
+        const { tag } = await creado.json();
+
+        // Se manda solo el nombre: el servidor tiene que dar con el id de arriba
+        await crearRuta(request, {
+            ruta: '/e2e/reusa-tag',
+            tags: [{ name: 'e2e-compartido' }]
+        });
+
+        const rutas = await (await request.get('/api/routes')).json();
+        const ruta = (Array.isArray(rutas) ? rutas : rutas.routes)
+            .find(r => r.ruta === '/e2e/reusa-tag');
+        expect(JSON.parse(ruta.tags)[0].id).toBe(tag.id);
+
+        // Y no se ha creado un segundo tag con el mismo nombre
+        const { tags } = await (await request.get('/api/tags')).json();
+        expect(tags.filter(t => t.name === 'e2e-compartido')).toHaveLength(1);
+    });
+});

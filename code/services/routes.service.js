@@ -130,6 +130,59 @@ class RouteValidationError extends Error {
 }
 
 /**
+ * Deja los tags de una ruta en la forma canónica del registro.
+ *
+ * El registro identifica un tag por su **nombre** (único, sin distinguir
+ * mayúsculas) y le pone un uuid; el filtro del panel, en cambio, casa por
+ * **id**. Guardar en la ruta un tag que el registro no conoce rompía las dos
+ * cosas a la vez:
+ *
+ * - El desplegable de filtros se llena del registro, así que un tag que solo
+ *   vive dentro de una fila de `rutas` no aparecía nunca.
+ * - Y aunque después alguien creara ese mismo tag desde el panel, el registro
+ *   le daba un uuid distinto del id inventado, así que filtrar por él seguía
+ *   sin encontrar la ruta.
+ *
+ * Pasarlos todos por `getOrCreateTag` al guardar arregla las dos: lo que no
+ * existía queda registrado, y el id pasa a ser el bueno. Es idempotente, así
+ * que el panel, que ya manda tags registrados, no nota nada.
+ */
+async function normalizarTags(tags) {
+    if (tags === undefined || tags === null || tags === '') return null;
+
+    let lista = tags;
+    if (typeof lista === 'string') {
+        try {
+            lista = JSON.parse(lista);
+        } catch (e) {
+            // Un texto que no parsea no es una lista de tags: se deja pasar tal
+            // cual para no perder lo que hubiera
+            return tags;
+        }
+    }
+    if (!Array.isArray(lista)) return asJsonText(tags);
+
+    const canonicos = [];
+    for (const tag of lista) {
+        const nombre = typeof tag === 'string' ? tag : (tag && tag.name);
+        if (!nombre || !String(nombre).trim()) continue;
+
+        try {
+            const fila = await sqliteService.getOrCreateTag(
+                String(nombre), (tag && tag.color) || undefined);
+            canonicos.push({ id: fila.id, name: fila.name, color: fila.color });
+        } catch (e) {
+            // Que falle el registro no debe impedir guardar la ruta: se conserva
+            // lo que venía, que es lo que había antes de esto
+            console.log(`[ROUTES] No se pudo registrar el tag "${nombre}": ${e.message}`);
+            if (tag && tag.id) canonicos.push(tag);
+        }
+    }
+
+    return JSON.stringify(canonicos);
+}
+
+/**
  * Comprueba lo que no puede depender de quién llama
  */
 function validateConditions(conditions) {
@@ -269,6 +322,7 @@ async function createRoute(payload, options = {}) {
     validatePayload(payload);
 
     const columns = buildColumns(payload);
+    columns.tags = await normalizarTags(payload.tags);
     const isProxy = columns.tiporespuesta === 'proxy';
     const orden = await getNextOrder(isProxy);
     const file = options.file || {};
@@ -317,6 +371,7 @@ async function updateRoute(id, payload, options = {}) {
     }
 
     const columns = buildColumns(payload);
+    columns.tags = await normalizarTags(payload.tags);
     const isProxy = columns.tiporespuesta === 'proxy';
     const wasProxy = current.tiporespuesta === 'proxy';
 
@@ -710,6 +765,7 @@ async function duplicateRoute(id, newPath) {
 }
 
 module.exports = {
+    normalizarTags,
     BODY_RESPONSE_TYPES,
     validateConditions,
     UPLOADS_DIR,
