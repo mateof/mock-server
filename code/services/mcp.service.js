@@ -66,7 +66,13 @@ const routeFields = {
     active: z.boolean().optional(),
     wait_mode: z.boolean().optional().describe('Active wait: holds the request until it is released from the panel'),
     custom_headers: z.array(headerRuleSchema).optional().describe('RESPONSE headers'),
-    tags: z.array(z.object({ id: z.string(), name: z.string(), color: z.string().optional() })).optional(),
+    // El id lo pone el registro, no quien llama: pedirlo obligaba al asistente a
+    // inventarse uno que no casaba con nada, y el filtro del panel casa por id
+    tags: z.array(z.object({
+        name: z.string().describe('Tag name. It is the identity: the server registers it if it does not exist and assigns the id'),
+        color: z.string().optional().describe('Hex colour, only used when the tag is created'),
+        id: z.string().optional().describe('Ignored on write: the registry decides it')
+    })).optional().describe('Tags for the route. Unknown ones are registered automatically, so they show up in the panel filter'),
     operation_id: z.string().optional(),
     summary: z.string().optional(),
     description: z.string().optional(),

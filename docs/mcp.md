@@ -84,6 +84,8 @@ The server is stateless on purpose. A tool-only server needs nothing between cal
 | `reorder_routes` | Sets which route wins when several match |
 | `create_tag` / `delete_tag` | Manages tags |
 
+Tags are identified by **name**. Pass `{ name: "payments" }` when creating or updating a route and the server registers the tag if it does not exist and assigns the id; passing an id is not needed and is ignored. That is what makes a tag set by an assistant show up in the panel's tag filter, which lists the registry and matches routes by id.
+
 ### Recording
 
 | Tool | What it does |
