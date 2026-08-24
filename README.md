@@ -55,6 +55,13 @@ A powerful HTTP mocking and proxying application built with Express.js and Node.
   - Stops cleanly when the client disconnects
   - See [SSE Documentation](docs/sse.md) for details
 
+- **Route Documentation** - Instructions on each route, readable and writable by an assistant
+  - Its own section in the route form, not a three-line box buried in metadata
+  - Markdown by convention: what it simulates, how to call it, what to watch out for
+  - `list_routes` flags documented routes and can return the docs in one call
+  - `get_route_docs` / `set_route_docs` touch only that field, so nothing else can be lost
+  - Searchable: the docs are matched by the route search
+
 - **Call Verification** - Assert what actually happened, from the assistant
   - "Was /orders called, how many times, and with what body?"
   - Expectations (`times`, `at_least`, `at_most`) come back as pass or fail

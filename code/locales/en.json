@@ -100,7 +100,8 @@
       "operationId": "getUserById",
       "summary": "Get user by ID",
       "description": "Detailed description of the endpoint...",
-      "requestBodyExample": "{\"name\": \"John\", \"email\": \"john@example.com\"}"
+      "requestBodyExample": "{\"name\": \"John\", \"email\": \"john@example.com\"}",
+      "docs": "## What it simulates\\n\\nReturns a sample order.\\n\\n## How to call it\\n\\nSend `X-Client` with the id, or it answers 400.\\n\\n## Careful\\n\\nThe third call switches to \"done\": it is a scenario."
     },
     "help": {
       "proxyExample": "Example: If route is [route] and destination is [target], a request to [request] will be redirected to [result]",
@@ -124,7 +125,8 @@
       "templatingDesc": "Replaces {{...}} in the body and headers with request data or generated values. Off by default, because a response can legitimately contain {{...}}.",
       "sequenceHelp": "Makes the route answer differently depending on how many times it has been called: first pending, then processing, then done. This is what simulates a polling flow, which conditions cannot: they only look at the request, and in a poll every request is identical. The step wins over conditions. The counter lives in memory and resets when the server restarts.",
       "mockScriptHelp": "Transforms the response with JavaScript before sending it. It runs last: it sees the final body, after conditions, the scenario and templating. It can read the request with ms.request.json() and change the response with ms.response.code, ms.response.headers and ms.response.setBody().",
-      "sseHelp": "The body is the list of events in JSON. `delay` is how long to wait BEFORE sending that event. The connection closes when the list runs out, unless you turn on looping."
+      "sseHelp": "The body is the list of events in JSON. `delay` is how long to wait BEFORE sending that event. The connection closes when the list runs out, unless you turn on looping.",
+      "docsHelp": "Instructions and notes about this route: what it simulates, how it is meant to be called, what to watch out for. Markdown is the convention. An assistant connected over MCP reads it before touching the route, and can write it too."
     },
     "proxyTimeout": "Request Timeout",
     "proxyFallbacks": "Fallback Responses",
@@ -233,7 +235,11 @@
     "stateTags": "{{count}} tags",
     "stateFallbacks": "{{count}} fallbacks",
     "stateRecording": "recording",
-    "sectionRoute": "Route and response"
+    "sectionRoute": "Route and response",
+    "docs": "Route documentation",
+    "sectionDocs": "Documentation",
+    "stateDocumented": "{{count}} words",
+    "stateUndocumented": "undocumented"
   },
   "responseTypes": {
     "json": "JSON",

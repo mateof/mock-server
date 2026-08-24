@@ -56,6 +56,7 @@ The server is stateless on purpose. A tool-only server needs nothing between cal
 | `list_routes` | Routes in priority order, filterable by method, response type, state and free text |
 | `get_route` | Full detail of one route, including conditions, fallbacks and transforms |
 | `list_tags` | Tags available to classify routes |
+| `get_route_docs` | The instructions written on a route: what it simulates, how to call it, what to watch out for |
 | `query_logs` | The recorded traffic: what arrived, what was answered, how long it took |
 | `log_stats` | Totals by level, type and status, durations and a histogram |
 | `get_trace` | The full story of one request in order, from the route that matched to the answer |
@@ -82,6 +83,7 @@ The server is stateless on purpose. A tool-only server needs nothing between cal
 | `create_route` / `update_route` with `templating` | Turns on `{{...}}` substitution in the body and headers |
 | `set_routes_active` | Enables or disables a whole set of routes at once, by ids or by tag |
 | `reorder_routes` | Sets which route wins when several match |
+| `set_route_docs` | Writes a route's documentation. Only that field is touched, so nothing else can be lost |
 | `create_tag` / `delete_tag` | Manages tags |
 
 ### Recording
@@ -93,6 +95,25 @@ The server is stateless on purpose. A tool-only server needs nothing between cal
 | `create_mock_from_log_entry` | Turns one log line into a mock, by the id `query_logs` returns |
 
 Recorded routes are created **inactive**, because a mock outranks the proxy and an active one would stop any further traffic reaching the backend. Activate them with `update_route` once the session is captured. See [Recording](recording.md) for the whole picture.
+
+### Route documentation
+
+A route can carry documentation: what it simulates, how it is meant to be called, what to be careful with. It is the place to leave instructions for whoever uses the route next, human or assistant.
+
+| How | What you get |
+|-----|--------------|
+| `list_routes` | `has_docs: true` on every route that has some |
+| `list_routes` with `include_docs` | The documentation itself, for every route, in one call |
+| `list_routes` with `documented: false` | Only the routes that still lack it |
+| `list_routes` with `search` | Matches the documentation too, not just paths and summaries |
+| `get_route_docs` | One route's documentation |
+| `set_route_docs` | Writes it, with `append` to add without replacing |
+
+> Before you change /orders, read what it says about itself.
+
+`get_route_docs`, or `list_routes` with `include_docs` when you want the whole picture at once. `server_info` reports how many routes are documented.
+
+`set_route_docs` touches only that column. Writing documentation through `update_route` would mean resending every other field, and anything left out would be wiped; this cannot do that, which is what makes it safe on a route the assistant did not configure.
 
 ### Building a flow
 
