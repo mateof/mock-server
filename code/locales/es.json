@@ -100,7 +100,8 @@
       "operationId": "getUserById",
       "summary": "Obtener usuario por ID",
       "description": "Descripción detallada del endpoint...",
-      "requestBodyExample": "{\"name\": \"John\", \"email\": \"john@example.com\"}"
+      "requestBodyExample": "{\"name\": \"John\", \"email\": \"john@example.com\"}",
+      "docs": "## Qué simula\\n\\nDevuelve un pedido de ejemplo.\\n\\n## Cómo llamarla\\n\\nManda `X-Cliente` con el id, o responde 400.\\n\\n## Ojo\\n\\nA la tercera llamada pasa a \"done\": es un escenario."
     },
     "help": {
       "proxyExample": "Ejemplo: Si ruta es [route] y destino es [target], una petición a [request] se enviará a [result]",
@@ -124,7 +125,8 @@
       "templatingDesc": "Sustituye {{...}} en el cuerpo y en las cabeceras por datos de la petición o valores generados. Viene apagado porque una respuesta puede llevar {{...}} de forma legítima.",
       "sequenceHelp": "Hace que la ruta responda distinto según la vez que se llame: primera pending, segunda processing, tercera done. Es lo que simula un flujo con sondeo, que las condiciones no pueden porque solo miran la petición y en un sondeo todas son iguales. El paso gana sobre las condiciones. El contador vive en memoria y se reinicia al reiniciar el servidor.",
       "mockScriptHelp": "Transforma la respuesta con JavaScript antes de enviarla. Corre el último: ve el cuerpo definitivo, después de las condiciones, el escenario y la plantilla. Puede leer la petición con ms.request.json() y cambiar la respuesta con ms.response.code, ms.response.headers y ms.response.setBody().",
-      "sseHelp": "El cuerpo es la lista de eventos en JSON. `delay` es lo que se espera ANTES de mandar ese evento. Al acabar se cierra la conexión, salvo que actives el bucle."
+      "sseHelp": "El cuerpo es la lista de eventos en JSON. `delay` es lo que se espera ANTES de mandar ese evento. Al acabar se cierra la conexión, salvo que actives el bucle.",
+      "docsHelp": "Instrucciones y notas sobre esta ruta: qué simula, cómo se espera que la llamen, con qué hay que tener cuidado. Se escribe en markdown por convenio. Un asistente conectado por MCP la lee antes de tocar la ruta y puede escribirla él mismo."
     },
     "proxyTimeout": "Timeout de Petición",
     "proxyFallbacks": "Respuestas de Fallback",
@@ -233,7 +235,11 @@
     "stateTags": "{{count}} tags",
     "stateFallbacks": "{{count}} fallbacks",
     "stateRecording": "grabando",
-    "sectionRoute": "Ruta y respuesta"
+    "sectionRoute": "Ruta y respuesta",
+    "docs": "Documentación de la ruta",
+    "sectionDocs": "Documentación",
+    "stateDocumented": "{{count}} palabras",
+    "stateUndocumented": "sin documentar"
   },
   "responseTypes": {
     "json": "JSON",

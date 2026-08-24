@@ -100,7 +100,8 @@
       "operationId": "getUserById",
       "summary": "Obter usuario por ID",
       "description": "Descrición detallada do endpoint...",
-      "requestBodyExample": "{\"name\": \"John\", \"email\": \"john@example.com\"}"
+      "requestBodyExample": "{\"name\": \"John\", \"email\": \"john@example.com\"}",
+      "docs": "## Que simula\\n\\nDevolve un pedido de exemplo.\\n\\n## Como chamala\\n\\nManda `X-Cliente` co id, ou responde 400.\\n\\n## Ollo\\n\\nÁ terceira chamada pasa a \"done\": é un escenario."
     },
     "help": {
       "proxyExample": "Exemplo: Se a ruta é [route] e o destino é [target], unha petición a [request] redirixirase a [result]",
@@ -124,7 +125,8 @@
       "templatingDesc": "Substitúe {{...}} no corpo e nas cabeceiras por datos da petición ou valores xerados. Vén apagado porque unha resposta pode levar {{...}} de forma lexítima.",
       "sequenceHelp": "Fai que a ruta responda distinto segundo a vez que se chame: primeira pending, segunda processing, terceira done. É o que simula un fluxo con sondaxe, que as condicións non poden porque só miran a petición e nunha sondaxe todas son iguais. O paso gaña sobre as condicións. O contador vive en memoria e reiníciase ao reiniciar o servidor.",
       "mockScriptHelp": "Transforma a resposta con JavaScript antes de enviala. Corre o último: ve o corpo definitivo, despois das condicións, o escenario e a plantilla. Pode ler a petición con ms.request.json() e cambiar a resposta con ms.response.code, ms.response.headers e ms.response.setBody().",
-      "sseHelp": "O corpo é a lista de eventos en JSON. `delay` é o que se espera ANTES de mandar ese evento. Ao rematar péchase a conexión, agás que actives o bucle."
+      "sseHelp": "O corpo é a lista de eventos en JSON. `delay` é o que se espera ANTES de mandar ese evento. Ao rematar péchase a conexión, agás que actives o bucle.",
+      "docsHelp": "Instrucións e notas sobre esta ruta: que simula, como se espera que a chamen, con que hai que ter coidado. Escríbese en markdown por convenio. Un asistente conectado por MCP leaa antes de tocar a ruta e pode escribila el mesmo."
     },
     "proxyTimeout": "Timeout de Petición",
     "proxyFallbacks": "Respostas de Fallback",
@@ -233,7 +235,11 @@
     "stateTags": "{{count}} tags",
     "stateFallbacks": "{{count}} fallbacks",
     "stateRecording": "gravando",
-    "sectionRoute": "Ruta e resposta"
+    "sectionRoute": "Ruta e resposta",
+    "docs": "Documentación da ruta",
+    "sectionDocs": "Documentación",
+    "stateDocumented": "{{count}} palabras",
+    "stateUndocumented": "sen documentar"
   },
   "responseTypes": {
     "json": "JSON",

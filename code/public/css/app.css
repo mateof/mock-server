@@ -4867,3 +4867,19 @@ table.dataTable.no-footer {
 .route-nav-item.route-nav-section.active .nav-section-state {
     color: var(--text-secondary);
 }
+
+/* Editor de documentación: se escribe markdown, así que va en monoespaciada y
+   con altura de sobra. Como textarea de tres líneas dentro de "Metadata" no
+   invitaba a escribir nada. */
+.docs-editor {
+    font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+    font-size: 0.8125rem;
+    line-height: 1.55;
+    min-height: 22rem;
+    resize: vertical;
+}
+
+.docs-counter {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+}
