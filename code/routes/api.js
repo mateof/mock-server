@@ -694,47 +694,12 @@ router.put('/environments/:id/variables', async function(req, res) {
 /* Qué rutas usan variables que el entorno activo no define */
 router.get('/environments/usage', async function(req, res) {
     try {
-        res.json({ success: true, ...(await usoDeVariables()) });
+        res.json({ success: true, ...(await environmentService.analizarUso()) });
     } catch (err) {
         console.error(`[API] Error comprobando variables: ${err.message}`);
         res.status(500).json({ success: false, error: err.message });
     }
 });
-
-/**
- * Recorre lo que puede llevar variables en cada ruta y separa lo que el entorno
- * activo resuelve de lo que no. Es lo que alimenta el aviso del panel.
- */
-async function usoDeVariables() {
-    const rutas = await routesService.listRoutes({});
-    const activo = environmentService.activo();
-    const definidas = new Set(Object.keys(activo.vars || {}));
-
-    const porRuta = [];
-    const faltan = new Set();
-
-    for (const r of rutas) {
-        const usadas = new Set();
-        for (const campo of [r.respuesta, r.customHeaders, r.proxy_request_headers, r.proxy_request_params]) {
-            environmentService.variablesUsadas(campo).forEach(v => usadas.add(v));
-        }
-        if (usadas.size === 0) continue;
-
-        const sinDefinir = [...usadas].filter(v => !definidas.has(v));
-        porRuta.push({
-            id: r.id, method: r.tipo, path: r.ruta,
-            uses: [...usadas], undefined_vars: sinDefinir
-        });
-        sinDefinir.forEach(v => faltan.add(v));
-    }
-
-    return {
-        environment: activo.name,
-        routes: porRuta,
-        routes_with_undefined: porRuta.filter(r => r.undefined_vars.length).length,
-        undefined_vars: [...faltan]
-    };
-}
 
 // ===== ESCENARIOS =====
 

@@ -209,6 +209,24 @@ async function loadProxyConfigs() {
     });
 }
 
+/**
+ * Resuelve las variables de entorno dentro de un script del proxy.
+ *
+ * Se escapa el valor porque va a parar dentro de código: una comilla suelta
+ * convertiría el script en un error de sintaxis, y ese fallo aparecería al
+ * llegar la petición y no al guardarlo.
+ */
+function resolverGuion(guion, requestPath, cual) {
+    if (!envService.tieneVariables(guion)) return guion;
+
+    const r = envService.sustituirEnCodigo(guion);
+    if (r.indefinidas.length) {
+        console.log(`[PROXY] El script de ${cual} usa variables sin definir: ${r.indefinidas.join(', ')}`);
+        log.warning(`⚠️ ${requestPath}: el script de ${cual} usa variables sin definir: ${r.indefinidas.join(', ')}`);
+    }
+    return r.texto;
+}
+
 // Determina el tipo de error para fallbacks
 function getErrorType(err, statusCode) {
     if (err) {
@@ -304,7 +322,17 @@ function sendFallbackResponse(res, fallback, req, requestPath, proxyConfig, erro
         for (const condition of fallback.conditions) {
             if (!condition.activo) continue;
 
-            const evalResult = criteriaService.evaluateCriteria(condition.criteria, evalContext);
+            // Mismo criterio que en las rutas mock: la variable vale también aquí,
+            // escapada para no romper la expresión
+            const criterio = envService.tieneVariables(condition.criteria)
+                ? envService.sustituirEnCodigo(condition.criteria)
+                : { texto: condition.criteria, indefinidas: [] };
+
+            if (criterio.indefinidas.length) {
+                console.log(`[PROXY] La condición del fallback usa variables sin definir: ${criterio.indefinidas.join(', ')}`);
+            }
+
+            const evalResult = criteriaService.evaluateCriteria(criterio.texto, evalContext);
             if (evalResult.success && evalResult.result) {
                 console.log(`[PROXY] Condición matched: "${condition.nombre || condition.id}"`);
                 matchedCondition = condition;
@@ -634,7 +662,8 @@ async function configureProxy(app) {
 
             if (proxyConfig.preScript) {
                 console.log('[PROXY] Ejecutando script de petición...');
-                const outcome = scriptRunner.runRequestScript(proxyConfig.preScript, {
+                const guionPeticion = resolverGuion(proxyConfig.preScript, requestPath, 'petición');
+                const outcome = scriptRunner.runRequestScript(guionPeticion, {
                     method: req.method,
                     path: requestPathOnly,
                     query: queryParams,
@@ -827,7 +856,8 @@ async function configureProxy(app) {
                 // deshace una vez enviadas. Se acumula, se transforma y se envía.
                 const finishTransformed = (statusCode, headers, bodyBuffer) => {
                     console.log('[PROXY] Ejecutando script de respuesta...');
-                    const outcome = scriptRunner.runResponseScript(proxyConfig.postScript, {
+                    const guionRespuesta = resolverGuion(proxyConfig.postScript, requestPath, 'respuesta');
+                    const outcome = scriptRunner.runResponseScript(guionRespuesta, {
                         status: statusCode,
                         headers,
                         bodyText: bodyBuffer.toString('utf8'),

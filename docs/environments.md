@@ -22,8 +22,22 @@ Sharing one syntax would have meant either hiding deployment config behind a che
 | Response body | `{"token": "${API_KEY}"}` |
 | Response headers | `Authorization: Bearer ${TOKEN}` |
 | Proxy request headers and params | the rules applied before calling the backend |
+| Condition criteria | `headers['x-api-key'] === '${API_KEY}'` |
+| Scripts | `const key = "${API_KEY}";`, in mock and proxy scripts alike |
 
 The proxy target is resolved **per request**, not when the configuration is loaded, so switching environment takes effect on the very next call with no reload.
+
+### Inside code, values are escaped
+
+Substituting into a body and substituting into code are not the same thing. A value containing a quote would turn `headers.x === '${KEY}'` into a syntax error, and that failure shows up when the request arrives, not when you save.
+
+So in criteria and scripts the value is escaped for the quotes, backslashes and newlines that would break it. Ordinary values are untouched, so `port === ${PORT}` still works unquoted with `PORT=8080`.
+
+Verified by removing the escaping: a variable holding `di "hola" y ya` turns a working script into `500 Unexpected identifier`, and with it the script answers normally.
+
+### `${VAR}` or `ms.env.get()`?
+
+Both work in a script. `${VAR}` is resolved before the script runs, so it reads like a constant and is the right choice for a value that is fixed for this request. `ms.env.get()` reads at the moment it is called, which is what you want if another route may have changed it with `ms.env.set()` in the meantime.
 
 ## Only what is defined gets substituted
 
@@ -48,7 +62,7 @@ Because undefined variables survive into the response, they would otherwise show
 - **A `env` step in the trace**, so the log screen shows it after the fact.
 - **A proxy whose target has an undefined variable answers 500** with the reason, rather than letting `new URL()` fail with a message about nothing.
 
-Over MCP, `check_environment_usage` reports the same thing.
+Over MCP, `check_environment_usage` reports the same thing. It scans everywhere a variable can appear: the body, the headers, the proxy target and its rules, the scripts, and the criteria of conditions and fallbacks.
 
 ## From a script
 

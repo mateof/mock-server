@@ -1369,34 +1369,12 @@ function buildServer() {
 
     server.registerTool('check_environment_usage', {
         title: 'Which routes reference variables, and which are missing',
-        description: 'Reports every route that uses ${NAME} and, of those, which names the active environment does not define. Undefined variables are left in the text rather than blanked, so a route can answer with ${NAME} inside it; this is how you find that before it happens.',
+        description: 'Reports every route that uses ${NAME} and, of those, which names the active environment does not define. It looks at the response body, headers, proxy target and rules, the scripts, and the criteria of conditions and fallbacks. Undefined variables are left in the text rather than blanked, so a route can answer with ${NAME} inside it; this is how you find that before it happens.',
         inputSchema: {}
     }, async () => run('check_environment_usage', async () => {
-        const rutas = await routesService.listRoutes({});
-        const activo = environmentService.activo();
-        const definidas = new Set(Object.keys(activo.vars || {}));
-
-        const porRuta = [];
-        const faltan = new Set();
-
-        for (const r of rutas) {
-            const usadas = new Set();
-            for (const campo of [r.respuesta, r.customHeaders, r.proxy_request_headers, r.proxy_request_params]) {
-                environmentService.variablesUsadas(campo).forEach(v => usadas.add(v));
-            }
-            if (usadas.size === 0) continue;
-
-            const sinDefinir = [...usadas].filter(v => !definidas.has(v));
-            porRuta.push({ id: r.id, method: r.tipo, path: r.ruta, uses: [...usadas], undefined_vars: sinDefinir });
-            sinDefinir.forEach(v => faltan.add(v));
-        }
-
-        return ok({
-            environment: activo.name,
-            routes: porRuta,
-            routes_with_undefined: porRuta.filter(r => r.undefined_vars.length).length,
-            undefined_vars: [...faltan]
-        });
+        // El análisis vive en el servicio: duplicarlo aquí es como uno de los
+        // dos se queda sin mirar un campo nuevo
+        return ok(await environmentService.analizarUso());
     }));
 
     server.registerTool('validate_script', {

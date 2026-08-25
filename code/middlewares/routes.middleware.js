@@ -210,7 +210,19 @@ async function checkRoute(req, res, next) {
 
                 // Evaluar condiciones en orden (primera que match gana)
                 for (const condition of conditions) {
-                    const evalResult = criteriaService.evaluateCriteria(condition.criteria, evalContext);
+                    // Las variables también valen en el criterio: comparar contra
+                    // `'${API_KEY}'` es lo natural cuando la clave depende del
+                    // entorno. Se escapa el valor, porque una comilla dentro
+                    // convertiría la expresión en un error de sintaxis
+                    const criterio = envService.tieneVariables(condition.criteria)
+                        ? envService.sustituirEnCodigo(condition.criteria)
+                        : { texto: condition.criteria, indefinidas: [] };
+
+                    if (criterio.indefinidas.length) {
+                        log.warning(`⚠️ ${method} ${url}: la condición "${condition.nombre || condition.id}" usa variables sin definir: ${criterio.indefinidas.join(', ')}`);
+                    }
+
+                    const evalResult = criteriaService.evaluateCriteria(criterio.texto, evalContext);
                     if (evalResult.success && evalResult.result) {
                         console.log(`[ROUTE] Condición matched: "${condition.nombre || condition.id}"`);
                         trace.step(trace.PASOS.CONDITION, {
@@ -453,7 +465,18 @@ async function checkRoute(req, res, next) {
         // definitivo. Los tipos sin cuerpo de texto se saltan: no hay nada que
         // transformar en un fichero ni en una respuesta vacía
         if (rute.mock_script && !['file', 'empty', 'graphql'].includes(responseType)) {
-            const salida = scriptRunner.runResponseScript(rute.mock_script, {
+            // El script puede llevar `${VAR}` además de ms.env.get(): con la
+            // variable dentro del texto se lee mejor una constante, y con
+            // ms.env.get() se lee un valor que puede cambiar en marcha
+            const guion = envService.tieneVariables(rute.mock_script)
+                ? envService.sustituirEnCodigo(rute.mock_script)
+                : { texto: rute.mock_script, indefinidas: [] };
+
+            if (guion.indefinidas.length) {
+                log.warning(`⚠️ ${method} ${url}: el script usa variables sin definir: ${guion.indefinidas.join(', ')}`);
+            }
+
+            const salida = scriptRunner.runResponseScript(guion.texto, {
                 status: responseCode,
                 headers: cabecerasComoObjeto(responseHeaders),
                 bodyText: responseBody === null || responseBody === undefined ? '' : String(responseBody),

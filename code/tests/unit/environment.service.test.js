@@ -97,6 +97,53 @@ describe('environment.service: variables de entorno', () => {
         });
     });
 
+    describe('sustituir dentro de código', () => {
+        const conVars = { PORT: '8080', CLAVE: 'ab"c', SIMPLE: "a'b", SALTO: 'una\ndos' };
+        const enCodigo = (texto) => env.sustituir(texto, conVars, { paraCodigo: true }).texto;
+
+        test('un valor normal entra igual y sigue valiendo fuera de comillas', () => {
+            // Escapar de más rompería `port === 8080`
+            expect(enCodigo('port === ${PORT}')).toBe('port === 8080');
+        });
+
+        test('una comilla doble se escapa, o parte la cadena que la contiene', () => {
+            // Sin esto, `"di "hola" y ya"` es un error de sintaxis, y aparece al
+            // llegar la petición y no al guardar el script
+            expect(enCodigo('const x = "${CLAVE}";')).toBe('const x = "ab\\"c";');
+        });
+
+        test('una comilla simple también', () => {
+            expect(enCodigo("const x = '${SIMPLE}';")).toBe("const x = 'a\\'b';");
+        });
+
+        test('un salto de línea se escapa en vez de partir la línea', () => {
+            expect(enCodigo('"${SALTO}"')).toBe('"una\\ndos"');
+        });
+
+        test('el escapado es solo para código: en un cuerpo el valor va crudo', () => {
+            // Una respuesta JSON no quiere el valor escapado dos veces
+            expect(env.sustituir('{"k":"${CLAVE}"}', conVars).texto).toBe('{"k":"ab"c"}');
+        });
+
+        test('lo indefinido se sigue respetando', () => {
+            const r = env.sustituir('const x = "${NO_VA}";', conVars, { paraCodigo: true });
+            expect(r.texto).toBe('const x = "${NO_VA}";');
+            expect(r.indefinidas).toEqual(['NO_VA']);
+        });
+    });
+
+    describe('escaparParaCodigo', () => {
+        test('deja en paz lo que no hace daño', () => {
+            expect(env.escaparParaCodigo('abc123')).toBe('abc123');
+            expect(env.escaparParaCodigo('http://api.local/v3')).toBe('http://api.local/v3');
+        });
+
+        test('escapa la barra invertida antes que el resto', () => {
+            // Al revés, la barra de escape recién puesta se volvería a escapar
+            expect(env.escaparParaCodigo('a\\b')).toBe('a\\\\b');
+        });
+    });
+
     describe('tieneVariables', () => {
         test('detecta si merece la pena mirar', () => {
             expect(env.tieneVariables('a ${B} c')).toBe(true);

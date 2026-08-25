@@ -104,11 +104,33 @@ function variablesUsadas(texto) {
 }
 
 /**
+ * Escapa un valor para poder meterlo dentro de código sin romperlo.
+ *
+ * Sustituir en un cuerpo y sustituir en una expresión no son lo mismo: un valor
+ * con una comilla dentro de `headers.x === '${CLAVE}'` convierte un criterio
+ * válido en un error de sintaxis, y el fallo aparece al llegar la petición, no
+ * al guardar.
+ *
+ * Solo toca lo que haría daño, así que un valor normal (`8080`, `abc123`) sale
+ * igual y sigue funcionando también fuera de comillas.
+ */
+function escaparParaCodigo(valor) {
+    return String(valor)
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'")
+        .replace(/"/g, '\\"')
+        .replace(/\n/g, '\\n')
+        .replace(/\r/g, '\\r');
+}
+
+/**
  * Sustituye lo que esté definido y deja lo demás intacto.
  *
+ * @param {object} opciones  paraCodigo: escapa el valor para que quepa dentro
+ *                           de una expresión o un script sin romperlo
  * @returns {{ texto: string, indefinidas: string[] }}
  */
-function sustituir(texto, vars = cache.vars) {
+function sustituir(texto, vars = cache.vars, opciones = {}) {
     if (!texto || typeof texto !== 'string' || texto.indexOf('${') === -1) {
         return { texto, indefinidas: [] };
     }
@@ -116,7 +138,9 @@ function sustituir(texto, vars = cache.vars) {
     const indefinidas = new Set();
     PATRON.lastIndex = 0;
     const salida = texto.replace(PATRON, (completo, nombre) => {
-        if (Object.prototype.hasOwnProperty.call(vars, nombre)) return vars[nombre];
+        if (Object.prototype.hasOwnProperty.call(vars, nombre)) {
+            return opciones.paraCodigo ? escaparParaCodigo(vars[nombre]) : vars[nombre];
+        }
         // Sin definir se queda tal cual: ni se destroza el texto ni se pierde
         // la pista de que faltaba algo
         indefinidas.add(nombre);
@@ -124,6 +148,14 @@ function sustituir(texto, vars = cache.vars) {
     });
 
     return { texto: salida, indefinidas: [...indefinidas] };
+}
+
+/**
+ * Atajo para los dos sitios donde se sustituye dentro de código: los criterios
+ * de las condiciones y los scripts.
+ */
+function sustituirEnCodigo(texto) {
+    return sustituir(texto, cache.vars, { paraCodigo: true });
 }
 
 /**
@@ -238,10 +270,73 @@ async function fijar(clave, valor) {
     return true;
 }
 
+/**
+ * Dónde puede una ruta llevar variables, y qué le falta al entorno activo.
+ *
+ * Vivía duplicado en la API y en el servidor MCP, que es como se consigue que
+ * uno de los dos se quede sin mirar un campo nuevo. Los criterios cuelgan de
+ * otras tablas, así que hay que ir a buscarlos.
+ */
+async function analizarUso() {
+    // Tarde para no cerrar un ciclo de carga: routes.service tira de este módulo
+    const routesService = require('./routes.service');
+
+    const rutas = await routesService.listRoutes({});
+    const definidas = new Set(Object.keys(cache.vars || {}));
+
+    const porRuta = [];
+    const faltan = new Set();
+
+    for (const r of rutas) {
+        const usadas = new Set();
+        const anotar = (texto) => variablesUsadas(texto).forEach(v => usadas.add(v));
+
+        // Lo que se guarda en la propia fila
+        [r.respuesta, r.customHeaders, r.proxy_request_headers, r.proxy_request_params,
+         r.mock_script, r.proxy_pre_script, r.proxy_post_script].forEach(anotar);
+
+        // Y lo que cuelga de ella
+        try {
+            const condiciones = await sqliteService.getConditionalResponses(r.id);
+            condiciones.forEach(c => { anotar(c.criteria); anotar(c.respuesta); anotar(c.customHeaders); });
+        } catch (e) { /* una ruta sin condiciones no es un problema */ }
+
+        if (r.tiporespuesta === 'proxy') {
+            try {
+                const fallbacks = await sqliteService.getAllProxyFallbacks(r.id);
+                for (const f of fallbacks) {
+                    anotar(f.respuesta);
+                    const suyas = await sqliteService.getAllFallbackConditions(f.id);
+                    suyas.forEach(c => { anotar(c.criteria); anotar(c.respuesta); });
+                }
+            } catch (e) { /* idem */ }
+        }
+
+        if (usadas.size === 0) continue;
+
+        const sinDefinir = [...usadas].filter(v => !definidas.has(v));
+        porRuta.push({
+            id: r.id, method: r.tipo, path: r.ruta,
+            uses: [...usadas], undefined_vars: sinDefinir
+        });
+        sinDefinir.forEach(v => faltan.add(v));
+    }
+
+    return {
+        environment: cache.name,
+        routes: porRuta,
+        routes_with_undefined: porRuta.filter(r => r.undefined_vars.length).length,
+        undefined_vars: [...faltan]
+    };
+}
+
 module.exports = {
+    analizarUso,
     recargar,
     activo,
     sustituir,
+    sustituirEnCodigo,
+    escaparParaCodigo,
     variablesUsadas,
     tieneVariables,
     listar,
