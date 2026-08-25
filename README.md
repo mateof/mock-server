@@ -55,6 +55,13 @@ A powerful HTTP mocking and proxying application built with Express.js and Node.
   - Stops cleanly when the client disconnects
   - See [SSE Documentation](docs/sse.md) for details
 
+- **Environments** - The same routes pointed at a different backend, without editing them
+  - `${BACKEND_URL}` in the proxy target, the response body and the headers
+  - Switch environment from the top bar; the proxy target resolves per request, so it takes effect at once
+  - Undefined variables are left as written and surfaced as warnings, never silently blanked
+  - `ms.env.get/set` from scripts: one route stores a token, the rest use `${TOKEN}`
+  - See [Environments Documentation](docs/environments.md) for details
+
 - **Route Documentation** - Instructions on each route, readable and writable by an assistant
   - Its own section in the route form, not a three-line box buried in metadata
   - Markdown by convention: what it simulates, how to call it, what to watch out for
@@ -67,6 +74,11 @@ A powerful HTTP mocking and proxying application built with Express.js and Node.
   - Expectations (`times`, `at_least`, `at_most`) come back as pass or fail
   - Matches on path, method, resulting status and a substring of the request body
   - Turns the server into a contract-testing tool: build the flow, run it, check it
+
+- **Bulk Actions** - Act on a selection instead of route by route
+  - Add and remove tags, apply latency and faults, duplicate, reset scenarios, export
+  - Enable, disable and delete, all from a bar that appears only when something is selected
+  - Mirrored over MCP with `set_routes_tags`, `delete_routes` and `set_routes_active`
 
 - **Bulk Enable and Disable** - Turn whole sets of routes on or off
   - By selection, or by tag straight from the tag filter

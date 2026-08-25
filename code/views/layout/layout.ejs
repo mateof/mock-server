@@ -57,6 +57,7 @@
                 filters: __('filters'),
                 footer: __('footer'),
                 logs: __('logs'),
+                env: __('env'),
                 usage: __('usage'),
                 form: __('form'),
                 requestTester: __('requestTester'),
@@ -90,6 +91,11 @@
     <%- include('../partials/header.ejs') %>
     <main><%- body %></main>
     <%- include('../partials/footer.ejs') %>
+
+    <!-- El selector de entorno vive en la barra, que es compartida, así que su
+         modal y su lógica van aquí y no en la vista de rutas -->
+    <%- include('../modals/environments.ejs') %>
+    <script src="/js/environments.js" defer></script>
 
     <!-- Toast container -->
     <div id="toastContainer" class="toast-container"></div>

@@ -3,6 +3,7 @@ const criteriaService = require('../services/criteria-evaluator.service');
 const scriptRunner = require('../services/script-runner.service');
 const trace = require('../services/trace.service');
 const faultService = require('../services/fault.service');
+const envService = require('../services/environment.service');
 const http = require('http');
 const https = require('https');
 const zlib = require('zlib');
@@ -208,6 +209,24 @@ async function loadProxyConfigs() {
     });
 }
 
+/**
+ * Resuelve las variables de entorno dentro de un script del proxy.
+ *
+ * Se escapa el valor porque va a parar dentro de código: una comilla suelta
+ * convertiría el script en un error de sintaxis, y ese fallo aparecería al
+ * llegar la petición y no al guardarlo.
+ */
+function resolverGuion(guion, requestPath, cual) {
+    if (!envService.tieneVariables(guion)) return guion;
+
+    const r = envService.sustituirEnCodigo(guion);
+    if (r.indefinidas.length) {
+        console.log(`[PROXY] El script de ${cual} usa variables sin definir: ${r.indefinidas.join(', ')}`);
+        log.warning(`⚠️ ${requestPath}: el script de ${cual} usa variables sin definir: ${r.indefinidas.join(', ')}`);
+    }
+    return r.texto;
+}
+
 // Determina el tipo de error para fallbacks
 function getErrorType(err, statusCode) {
     if (err) {
@@ -303,7 +322,17 @@ function sendFallbackResponse(res, fallback, req, requestPath, proxyConfig, erro
         for (const condition of fallback.conditions) {
             if (!condition.activo) continue;
 
-            const evalResult = criteriaService.evaluateCriteria(condition.criteria, evalContext);
+            // Mismo criterio que en las rutas mock: la variable vale también aquí,
+            // escapada para no romper la expresión
+            const criterio = envService.tieneVariables(condition.criteria)
+                ? envService.sustituirEnCodigo(condition.criteria)
+                : { texto: condition.criteria, indefinidas: [] };
+
+            if (criterio.indefinidas.length) {
+                console.log(`[PROXY] La condición del fallback usa variables sin definir: ${criterio.indefinidas.join(', ')}`);
+            }
+
+            const evalResult = criteriaService.evaluateCriteria(criterio.texto, evalContext);
             if (evalResult.success && evalResult.result) {
                 console.log(`[PROXY] Condición matched: "${condition.nombre || condition.id}"`);
                 matchedCondition = condition;
@@ -495,11 +524,40 @@ async function configureProxy(app) {
         }
 
         try {
-            const targetUrl = new URL(proxyConfig.target);
+            // El destino puede llevar variables (`${BACKEND_URL}/api`). Se
+            // resuelven aquí y no al cargar la configuración, para que cambiar
+            // de entorno surta efecto en la siguiente petición sin recargar
+            let destino = proxyConfig.target;
+            if (envService.tieneVariables(destino)) {
+                const r = envService.sustituir(destino);
+                destino = r.texto;
+
+                if (r.indefinidas.length) {
+                    // Sin resolver, la URL lleva `${...}` dentro y `new URL`
+                    // falla con un mensaje que no dice nada del problema real
+                    const aviso = `Variables sin definir en el destino: ${r.indefinidas.join(', ')}`;
+                    console.error(`[PROXY] ${aviso}`);
+                    trace.step(trace.PASOS.ENV, { message: aviso, level: 'error',
+                        details: { environment: envService.activo().name, undefined_vars: r.indefinidas } });
+                    log.proxyError(req.method, requestPath, proxyConfig.target, aviso);
+                    return res.status(500).json({
+                        error: 'Undefined environment variables',
+                        message: aviso,
+                        environment: envService.activo().name
+                    });
+                }
+
+                trace.step(trace.PASOS.ENV, {
+                    message: `Destino resuelto con el entorno "${envService.activo().name}"`,
+                    details: { environment: envService.activo().name, target: destino }
+                });
+            }
+
+            const targetUrl = new URL(destino);
             const isHttps = targetUrl.protocol === 'https:';
             const httpModule = isHttps ? https : http;
 
-            console.log(`[PROXY] Target URL: ${proxyConfig.target}`);
+            console.log(`[PROXY] Target URL: ${destino}`);
             console.log(`[PROXY] Protocolo: ${isHttps ? 'HTTPS' : 'HTTP'}`);
 
             // Construir la URL de destino
@@ -604,7 +662,8 @@ async function configureProxy(app) {
 
             if (proxyConfig.preScript) {
                 console.log('[PROXY] Ejecutando script de petición...');
-                const outcome = scriptRunner.runRequestScript(proxyConfig.preScript, {
+                const guionPeticion = resolverGuion(proxyConfig.preScript, requestPath, 'petición');
+                const outcome = scriptRunner.runRequestScript(guionPeticion, {
                     method: req.method,
                     path: requestPathOnly,
                     query: queryParams,
@@ -797,7 +856,8 @@ async function configureProxy(app) {
                 // deshace una vez enviadas. Se acumula, se transforma y se envía.
                 const finishTransformed = (statusCode, headers, bodyBuffer) => {
                     console.log('[PROXY] Ejecutando script de respuesta...');
-                    const outcome = scriptRunner.runResponseScript(proxyConfig.postScript, {
+                    const guionRespuesta = resolverGuion(proxyConfig.postScript, requestPath, 'respuesta');
+                    const outcome = scriptRunner.runResponseScript(guionRespuesta, {
                         status: statusCode,
                         headers,
                         bodyText: bodyBuffer.toString('utf8'),

@@ -6,6 +6,7 @@ const semaphore = require('../services/semaphore.service');
 const trace = require('../services/trace.service');
 const faultService = require('../services/fault.service');
 const templateService = require('../services/template.service');
+const envService = require('../services/environment.service');
 const scenarioService = require('../services/scenario.service');
 const scriptRunner = require('../services/script-runner.service');
 const sseService = require('../services/sse.service');
@@ -209,7 +210,19 @@ async function checkRoute(req, res, next) {
 
                 // Evaluar condiciones en orden (primera que match gana)
                 for (const condition of conditions) {
-                    const evalResult = criteriaService.evaluateCriteria(condition.criteria, evalContext);
+                    // Las variables también valen en el criterio: comparar contra
+                    // `'${API_KEY}'` es lo natural cuando la clave depende del
+                    // entorno. Se escapa el valor, porque una comilla dentro
+                    // convertiría la expresión en un error de sintaxis
+                    const criterio = envService.tieneVariables(condition.criteria)
+                        ? envService.sustituirEnCodigo(condition.criteria)
+                        : { texto: condition.criteria, indefinidas: [] };
+
+                    if (criterio.indefinidas.length) {
+                        log.warning(`⚠️ ${method} ${url}: la condición "${condition.nombre || condition.id}" usa variables sin definir: ${criterio.indefinidas.join(', ')}`);
+                    }
+
+                    const evalResult = criteriaService.evaluateCriteria(criterio.texto, evalContext);
                     if (evalResult.success && evalResult.result) {
                         console.log(`[ROUTE] Condición matched: "${condition.nombre || condition.id}"`);
                         trace.step(trace.PASOS.CONDITION, {
@@ -394,6 +407,38 @@ async function checkRoute(req, res, next) {
             console.error(`[ROUTE] Error aplicando la secuencia: ${seqErr.message}`);
         }
 
+        // Variables de entorno, antes que las plantillas: una es configuración
+        // del despliegue y la otra son datos de esta petición, y tiene sentido
+        // que `${BACKEND}` pueda acabar dentro de algo que luego se plantilla.
+        if (envService.tieneVariables(responseBody) || envService.tieneVariables(responseHeaders)) {
+            const sinResolver = new Set();
+
+            if (envService.tieneVariables(responseBody)) {
+                const r = envService.sustituir(responseBody);
+                responseBody = r.texto;
+                r.indefinidas.forEach(v => sinResolver.add(v));
+            }
+            if (envService.tieneVariables(responseHeaders)) {
+                const r = envService.sustituir(responseHeaders);
+                responseHeaders = r.texto;
+                r.indefinidas.forEach(v => sinResolver.add(v));
+            }
+
+            trace.step(trace.PASOS.ENV, {
+                message: sinResolver.size
+                    ? `Variables sin definir: ${[...sinResolver].join(', ')}`
+                    : `Variables del entorno "${envService.activo().name}" aplicadas`,
+                level: sinResolver.size ? 'warning' : 'info',
+                details: { environment: envService.activo().name, undefined_vars: [...sinResolver] }
+            });
+
+            // Que falte una variable no rompe la respuesta, pero tiene que
+            // verse: el texto sale con el `${...}` dentro y eso desconcierta
+            if (sinResolver.size) {
+                log.warning(`⚠️ ${method} ${url}: sin definir en "${envService.activo().name}": ${[...sinResolver].join(', ')}`);
+            }
+        }
+
         // Plantillas en el cuerpo y en las cabeceras. Va después de las
         // condiciones a propósito: la respuesta que se renderiza es la que
         // ganó, no la de por defecto
@@ -420,7 +465,18 @@ async function checkRoute(req, res, next) {
         // definitivo. Los tipos sin cuerpo de texto se saltan: no hay nada que
         // transformar en un fichero ni en una respuesta vacía
         if (rute.mock_script && !['file', 'empty', 'graphql'].includes(responseType)) {
-            const salida = scriptRunner.runResponseScript(rute.mock_script, {
+            // El script puede llevar `${VAR}` además de ms.env.get(): con la
+            // variable dentro del texto se lee mejor una constante, y con
+            // ms.env.get() se lee un valor que puede cambiar en marcha
+            const guion = envService.tieneVariables(rute.mock_script)
+                ? envService.sustituirEnCodigo(rute.mock_script)
+                : { texto: rute.mock_script, indefinidas: [] };
+
+            if (guion.indefinidas.length) {
+                log.warning(`⚠️ ${method} ${url}: el script usa variables sin definir: ${guion.indefinidas.join(', ')}`);
+            }
+
+            const salida = scriptRunner.runResponseScript(guion.texto, {
                 status: responseCode,
                 headers: cabecerasComoObjeto(responseHeaders),
                 bodyText: responseBody === null || responseBody === undefined ? '' : String(responseBody),

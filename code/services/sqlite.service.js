@@ -271,6 +271,46 @@ async function createTables(newdb) {
         });
     });
 
+    // Entornos y sus variables.
+    //
+    // Solo uno está activo a la vez: las variables se resuelven contra él, así
+    // que "cuál está activo" es estado global y no una preferencia por pestaña.
+    await new Promise((resolve) => {
+        newdb.exec(`
+            CREATE TABLE IF NOT EXISTS environments (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                activo INTEGER DEFAULT 0
+            );
+            CREATE TABLE IF NOT EXISTS environment_vars (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                environment_id TEXT NOT NULL,
+                clave TEXT NOT NULL,
+                valor TEXT,
+                FOREIGN KEY (environment_id) REFERENCES environments(id) ON DELETE CASCADE,
+                UNIQUE(environment_id, clave)
+            );
+            CREATE INDEX IF NOT EXISTS idx_env_vars_env ON environment_vars(environment_id);
+        `, (err) => {
+            if (!err) console.log('[DB] Tablas de entornos verificadas');
+            resolve();
+        });
+    });
+
+    // Un entorno de partida, para que el selector nunca esté vacío y la
+    // funcionalidad se vea sin tener que crear nada primero
+    await new Promise((resolve) => {
+        newdb.get('SELECT COUNT(*) as total FROM environments', [], (err, row) => {
+            if (err || (row && row.total > 0)) return resolve();
+            const crypto = require('crypto');
+            newdb.run('INSERT INTO environments (id, name, activo) VALUES (?, ?, 1)',
+                [crypto.randomUUID(), 'default'], () => {
+                    console.log('[DB] Entorno "default" creado');
+                    resolve();
+                });
+        });
+    });
+
     // Crear tabla de tags registry
     await new Promise((resolve) => {
         newdb.exec(`

@@ -15,7 +15,8 @@ router.post('/', function(req, res, next) {
 
 /* Pantalla de logs */
 router.get('/logs', function(req, res, next) {
-  res.render('logs', { title: 'Mock Server - Logs', version });
+  // La barra es compartida: sirve para marcar en qué pantalla estamos
+  res.render('logs', { title: 'Mock Server - Logs', version, paginaActual: 'logs' });
 });
 
 /* Cambio de idioma */

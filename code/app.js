@@ -20,6 +20,7 @@ const sqliteService = require('./services/sqlite.service');
 const socketService = require('./services/socket.service');
 const semaphore = require('./services/semaphore.service');
 const autoImportService = require('./services/auto-import.service');
+const environmentService = require('./services/environment.service');
 const websocketService = require('./services/websocket.service');
 const mcpService = require('./services/mcp.service');
 const traceService = require('./services/trace.service');
@@ -224,6 +225,10 @@ server.on('listening', () => {
   console.log('[APP] Inicializando base de datos...');
   await sqliteService.initSql();
   console.log('[APP] Base de datos inicializada');
+
+  // El entorno activo se carga en memoria: la sustitución corre en el camino
+  // de respuesta de cada petición y no puede consultar SQLite cada vez
+  await environmentService.recargar();
 
   console.log('[APP] Inicializando servicio de auto-importación...');
   await autoImportService.init(sqliteService);

@@ -17,7 +17,10 @@
     "normalize": "Normalizar",
     "normalizeTitle": "Reorganizar ordes secuencialmente",
     "importOpenApi": "Importar OpenAPI",
-    "tools": "Ferramentas"
+    "tools": "Ferramentas",
+    "groupOrganize": "Organizar",
+    "groupTransfer": "Importar e exportar",
+    "groupConnections": "Conexións"
   },
   "table": {
     "id": "id",
@@ -279,7 +282,8 @@
     "manage": "Xestionar",
     "addHeader": "Engadir Header",
     "addCondition": "Engadir Condición",
-    "toggleCollapse": "Alternar colapso"
+    "toggleCollapse": "Alternar colapso",
+    "apply": "Aplicar"
   },
   "modal": {
     "confirmDelete": "Confirmar Eliminación",
@@ -485,7 +489,28 @@
     "enabled": "{{n}} rutas activadas",
     "disabled": "{{n}} rutas desactivadas",
     "enableTag": "Activar todas as rutas con este tag",
-    "disableTag": "Desactivar todas as rutas con este tag"
+    "disableTag": "Desactivar todas as rutas con este tag",
+    "selected": "{{count}} seleccionadas",
+    "tags": "Tags",
+    "addTag": "Engadir tag",
+    "removeTag": "Quitar tag",
+    "noTags": "Non hai tags creados",
+    "behaviour": "Comportamento",
+    "clearBehaviour": "Quitar latencia e fallos",
+    "duplicate": "Duplicar",
+    "resetScenarios": "Reiniciar escenarios",
+    "export": "Exportar",
+    "clearSelection": "Quitar a selección",
+    "tagAdded": "\"{{tag}}\" engadido a {{count}} rutas",
+    "tagRemoved": "\"{{tag}}\" quitado de {{count}} rutas",
+    "behaviourApplied": "Aplicado a {{count}} rutas",
+    "behaviourCleared": "Latencia e fallos quitados de {{count}} rutas",
+    "confirmDuplicate": "Duplicar as {{count}} rutas seleccionadas?",
+    "duplicated": "{{count}} rutas duplicadas",
+    "scenariosReset": "{{count}} escenarios reiniciados",
+    "exporting": "Exportando {{count}} rutas",
+    "needNumber": "Escribe un número de milisegundos",
+    "needPercent": "Escribe unha porcentaxe entre 0 e 100"
   },
   "duplicate": {
     "newRoute": "Nova ruta",
@@ -796,5 +821,30 @@
     "hint": "Chamadas rexistradas no log, coa última e a duración media",
     "neverHint": "Non hai ningunha chamada a esta ruta no log",
     "errorsHint": "Respostas con código 400 ou superior"
+  },
+  "env": {
+    "title": "Contornos",
+    "help": "As variables escríbense ${NOME} e substitúense no destino dun proxy, o corpo da resposta e as cabeceiras. Só manda o contorno activo. O que non estea definido queda tal cual, para non destrozar unha resposta que leve ${...} pola súa conta.",
+    "environments": "Contornos",
+    "new": "Novo contorno",
+    "newPrompt": "Nome do contorno",
+    "active": "activo",
+    "variableCount": "{{count}} variables",
+    "addVariable": "Engadir variable",
+    "noVariables": "Sen variables aínda",
+    "keyPlaceholder": "NOME",
+    "valuePlaceholder": "valor",
+    "manage": "Xestionar contornos",
+    "switchTo": "Cambiar a",
+    "switchHint": "Contorno activo: decide contra que se resolven as variables",
+    "switched": "Contorno activo: {{name}}",
+    "created": "Contorno \"{{name}}\" creado",
+    "deleted": "Contorno \"{{name}}\" eliminado",
+    "saved": "Variables gardadas",
+    "confirmDelete": "Eliminar o contorno \"{{name}}\" e as súas variables?",
+    "undefinedHint": "Hai rutas pedindo variables que este contorno non define",
+    "undefinedCount": "{{routes}} rutas piden variables sen definir: {{vars}}",
+    "missingHere": "Algunha ruta pide estas e non están aquí: {{vars}}",
+    "usageTitle": "{{count}} rutas piden variables que \"{{name}}\" non define"
   }
 }

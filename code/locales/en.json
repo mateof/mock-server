@@ -17,7 +17,10 @@
     "normalize": "Normalize",
     "normalizeTitle": "Reorganize orders sequentially",
     "importOpenApi": "Import OpenAPI",
-    "tools": "Tools"
+    "tools": "Tools",
+    "groupOrganize": "Organise",
+    "groupTransfer": "Import and export",
+    "groupConnections": "Connections"
   },
   "table": {
     "id": "id",
@@ -279,7 +282,8 @@
     "manage": "Manage",
     "addHeader": "Add Header",
     "addCondition": "Add Condition",
-    "toggleCollapse": "Toggle collapse"
+    "toggleCollapse": "Toggle collapse",
+    "apply": "Apply"
   },
   "modal": {
     "confirmDelete": "Confirm Deletion",
@@ -485,7 +489,28 @@
     "enabled": "{{n}} routes enabled",
     "disabled": "{{n}} routes disabled",
     "enableTag": "Enable every route with this tag",
-    "disableTag": "Disable every route with this tag"
+    "disableTag": "Disable every route with this tag",
+    "selected": "{{count}} selected",
+    "tags": "Tags",
+    "addTag": "Add tag",
+    "removeTag": "Remove tag",
+    "noTags": "No tags created yet",
+    "behaviour": "Behaviour",
+    "clearBehaviour": "Clear latency and faults",
+    "duplicate": "Duplicate",
+    "resetScenarios": "Reset scenarios",
+    "export": "Export",
+    "clearSelection": "Clear selection",
+    "tagAdded": "\"{{tag}}\" added to {{count}} routes",
+    "tagRemoved": "\"{{tag}}\" removed from {{count}} routes",
+    "behaviourApplied": "Applied to {{count}} routes",
+    "behaviourCleared": "Latency and faults cleared on {{count}} routes",
+    "confirmDuplicate": "Duplicate the {{count}} selected routes?",
+    "duplicated": "{{count}} routes duplicated",
+    "scenariosReset": "{{count}} scenarios reset",
+    "exporting": "Exporting {{count}} routes",
+    "needNumber": "Enter a number of milliseconds",
+    "needPercent": "Enter a percentage between 0 and 100"
   },
   "duplicate": {
     "newRoute": "New route",
@@ -796,5 +821,30 @@
     "hint": "Calls recorded in the log, with the last one and the average duration",
     "neverHint": "No calls to this route are in the log",
     "errorsHint": "Responses with status 400 or above"
+  },
+  "env": {
+    "title": "Environments",
+    "help": "Variables are written ${NAME} and substituted in a proxy target, the response body and the headers. Only the active environment counts. Anything undefined is left as it is, so a response that contains ${...} of its own is not destroyed.",
+    "environments": "Environments",
+    "new": "New environment",
+    "newPrompt": "Environment name",
+    "active": "active",
+    "variableCount": "{{count}} variables",
+    "addVariable": "Add variable",
+    "noVariables": "No variables yet",
+    "keyPlaceholder": "NAME",
+    "valuePlaceholder": "value",
+    "manage": "Manage environments",
+    "switchTo": "Switch to",
+    "switchHint": "Active environment: what variables resolve against",
+    "switched": "Active environment: {{name}}",
+    "created": "Environment \"{{name}}\" created",
+    "deleted": "Environment \"{{name}}\" deleted",
+    "saved": "Variables saved",
+    "confirmDelete": "Delete the environment \"{{name}}\" and its variables?",
+    "undefinedHint": "Some routes ask for variables this environment does not define",
+    "undefinedCount": "{{routes}} routes ask for undefined variables: {{vars}}",
+    "missingHere": "Some route asks for these and they are not here: {{vars}}",
+    "usageTitle": "{{count}} routes ask for variables \"{{name}}\" does not define"
   }
 }
