@@ -253,6 +253,98 @@ async function guardarVariables(id, variables) {
 }
 
 /**
+ * Encuentra un entorno por id o por nombre.
+ *
+ * Por nombre además del id porque es lo que ve quien llama desde fuera: un
+ * asistente lee "pre" en la lista y pedirle que traduzca a uuid es un paso de
+ * más que solo sirve para equivocarse.
+ */
+async function buscar(idONombre) {
+    if (!idONombre) return null;
+    const porId = await dbGet('SELECT * FROM environments WHERE id = ?', [idONombre]);
+    if (porId) return porId;
+    return dbGet('SELECT * FROM environments WHERE name = ? COLLATE NOCASE', [String(idONombre)]);
+}
+
+/**
+ * Fija UNA variable sin tocar las demás.
+ *
+ * Aparte de guardarVariables a propósito: esa reemplaza el conjunto entero, así
+ * que añadir una obliga a leer y reenviar todas, y cualquier olvido las borra.
+ * Con esto, añadir una variable no puede llevarse por delante el resto.
+ */
+async function fijarVariable(idONombre, clave, valor) {
+    const entorno = idONombre ? await buscar(idONombre) : await dbGet('SELECT * FROM environments WHERE activo = 1');
+    if (!entorno) throw new Error(idONombre ? `No existe el entorno "${idONombre}"` : 'No hay ningún entorno activo');
+
+    const limpia = String(clave || '').trim();
+    if (!limpia) throw new Error('La variable necesita un nombre');
+
+    await dbRun(
+        'INSERT OR REPLACE INTO environment_vars (environment_id, clave, valor) VALUES (?, ?, ?)',
+        [entorno.id, limpia, valor === undefined || valor === null ? '' : String(valor)]);
+
+    if (entorno.activo === 1) await recargar();
+    console.log(`[ENV] ${entorno.name}: ${limpia} fijada`);
+    return { environment: entorno.name, key: limpia };
+}
+
+/**
+ * Borra UNA variable, dejando el resto en su sitio
+ */
+async function borrarVariable(idONombre, clave) {
+    const entorno = idONombre ? await buscar(idONombre) : await dbGet('SELECT * FROM environments WHERE activo = 1');
+    if (!entorno) throw new Error(idONombre ? `No existe el entorno "${idONombre}"` : 'No hay ningún entorno activo');
+
+    const resultado = await dbRun(
+        'DELETE FROM environment_vars WHERE environment_id = ? AND clave = ?', [entorno.id, String(clave)]);
+
+    if (entorno.activo === 1) await recargar();
+    return { environment: entorno.name, key: clave, deleted: resultado.changes > 0 };
+}
+
+/**
+ * Cambia el nombre de un entorno, conservando sus variables y si estaba activo
+ */
+async function renombrar(idONombre, nuevoNombre) {
+    const entorno = await buscar(idONombre);
+    if (!entorno) throw new Error(`No existe el entorno "${idONombre}"`);
+
+    const limpio = String(nuevoNombre || '').trim();
+    if (!limpio) throw new Error('El entorno necesita un nombre');
+
+    const choca = await dbGet('SELECT id FROM environments WHERE name = ? COLLATE NOCASE AND id != ?',
+        [limpio, entorno.id]);
+    if (choca) throw new Error(`Ya existe un entorno llamado "${limpio}"`);
+
+    await dbRun('UPDATE environments SET name = ? WHERE id = ?', [limpio, entorno.id]);
+    if (entorno.activo === 1) await recargar();
+
+    console.log(`[ENV] Entorno renombrado: ${entorno.name} -> ${limpio}`);
+    return { id: entorno.id, name: limpio, previous: entorno.name };
+}
+
+/**
+ * Añade o cambia varias variables de golpe, sin borrar las que no vengan.
+ * Es el complemento de guardarVariables, que sí reemplaza.
+ */
+async function mezclarVariables(idONombre, variables) {
+    const entorno = await buscar(idONombre);
+    if (!entorno) throw new Error(`No existe el entorno "${idONombre}"`);
+
+    for (const v of Array.isArray(variables) ? variables : []) {
+        const clave = String(v.key || v.clave || '').trim();
+        if (!clave) continue;
+        await dbRun(
+            'INSERT OR REPLACE INTO environment_vars (environment_id, clave, valor) VALUES (?, ?, ?)',
+            [entorno.id, clave, v.value === undefined ? (v.valor ?? '') : v.value]);
+    }
+
+    if (entorno.activo === 1) await recargar();
+    return true;
+}
+
+/**
  * Fija una sola variable del entorno activo. Es lo que usan los scripts.
  */
 async function fijar(clave, valor) {
@@ -332,6 +424,11 @@ async function analizarUso() {
 
 module.exports = {
     analizarUso,
+    buscar,
+    fijarVariable,
+    borrarVariable,
+    renombrar,
+    mezclarVariables,
     recargar,
     activo,
     sustituir,
