@@ -220,6 +220,51 @@ function createBodyApi(rawText) {
 
 // ===== CONSOLA =====
 
+/**
+ * `ms.env` para los scripts: leer y fijar variables del entorno activo.
+ *
+ * `set` escribe de verdad, no solo para esta petición: es lo que permite que un
+ * script guarde un token que acaba de obtener y que la siguiente ruta lo use.
+ * Se pide el servicio aquí dentro y no arriba porque environment.service tira
+ * de sqlite y este módulo lo cargan también las pruebas sin base de datos.
+ */
+function createEnvApi() {
+    let servicio = null;
+    const cargar = () => {
+        if (!servicio) {
+            try {
+                servicio = require('./environment.service');
+            } catch (e) {
+                servicio = { activo: () => ({ name: null, vars: {} }), fijar: async () => {} };
+            }
+        }
+        return servicio;
+    };
+
+    return {
+        get(clave) {
+            const vars = cargar().activo().vars || {};
+            return Object.prototype.hasOwnProperty.call(vars, clave) ? vars[clave] : null;
+        },
+        has(clave) {
+            return Object.prototype.hasOwnProperty.call(cargar().activo().vars || {}, clave);
+        },
+        set(clave, valor) {
+            // No se espera al disco: el script sigue, y la caché ya tiene el
+            // valor nuevo, que es lo que verá quien lo lea a continuación
+            cargar().fijar(clave, valor).catch(e =>
+                console.error(`[ENV] No se pudo guardar ${clave}: ${e.message}`));
+            return valor;
+        },
+        name() {
+            return cargar().activo().name;
+        },
+        all() {
+            return { ...(cargar().activo().vars || {}) };
+        }
+    };
+}
+
 function createConsole(logs) {
     const push = (level) => (...args) => {
         const message = args.map(a => {
@@ -317,6 +362,7 @@ function runRequestScript(script, ctx) {
             body: bodyApi
         },
         variables: createKeyValueApi(vars),
+        env: createEnvApi(),
         respond,
         console: consoleApi
     };
@@ -396,6 +442,7 @@ function runResponseScript(script, ctx) {
             text: () => peticionBody.text()
         },
         variables: createKeyValueApi(vars),
+        env: createEnvApi(),
         console: consoleApi
     };
 
@@ -589,6 +636,20 @@ interface MsConsole {
     error(...args: any[]): void;
 }
 
+/** Variables del entorno activo. Editables desde el panel y desde aquí. */
+interface MsEnv {
+    /** Valor de la variable, o null si no está definida en el entorno activo */
+    get(key: string): string | null;
+    /** ¿Está definida? */
+    has(key: string): boolean;
+    /** La fija en el entorno activo. Persiste: la siguiente ruta la verá */
+    set(key: string, value: string): string;
+    /** Nombre del entorno activo */
+    name(): string | null;
+    /** Todas las variables del entorno activo */
+    all(): { [key: string]: string };
+}
+
 interface Ms {
     /** La petición. En el script de respuesta es de solo lectura */
     request: MsRequest;
@@ -596,6 +657,8 @@ interface Ms {
     response: MsResponse;
     /** Datos compartidos entre el script de petición y el de respuesta */
     variables: MsKeyValueList;
+    /** Variables del entorno activo */
+    env: MsEnv;
     /** Escribe en la consola del panel */
     console: MsConsole;
     /**

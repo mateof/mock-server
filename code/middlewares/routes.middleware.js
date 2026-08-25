@@ -6,6 +6,7 @@ const semaphore = require('../services/semaphore.service');
 const trace = require('../services/trace.service');
 const faultService = require('../services/fault.service');
 const templateService = require('../services/template.service');
+const envService = require('../services/environment.service');
 const scenarioService = require('../services/scenario.service');
 const scriptRunner = require('../services/script-runner.service');
 const sseService = require('../services/sse.service');
@@ -392,6 +393,38 @@ async function checkRoute(req, res, next) {
             }
         } catch (seqErr) {
             console.error(`[ROUTE] Error aplicando la secuencia: ${seqErr.message}`);
+        }
+
+        // Variables de entorno, antes que las plantillas: una es configuración
+        // del despliegue y la otra son datos de esta petición, y tiene sentido
+        // que `${BACKEND}` pueda acabar dentro de algo que luego se plantilla.
+        if (envService.tieneVariables(responseBody) || envService.tieneVariables(responseHeaders)) {
+            const sinResolver = new Set();
+
+            if (envService.tieneVariables(responseBody)) {
+                const r = envService.sustituir(responseBody);
+                responseBody = r.texto;
+                r.indefinidas.forEach(v => sinResolver.add(v));
+            }
+            if (envService.tieneVariables(responseHeaders)) {
+                const r = envService.sustituir(responseHeaders);
+                responseHeaders = r.texto;
+                r.indefinidas.forEach(v => sinResolver.add(v));
+            }
+
+            trace.step(trace.PASOS.ENV, {
+                message: sinResolver.size
+                    ? `Variables sin definir: ${[...sinResolver].join(', ')}`
+                    : `Variables del entorno "${envService.activo().name}" aplicadas`,
+                level: sinResolver.size ? 'warning' : 'info',
+                details: { environment: envService.activo().name, undefined_vars: [...sinResolver] }
+            });
+
+            // Que falte una variable no rompe la respuesta, pero tiene que
+            // verse: el texto sale con el `${...}` dentro y eso desconcierta
+            if (sinResolver.size) {
+                log.warning(`⚠️ ${method} ${url}: sin definir en "${envService.activo().name}": ${[...sinResolver].join(', ')}`);
+            }
         }
 
         // Plantillas en el cuerpo y en las cabeceras. Va después de las

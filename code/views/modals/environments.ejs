@@ -1,0 +1,68 @@
+<!-- Modal de entornos y sus variables -->
+<div class="modal fade modal-modern" id="environmentsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-layer-group me-2"></i><%= __('env.title') %></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <div class="modal-body">
+        <p class="text-muted" style="font-size: 0.8125rem;">
+          <%= __('env.help') %>
+        </p>
+
+        <div class="env-layout">
+          <!-- Lista de entornos. El activo manda sobre todas las rutas -->
+          <aside class="env-list-panel">
+            <div class="env-list-header">
+              <span><%= __('env.environments') %></span>
+              <button type="button" class="btn-icon btn-icon-success" onclick="EnvModule.crear()"
+                      title="<%= __('env.new') %>">
+                <i class="fa fa-plus"></i>
+              </button>
+            </div>
+            <div id="envList"></div>
+          </aside>
+
+          <!-- Variables del entorno elegido -->
+          <div class="env-vars-panel">
+            <div class="env-vars-header">
+              <span id="envVarsTitle"></span>
+              <div class="d-flex gap-2">
+                <button type="button" class="btn-modern btn-modern-secondary btn-sm" onclick="EnvModule.anadirVariable()">
+                  <i class="fa fa-plus"></i> <%= __('env.addVariable') %>
+                </button>
+              </div>
+            </div>
+
+            <div class="env-vars-hint" id="envVarsHint"></div>
+            <div id="envVarsContainer"></div>
+
+            <div id="envVarsEmpty" class="empty-state" style="padding: 1.5rem;">
+              <p style="margin: 0; color: var(--text-muted);"><%= __('env.noVariables') %></p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Qué rutas piden variables que este entorno no define -->
+        <div class="env-usage" id="envUsage" style="display: none;">
+          <div class="env-usage-header">
+            <i class="fa fa-triangle-exclamation"></i>
+            <span id="envUsageTitle"></span>
+          </div>
+          <div id="envUsageList"></div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn-modern btn-modern-secondary" data-bs-dismiss="modal">
+          <%= __('buttons.close') %>
+        </button>
+        <button type="button" class="btn-modern btn-modern-primary" onclick="EnvModule.guardar()">
+          <i class="fa fa-save"></i> <%= __('buttons.save') %>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

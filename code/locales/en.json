@@ -796,5 +796,30 @@
     "hint": "Calls recorded in the log, with the last one and the average duration",
     "neverHint": "No calls to this route are in the log",
     "errorsHint": "Responses with status 400 or above"
+  },
+  "env": {
+    "title": "Environments",
+    "help": "Variables are written ${NAME} and substituted in a proxy target, the response body and the headers. Only the active environment counts. Anything undefined is left as it is, so a response that contains ${...} of its own is not destroyed.",
+    "environments": "Environments",
+    "new": "New environment",
+    "newPrompt": "Environment name",
+    "active": "active",
+    "variableCount": "{{count}} variables",
+    "addVariable": "Add variable",
+    "noVariables": "No variables yet",
+    "keyPlaceholder": "NAME",
+    "valuePlaceholder": "value",
+    "manage": "Manage environments",
+    "switchTo": "Switch to",
+    "switchHint": "Active environment: what variables resolve against",
+    "switched": "Active environment: {{name}}",
+    "created": "Environment \"{{name}}\" created",
+    "deleted": "Environment \"{{name}}\" deleted",
+    "saved": "Variables saved",
+    "confirmDelete": "Delete the environment \"{{name}}\" and its variables?",
+    "undefinedHint": "Some routes ask for variables this environment does not define",
+    "undefinedCount": "{{routes}} routes ask for undefined variables: {{vars}}",
+    "missingHere": "Some route asks for these and they are not here: {{vars}}",
+    "usageTitle": "{{count}} routes ask for variables \"{{name}}\" does not define"
   }
 }

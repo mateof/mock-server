@@ -55,6 +55,13 @@ A powerful HTTP mocking and proxying application built with Express.js and Node.
   - Stops cleanly when the client disconnects
   - See [SSE Documentation](docs/sse.md) for details
 
+- **Environments** - The same routes pointed at a different backend, without editing them
+  - `${BACKEND_URL}` in the proxy target, the response body and the headers
+  - Switch environment from the top bar; the proxy target resolves per request, so it takes effect at once
+  - Undefined variables are left as written and surfaced as warnings, never silently blanked
+  - `ms.env.get/set` from scripts: one route stores a token, the rest use `${TOKEN}`
+  - See [Environments Documentation](docs/environments.md) for details
+
 - **Route Documentation** - Instructions on each route, readable and writable by an assistant
   - Its own section in the route form, not a three-line box buried in metadata
   - Markdown by convention: what it simulates, how to call it, what to watch out for

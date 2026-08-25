@@ -796,5 +796,30 @@
     "hint": "Chamadas rexistradas no log, coa última e a duración media",
     "neverHint": "Non hai ningunha chamada a esta ruta no log",
     "errorsHint": "Respostas con código 400 ou superior"
+  },
+  "env": {
+    "title": "Contornos",
+    "help": "As variables escríbense ${NOME} e substitúense no destino dun proxy, o corpo da resposta e as cabeceiras. Só manda o contorno activo. O que non estea definido queda tal cual, para non destrozar unha resposta que leve ${...} pola súa conta.",
+    "environments": "Contornos",
+    "new": "Novo contorno",
+    "newPrompt": "Nome do contorno",
+    "active": "activo",
+    "variableCount": "{{count}} variables",
+    "addVariable": "Engadir variable",
+    "noVariables": "Sen variables aínda",
+    "keyPlaceholder": "NOME",
+    "valuePlaceholder": "valor",
+    "manage": "Xestionar contornos",
+    "switchTo": "Cambiar a",
+    "switchHint": "Contorno activo: decide contra que se resolven as variables",
+    "switched": "Contorno activo: {{name}}",
+    "created": "Contorno \"{{name}}\" creado",
+    "deleted": "Contorno \"{{name}}\" eliminado",
+    "saved": "Variables gardadas",
+    "confirmDelete": "Eliminar o contorno \"{{name}}\" e as súas variables?",
+    "undefinedHint": "Hai rutas pedindo variables que este contorno non define",
+    "undefinedCount": "{{routes}} rutas piden variables sen definir: {{vars}}",
+    "missingHere": "Algunha ruta pide estas e non están aquí: {{vars}}",
+    "usageTitle": "{{count}} rutas piden variables que \"{{name}}\" non define"
   }
 }

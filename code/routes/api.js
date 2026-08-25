@@ -15,6 +15,7 @@ const logService = require('../services/log.service');
 const versionService = require('../services/version.service');
 const recordingService = require('../services/recording.service');
 const scenarioService = require('../services/scenario.service');
+const environmentService = require('../services/environment.service');
 const config = require('../services/paths');
 
 // Configuración de multer para subida de archivos
@@ -501,6 +502,101 @@ router.get('/routes/usage', async function(req, res) {
         res.status(500).json({ error: err.message });
     }
 });
+
+// ===== ENTORNOS =====
+
+/* Entornos con sus variables, y cuál está activo */
+router.get('/environments', async function(req, res) {
+    try {
+        res.json({ success: true, environments: await environmentService.listar() });
+    } catch (err) {
+        console.error(`[API] Error listando entornos: ${err.message}`);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+router.post('/environments', async function(req, res) {
+    try {
+        const creado = await environmentService.crear(req.body.name, req.body.variables);
+        res.json({ success: true, environment: creado });
+    } catch (err) {
+        res.status(400).json({ success: false, error: err.message });
+    }
+});
+
+router.delete('/environments/:id', async function(req, res) {
+    try {
+        await environmentService.eliminar(req.params.id);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(400).json({ success: false, error: err.message });
+    }
+});
+
+/* Cambiar el entorno activo. Surte efecto en la siguiente petición */
+router.post('/environments/:id/activate', async function(req, res) {
+    try {
+        const activo = await environmentService.activar(req.params.id);
+        res.json({ success: true, environment: activo });
+    } catch (err) {
+        res.status(400).json({ success: false, error: err.message });
+    }
+});
+
+/* Reemplaza las variables de un entorno: es como se borra una */
+router.put('/environments/:id/variables', async function(req, res) {
+    try {
+        await environmentService.guardarVariables(req.params.id, req.body.variables);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(400).json({ success: false, error: err.message });
+    }
+});
+
+/* Qué rutas usan variables que el entorno activo no define */
+router.get('/environments/usage', async function(req, res) {
+    try {
+        res.json({ success: true, ...(await usoDeVariables()) });
+    } catch (err) {
+        console.error(`[API] Error comprobando variables: ${err.message}`);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+/**
+ * Recorre lo que puede llevar variables en cada ruta y separa lo que el entorno
+ * activo resuelve de lo que no. Es lo que alimenta el aviso del panel.
+ */
+async function usoDeVariables() {
+    const rutas = await routesService.listRoutes({});
+    const activo = environmentService.activo();
+    const definidas = new Set(Object.keys(activo.vars || {}));
+
+    const porRuta = [];
+    const faltan = new Set();
+
+    for (const r of rutas) {
+        const usadas = new Set();
+        for (const campo of [r.respuesta, r.customHeaders, r.proxy_request_headers, r.proxy_request_params]) {
+            environmentService.variablesUsadas(campo).forEach(v => usadas.add(v));
+        }
+        if (usadas.size === 0) continue;
+
+        const sinDefinir = [...usadas].filter(v => !definidas.has(v));
+        porRuta.push({
+            id: r.id, method: r.tipo, path: r.ruta,
+            uses: [...usadas], undefined_vars: sinDefinir
+        });
+        sinDefinir.forEach(v => faltan.add(v));
+    }
+
+    return {
+        environment: activo.name,
+        routes: porRuta,
+        routes_with_undefined: porRuta.filter(r => r.undefined_vars.length).length,
+        undefined_vars: [...faltan]
+    };
+}
 
 // ===== ESCENARIOS =====
 

@@ -28,6 +28,7 @@ const scriptRunner = require('./script-runner.service');
 const logService = require('./log.service');
 const recordingService = require('./recording.service');
 const scenarioService = require('./scenario.service');
+const environmentService = require('./environment.service');
 const { log } = require('./socket.service');
 const { version } = require('../package.json');
 
@@ -1052,6 +1053,110 @@ function buildServer() {
 
         log.success(`🤖 MCP: ruta ${resultado.id} ${resultado.action} desde la entrada ${args.log_id} del log`);
         return ok(resultado);
+    }));
+
+    // ===== ENTORNOS =====
+
+    server.registerTool('list_environments', {
+        title: 'List environments and their variables',
+        description: 'Environments hold variables that routes reference as ${NAME} in the proxy target, the response body and the headers. Only one is active, and that is the one routes resolve against. Read this before pointing routes at a backend, so you use the variable instead of hardcoding a URL.',
+        inputSchema: {}
+    }, async () => run('list_environments', async () => {
+        const entornos = await environmentService.listar();
+        return ok({
+            active: environmentService.activo().name,
+            count: entornos.length,
+            environments: entornos
+        });
+    }));
+
+    server.registerTool('set_environment', {
+        title: 'Create an environment or change its variables',
+        description: 'Creates an environment if the name is new, or replaces the variables of an existing one. Replacing is how a variable is removed. Pass activate to make it the one routes resolve against.',
+        inputSchema: {
+            name: z.string(),
+            variables: z.array(z.object({ key: z.string(), value: z.string() })).optional()
+                .describe('The full set of variables. It replaces what was there, so omitting one deletes it'),
+            activate: z.boolean().optional().describe('Make it the active environment')
+        }
+    }, async (args) => run('set_environment', async () => {
+        const entornos = await environmentService.listar();
+        let entorno = entornos.find(e => e.name.toLowerCase() === args.name.toLowerCase());
+
+        if (!entorno) {
+            entorno = await environmentService.crear(args.name, args.variables);
+        } else if (args.variables) {
+            await environmentService.guardarVariables(entorno.id, args.variables);
+        }
+
+        if (args.activate) await environmentService.activar(entorno.id);
+
+        log.success(`🤖 MCP: entorno "${args.name}" guardado${args.activate ? ' y activado' : ''}`);
+        const actualizados = await environmentService.listar();
+        return ok({
+            active: environmentService.activo().name,
+            environment: actualizados.find(e => e.id === entorno.id)
+        });
+    }));
+
+    server.registerTool('activate_environment', {
+        title: 'Switch the active environment',
+        description: 'Makes an environment the one routes resolve their ${NAME} references against. It takes effect on the next request, with no reload.',
+        inputSchema: { name: z.string() }
+    }, async (args) => run('activate_environment', async () => {
+        const entornos = await environmentService.listar();
+        const entorno = entornos.find(e => e.name.toLowerCase() === args.name.toLowerCase());
+        if (!entorno) return fail(`No existe el entorno "${args.name}"`);
+
+        await environmentService.activar(entorno.id);
+        log.success(`🤖 MCP: entorno activo cambiado a "${entorno.name}"`);
+        return ok({ active: entorno.name, variables: entorno.variables.length });
+    }));
+
+    server.registerTool('delete_environment', {
+        title: 'Delete an environment',
+        description: 'Removes an environment and its variables. The last remaining one cannot be deleted, and deleting the active one moves the flag to another.',
+        inputSchema: { name: z.string() }
+    }, async (args) => run('delete_environment', async () => {
+        const entornos = await environmentService.listar();
+        const entorno = entornos.find(e => e.name.toLowerCase() === args.name.toLowerCase());
+        if (!entorno) return fail(`No existe el entorno "${args.name}"`);
+
+        await environmentService.eliminar(entorno.id);
+        log.success(`🤖 MCP: entorno "${entorno.name}" eliminado`);
+        return ok({ deleted: true, active: environmentService.activo().name });
+    }));
+
+    server.registerTool('check_environment_usage', {
+        title: 'Which routes reference variables, and which are missing',
+        description: 'Reports every route that uses ${NAME} and, of those, which names the active environment does not define. Undefined variables are left in the text rather than blanked, so a route can answer with ${NAME} inside it; this is how you find that before it happens.',
+        inputSchema: {}
+    }, async () => run('check_environment_usage', async () => {
+        const rutas = await routesService.listRoutes({});
+        const activo = environmentService.activo();
+        const definidas = new Set(Object.keys(activo.vars || {}));
+
+        const porRuta = [];
+        const faltan = new Set();
+
+        for (const r of rutas) {
+            const usadas = new Set();
+            for (const campo of [r.respuesta, r.customHeaders, r.proxy_request_headers, r.proxy_request_params]) {
+                environmentService.variablesUsadas(campo).forEach(v => usadas.add(v));
+            }
+            if (usadas.size === 0) continue;
+
+            const sinDefinir = [...usadas].filter(v => !definidas.has(v));
+            porRuta.push({ id: r.id, method: r.tipo, path: r.ruta, uses: [...usadas], undefined_vars: sinDefinir });
+            sinDefinir.forEach(v => faltan.add(v));
+        }
+
+        return ok({
+            environment: activo.name,
+            routes: porRuta,
+            routes_with_undefined: porRuta.filter(r => r.undefined_vars.length).length,
+            undefined_vars: [...faltan]
+        });
     }));
 
     server.registerTool('validate_script', {

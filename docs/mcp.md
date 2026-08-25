@@ -85,6 +85,11 @@ The server is stateless on purpose. A tool-only server needs nothing between cal
 | `reorder_routes` | Sets which route wins when several match |
 | `set_route_docs` | Writes a route's documentation. Only that field is touched, so nothing else can be lost |
 | `create_tag` / `delete_tag` | Manages tags |
+| `list_environments` | Environments, their variables and which is active |
+| `set_environment` | Creates one or replaces its variables |
+| `activate_environment` | Switches the active environment |
+| `delete_environment` | Removes one |
+| `check_environment_usage` | Which routes reference `${NAME}` and which names are missing |
 
 Tags are identified by **name**. Pass `{ name: "payments" }` when creating or updating a route and the server registers the tag if it does not exist and assigns the id; passing an id is not needed and is ignored. That is what makes a tag set by an assistant show up in the panel's tag filter, which lists the registry and matches routes by id.
 

@@ -3,6 +3,7 @@ const criteriaService = require('../services/criteria-evaluator.service');
 const scriptRunner = require('../services/script-runner.service');
 const trace = require('../services/trace.service');
 const faultService = require('../services/fault.service');
+const envService = require('../services/environment.service');
 const http = require('http');
 const https = require('https');
 const zlib = require('zlib');
@@ -495,11 +496,40 @@ async function configureProxy(app) {
         }
 
         try {
-            const targetUrl = new URL(proxyConfig.target);
+            // El destino puede llevar variables (`${BACKEND_URL}/api`). Se
+            // resuelven aquí y no al cargar la configuración, para que cambiar
+            // de entorno surta efecto en la siguiente petición sin recargar
+            let destino = proxyConfig.target;
+            if (envService.tieneVariables(destino)) {
+                const r = envService.sustituir(destino);
+                destino = r.texto;
+
+                if (r.indefinidas.length) {
+                    // Sin resolver, la URL lleva `${...}` dentro y `new URL`
+                    // falla con un mensaje que no dice nada del problema real
+                    const aviso = `Variables sin definir en el destino: ${r.indefinidas.join(', ')}`;
+                    console.error(`[PROXY] ${aviso}`);
+                    trace.step(trace.PASOS.ENV, { message: aviso, level: 'error',
+                        details: { environment: envService.activo().name, undefined_vars: r.indefinidas } });
+                    log.proxyError(req.method, requestPath, proxyConfig.target, aviso);
+                    return res.status(500).json({
+                        error: 'Undefined environment variables',
+                        message: aviso,
+                        environment: envService.activo().name
+                    });
+                }
+
+                trace.step(trace.PASOS.ENV, {
+                    message: `Destino resuelto con el entorno "${envService.activo().name}"`,
+                    details: { environment: envService.activo().name, target: destino }
+                });
+            }
+
+            const targetUrl = new URL(destino);
             const isHttps = targetUrl.protocol === 'https:';
             const httpModule = isHttps ? https : http;
 
-            console.log(`[PROXY] Target URL: ${proxyConfig.target}`);
+            console.log(`[PROXY] Target URL: ${destino}`);
             console.log(`[PROXY] Protocolo: ${isHttps ? 'HTTPS' : 'HTTP'}`);
 
             // Construir la URL de destino
