@@ -75,6 +75,11 @@ A powerful HTTP mocking and proxying application built with Express.js and Node.
   - Matches on path, method, resulting status and a substring of the request body
   - Turns the server into a contract-testing tool: build the flow, run it, check it
 
+- **Bulk Actions** - Act on a selection instead of route by route
+  - Add and remove tags, apply latency and faults, duplicate, reset scenarios, export
+  - Enable, disable and delete, all from a bar that appears only when something is selected
+  - Mirrored over MCP with `set_routes_tags`, `delete_routes` and `set_routes_active`
+
 - **Bulk Enable and Disable** - Turn whole sets of routes on or off
   - By selection, or by tag straight from the tag filter
   - "Disable everything tagged payments" makes tags operational, not just labels

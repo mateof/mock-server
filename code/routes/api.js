@@ -493,6 +493,144 @@ router.put('/routes/:id/docs', async function(req, res) {
     }
 });
 
+/* Añadir o quitar un tag a varias rutas de golpe */
+router.post('/routes/bulk-tags', async function(req, res) {
+    const { ids, action, tag } = req.body;
+    if (!Array.isArray(ids) || !ids.length) {
+        return res.status(400).json({ success: false, error: 'No IDs provided' });
+    }
+    if (!tag || !tag.name) {
+        return res.status(400).json({ success: false, error: 'No tag provided' });
+    }
+
+    try {
+        let cambiadas = 0;
+        for (const id of ids.map(Number).filter(n => !isNaN(n))) {
+            const ruta = await routesService.getRoute(id);
+            if (!ruta) continue;
+
+            let actuales = [];
+            try { actuales = ruta.tags ? JSON.parse(ruta.tags) : []; } catch (e) { actuales = []; }
+
+            // Se casa por nombre y no por id: es la identidad en el registro, y
+            // así da igual de dónde venga el tag que llega
+            const nombre = String(tag.name).toLowerCase();
+            const tenia = actuales.some(t => String(t.name).toLowerCase() === nombre);
+
+            let nuevas;
+            if (action === 'remove') {
+                if (!tenia) continue;
+                nuevas = actuales.filter(t => String(t.name).toLowerCase() !== nombre);
+            } else {
+                if (tenia) continue;
+                nuevas = [...actuales, tag];
+            }
+
+            await routesService.updateRoute(id, { ...payloadDesdeRuta(ruta), tags: nuevas }, { file: 'keep' });
+            cambiadas += 1;
+        }
+
+        res.json({ success: true, updated: cambiadas, action });
+    } catch (err) {
+        console.error(`[API] Error en el cambio masivo de tags: ${err.message}`);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+/* Latencia y fallos sobre varias rutas */
+router.post('/routes/bulk-behaviour', async function(req, res) {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || !ids.length) {
+        return res.status(400).json({ success: false, error: 'No IDs provided' });
+    }
+
+    try {
+        let cambiadas = 0;
+        for (const id of ids.map(Number).filter(n => !isNaN(n))) {
+            const ruta = await routesService.getRoute(id);
+            if (!ruta) continue;
+
+            const base = payloadDesdeRuta(ruta);
+            // Solo se pisa lo que venga en la petición: cambiar la latencia no
+            // debe llevarse por delante el porcentaje de fallos ya configurado
+            for (const campo of ['latencyMode', 'latencyMs', 'latencyMaxMs', 'faultRate', 'faultType', 'faultStatus']) {
+                if (req.body[campo] !== undefined) base[campo] = req.body[campo];
+            }
+
+            await routesService.updateRoute(id, base, { file: 'keep' });
+            cambiadas += 1;
+        }
+
+        res.json({ success: true, updated: cambiadas });
+    } catch (err) {
+        console.error(`[API] Error en el cambio masivo de comportamiento: ${err.message}`);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+/* Duplicar varias rutas */
+router.post('/routes/bulk-duplicate', async function(req, res) {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || !ids.length) {
+        return res.status(400).json({ success: false, error: 'No IDs provided' });
+    }
+
+    try {
+        const creadas = [];
+        for (const id of ids.map(Number).filter(n => !isNaN(n))) {
+            const ruta = await routesService.getRoute(id);
+            if (!ruta) continue;
+            try {
+                const nuevo = await routesService.duplicateRoute(id, `${ruta.ruta}-copia`);
+                creadas.push(nuevo);
+            } catch (e) {
+                // Una que choque de nombre no debe abortar el resto
+                console.log(`[API] No se pudo duplicar la ruta ${id}: ${e.message}`);
+            }
+        }
+
+        res.json({ success: true, created: creadas.length, ids: creadas });
+    } catch (err) {
+        console.error(`[API] Error duplicando en bloque: ${err.message}`);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+/* Reiniciar los contadores de escenario de varias rutas */
+router.post('/routes/bulk-reset-scenarios', function(req, res) {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || !ids.length) {
+        return res.status(400).json({ success: false, error: 'No IDs provided' });
+    }
+    ids.map(Number).filter(n => !isNaN(n)).forEach(id => scenarioService.reiniciar(id));
+    res.json({ success: true, reset: ids.length });
+});
+
+/**
+ * Payload de actualización a partir de una ruta ya guardada.
+ *
+ * updateRoute reescribe la fila entera, así que cualquier cambio parcial tiene
+ * que reenviar todo lo demás. Con un solo sitio, añadir una columna no rompe
+ * las acciones masivas una por una.
+ */
+function payloadDesdeRuta(r) {
+    return {
+        tipo: r.tipo, ruta: r.ruta, codigo: r.codigo, respuesta: r.respuesta,
+        tiporespuesta: r.tiporespuesta, esperaActiva: r.esperaActiva, isRegex: r.isRegex,
+        customHeaders: r.customHeaders, activo: r.activo, tags: r.tags,
+        operationId: r.operationId, summary: r.summary, description: r.description,
+        requestBodyExample: r.requestBodyExample,
+        proxyTimeout: r.proxy_timeout, proxyRequestHeaders: r.proxy_request_headers,
+        proxyRequestParams: r.proxy_request_params, proxyPreScript: r.proxy_pre_script,
+        proxyPostScript: r.proxy_post_script,
+        recording: r.recording === 1, recordingMode: r.recording_mode,
+        latencyMode: r.latency_mode, latencyMs: r.latency_ms, latencyMaxMs: r.latency_max_ms,
+        faultRate: r.fault_rate, faultType: r.fault_type, faultStatus: r.fault_status,
+        templating: r.templating === 1, sequenceMode: r.sequence_mode,
+        mockScript: r.mock_script, sseLoop: r.sse_loop === 1
+    };
+}
+
 /* Uso por ruta: cuántas llamadas y cuándo fue la última */
 router.get('/routes/usage', async function(req, res) {
     try {

@@ -61,6 +61,8 @@ The server is stateless on purpose. A tool-only server needs nothing between cal
 | `log_stats` | Totals by level, type and status, durations and a histogram |
 | `get_trace` | The full story of one request in order, from the route that matched to the answer |
 | `route_usage` | Calls, last use, errors and average duration per route: which ones are dead |
+| `try_route` | Calls a route through this server and returns what it answered |
+| `list_waiting` | Requests currently held by active wait |
 | `verify_calls` | Was it called, how many times, and with what? With pass/fail expectations |
 
 ### Writing
@@ -82,6 +84,10 @@ The server is stateless on purpose. A tool-only server needs nothing between cal
 | `set_route_faults` | Latency and fault injection: makes a route slow, unreliable, or both |
 | `create_route` / `update_route` with `templating` | Turns on `{{...}}` substitution in the body and headers |
 | `set_routes_active` | Enables or disables a whole set of routes at once, by ids or by tag |
+| `set_routes_tags` | Adds or removes a tag across a set of routes |
+| `delete_routes` | Deletes several routes, by ids or by tag |
+| `release_waiting` | Releases a held request, optionally overriding what it answers |
+| `clear_logs` | Empties the log, entirely or only what matches the filters |
 | `reorder_routes` | Sets which route wins when several match |
 | `set_route_docs` | Writes a route's documentation. Only that field is touched, so nothing else can be lost |
 | `create_tag` / `delete_tag` | Manages tags |
@@ -161,13 +167,19 @@ The assistant would call `create_route` and then `set_route_conditions`, and can
 
 `verify_calls` with `path: "/orders"`, `method: "POST"`, `body_contains: "A-100"` and `times: 1`. It answers with `passed` plus the calls it matched, so a flow can be built, exercised and checked without leaving the conversation.
 
+### Closing the loop
+
+`try_route` sends a real request to a configured route through this same server and returns the status, headers and body. It goes through the whole pipeline, so conditions, scenarios, templating, latency and faults all apply, and the call is logged like any other, with its trace id in the answer.
+
+That plus `release_waiting` means a whole flow can be driven from the conversation: configure it, call it, release what it holds, and check the result with `verify_calls`.
+
 ## What the assistant cannot do
 
 The whole route configuration surface is covered. What is left out is either binary payloads or runtime operation, not configuration:
 
 - No file uploads (the `file` response type keeps its file when edited through MCP)
 - No export/import of bundles, and no OpenAPI import
-- No releasing requests held by active wait, and no listing of them
+
 - No sending messages to connected WebSocket clients or disconnecting them
 - No reading or writing the MCP tokens themselves
 

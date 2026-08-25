@@ -5092,3 +5092,121 @@ table.dataTable.no-footer {
 }
 
 .env-usage-vars { margin-left: auto; font-family: var(--font-mono, monospace); color: var(--warning, #f59e0b); }
+
+/* ===== BARRA DE ACCIONES SOBRE LA SELECCIÓN =====
+   Aparece al seleccionar. Antes estas acciones vivían en la cabecera, visibles
+   siempre aunque no hubiera nada marcado. */
+.bulk-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    padding: 0.6rem 0.85rem;
+    border: 1px solid var(--primary);
+    border-radius: var(--radius-sm, 0.5rem);
+    background: linear-gradient(90deg, rgba(99,102,241,0.14), rgba(99,102,241,0.04));
+    animation: bulkSlideIn 0.16s ease-out;
+}
+
+@keyframes bulkSlideIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.bulk-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--primary);
+    white-space: nowrap;
+}
+
+.bulk-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    flex: 1;
+}
+
+.bulk-divider {
+    width: 1px;
+    height: 1.35rem;
+    background: var(--border);
+    margin: 0 0.2rem;
+}
+
+.bulk-clear {
+    margin-left: auto;
+    border: 0;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0.25rem 0.4rem;
+    border-radius: 0.375rem;
+}
+
+.bulk-clear:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+.bulk-menu { min-width: 13rem; }
+.bulk-menu.is-open { display: block; }
+
+.bulk-field {
+    display: flex;
+    gap: 0.35rem;
+    padding: 0.3rem 0.5rem;
+}
+
+.bulk-field input { flex: 1; min-width: 0; }
+
+.dropdown-group-label {
+    padding: 0.4rem 0.6rem 0.2rem;
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+}
+
+.dropdown-empty {
+    padding: 0.5rem 0.6rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+/* ===== CABECERA Y BARRA SUPERIOR ===== */
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* El botón principal se distingue de verdad, no solo por el color */
+.btn-new-route {
+    box-shadow: 0 2px 12px rgba(99, 102, 241, 0.35);
+}
+
+.btn-nav-top {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    position: relative;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm, 0.5rem);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    text-decoration: none;
+    cursor: pointer;
+    transition: color 0.15s ease, background 0.15s ease;
+}
+
+.btn-nav-top:hover { background: var(--bg-hover); color: var(--text-primary); }
+.btn-nav-top.is-current { color: var(--primary); background: var(--bg-hover); }
+
+/* Con poco ancho se quedan solo los iconos: la barra ya lleva idioma y estado */
+@media (max-width: 1100px) {
+    .btn-nav-label { display: none; }
+}

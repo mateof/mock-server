@@ -12,6 +12,21 @@
               servidor: decide contra qué se resuelven las variables de TODAS
               las rutas, no de la lista que estés mirando.
             -->
+            <!-- Navegación y estado operativo: valen en cualquier pantalla, así
+                 que su sitio es la barra y no la cabecera de la lista de rutas -->
+            <a class="btn-nav-top<%= (typeof paginaActual !== 'undefined' && paginaActual === 'logs') ? ' is-current' : '' %>"
+               href="/logs" title="<%= __('logs.title') %>">
+                <i class="fa fa-stream"></i>
+                <span class="btn-nav-label"><%= __('logs.title') %></span>
+            </a>
+            <button type="button" class="btn-nav-top"
+                    onclick="typeof openList === 'function' ? openList() : (window.location.href = '/')"
+                    title="<%= __('routes.pendingList') %>">
+                <i class="fa fa-hourglass-half"></i>
+                <span class="btn-nav-label"><%= __('routes.pendingList') %></span>
+                <span id="pendingBadge" class="pending-badge" style="display: none;">0</span>
+            </button>
+
             <div class="env-selector" id="envSelector">
                 <button class="btn-env" type="button" onclick="EnvModule.toggle()" title="<%= __('env.switchHint') %>">
                     <i class="fa fa-layer-group"></i>

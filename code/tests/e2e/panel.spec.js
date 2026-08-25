@@ -400,3 +400,120 @@ test.describe('tags creados fuera del panel', () => {
         expect(tags.filter(t => t.name === 'e2e-compartido')).toHaveLength(1);
     });
 });
+
+/**
+ * Barra de acciones sobre la selección y cabecera reducida.
+ *
+ * Antes había nueve botones arriba mezclando acciones sobre selección,
+ * navegación y creación. Lo global se fue a la barra superior y las acciones
+ * sobre selección a una barra que aparece al marcar rutas.
+ */
+test.describe('acciones sobre la selección', () => {
+
+    test('la cabecera se queda en dos controles', async ({ page }) => {
+        await page.goto('/');
+        await expect(page.locator('.header-actions > *')).toHaveCount(2);
+        // Y la navegación vive arriba, que vale en cualquier pantalla
+        await expect(page.locator('.btn-nav-top[href="/logs"]')).toBeVisible();
+    });
+
+    test('la barra aparece solo al seleccionar', async ({ page, request }) => {
+        await crearRuta(request, { ruta: '/e2e/bulk-uno' });
+        await crearRuta(request, { ruta: '/e2e/bulk-dos' });
+
+        await page.goto('/');
+        await page.fill('#filterRouteValue', '/e2e/bulk-');
+        await expect(page.locator('#bulkBar')).not.toBeVisible();
+
+        await page.locator('.route-select-check').first().check();
+        await expect(page.locator('#bulkBar')).toBeVisible();
+        await expect(page.locator('#bulkCount')).toContainText('1');
+
+        await page.locator('.route-select-check').nth(1).check();
+        await expect(page.locator('#bulkCount')).toContainText('2');
+
+        await page.click('.bulk-clear');
+        await expect(page.locator('#bulkBar')).not.toBeVisible();
+    });
+
+    test('aplica latencia a varias rutas de una vez', async ({ page, request }) => {
+        const id = await crearRuta(request, { ruta: '/e2e/bulk-lenta' });
+
+        await page.goto('/');
+        // La tabla pagina: sin filtrar, una ruta creada al final cae en la
+        // página dos y no está en el DOM para poder marcarla
+        await page.fill('#filterRouteValue', '/e2e/bulk-lenta');
+        await expect(page.locator('#dtList tbody tr')).toHaveCount(1);
+        await page.locator('.route-select-check').first().check();
+
+        await page.click('#bulkBehaviourBtn');
+        await page.fill('#bulkLatencyMs', '250');
+        await page.click('#bulkApplyLatency');
+
+        // La comprobación de verdad es que la ruta tarda, no que salga un aviso
+        const inicio = Date.now();
+        await request.get('/e2e/bulk-lenta');
+        expect(Date.now() - inicio).toBeGreaterThan(200);
+    });
+
+    test('etiqueta la selección sin abrir ruta por ruta', async ({ page, request }) => {
+        const tagRes = await request.post('/api/tags', { data: { name: 'e2e-bulk', color: '#8b5cf6' } });
+        const { tag } = await tagRes.json();
+        await crearRuta(request, { ruta: '/e2e/bulk-tag' });
+
+        await page.goto('/');
+        await page.fill('#filterRouteValue', '/e2e/bulk-tag');
+        await expect(page.locator('#dtList tbody tr')).toHaveCount(1);
+        await page.locator('.route-select-check').first().check();
+
+        await page.click('#bulkTagsBtn');
+        await page.locator('#bulkTagsAdd').getByText('e2e-bulk').click();
+
+        await expect(page.locator('#dtList tbody tr').first()).toContainText('e2e-bulk');
+    });
+});
+
+/**
+ * Entornos.
+ *
+ * El selector vive en la barra porque el entorno activo es estado global: no
+ * es una preferencia de la pestaña, decide lo que responde el servidor.
+ */
+test.describe('entornos', () => {
+
+    test('el selector está en la barra y lista los entornos', async ({ page }) => {
+        await page.goto('/');
+        await expect(page.locator('#envActiveName')).not.toHaveText('');
+
+        await page.click('.btn-env');
+        await expect(page.locator('#envMenu')).toBeVisible();
+        await expect(page.locator('#envMenuList .env-menu-item')).not.toHaveCount(0);
+    });
+
+    test('una variable definida se sustituye y una que falta se respeta', async ({ page, request }) => {
+        const entornos = await (await request.get('/api/environments')).json();
+        const activo = entornos.environments.find(e => e.active);
+
+        await request.put(`/api/environments/${activo.id}/variables`, {
+            data: { variables: [...activo.variables, { key: 'E2E_VALOR', value: 'definido' }] }
+        });
+        await crearRuta(request, {
+            ruta: '/e2e/con-variables',
+            respuesta: '{"hay":"${E2E_VALOR}","falta":"${E2E_NO_EXISTE}"}'
+        });
+
+        const r = await request.get('/e2e/con-variables');
+        const cuerpo = await r.json();
+        expect(cuerpo.hay).toBe('definido');
+        // Sin definir se queda tal cual: vaciarlo destrozaría un texto ajeno
+        expect(cuerpo.falta).toBe('${E2E_NO_EXISTE}');
+    });
+
+    test('avisa de las variables que ninguna definición cubre', async ({ page, request }) => {
+        await crearRuta(request, { ruta: '/e2e/pide-variable', respuesta: '{"x":"${E2E_SIN_DEFINIR}"}' });
+
+        await page.goto('/');
+        await expect(page.locator('#envWarningDot')).toBeVisible();
+        await expect(page.locator('#envWarningDot')).toHaveAttribute('title', /E2E_SIN_DEFINIR/);
+    });
+});

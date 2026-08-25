@@ -29,6 +29,7 @@ const logService = require('./log.service');
 const recordingService = require('./recording.service');
 const scenarioService = require('./scenario.service');
 const environmentService = require('./environment.service');
+const semaphore = require('./semaphore.service');
 const { log } = require('./socket.service');
 const { version } = require('../package.json');
 
@@ -102,6 +103,87 @@ const routeFields = {
  * apagó la grabación una vez al editar una transformación; con un solo sitio,
  * añadir una columna no puede volver a romperlas de una en una.
  */
+/**
+ * Resuelve un conjunto de rutas por ids o por tag, que es el patrón de todas
+ * las herramientas masivas.
+ *
+ * Devuelve un texto cuando no hay nada que hacer, para que quien llama lo
+ * convierta en el error de la herramienta con su propio mensaje.
+ */
+async function rutasPorIdsOTag({ ids, tag }) {
+    const rutas = await routesService.listRoutes({});
+
+    if (Array.isArray(ids) && ids.length) {
+        const encontradas = rutas.filter(r => ids.includes(r.id));
+        return encontradas.length ? encontradas : 'Ninguna ruta con esos ids';
+    }
+
+    if (tag) {
+        const buscado = String(tag).toLowerCase();
+        const encontradas = rutas.filter(r => {
+            if (!r.tags) return false;
+            try {
+                // Por nombre o por id: el asistente ve nombres en list_tags
+                return JSON.parse(r.tags).some(t =>
+                    t.id === tag || String(t.name).toLowerCase() === buscado);
+            } catch (e) {
+                return false;
+            }
+        });
+        return encontradas.length ? encontradas : `Ninguna ruta lleva el tag "${tag}"`;
+    }
+
+    return 'Hace falta ids o tag';
+}
+
+/**
+ * Llama al propio servidor por HTTP.
+ *
+ * Se hace una petición de verdad y no se invoca el middleware a mano para que
+ * pase por todo: cabeceras, cuerpo crudo, traza y log. Una llamada simulada
+ * probaría un camino distinto del que usan los clientes.
+ */
+function llamarASiMismo({ method, path, headers, body, timeout }) {
+    const http = require('http');
+    const puerto = process.env.PORT || 3880;
+
+    return new Promise((resolve, reject) => {
+        const peticion = http.request({
+            host: '127.0.0.1',
+            port: puerto,
+            path,
+            method,
+            headers: { ...headers, ...(body ? { 'Content-Length': Buffer.byteLength(body) } : {}) }
+        }, (respuesta) => {
+            const trozos = [];
+            respuesta.on('data', c => trozos.push(c));
+            respuesta.on('end', () => {
+                const texto = Buffer.concat(trozos).toString('utf8');
+                resolve({
+                    status: respuesta.statusCode,
+                    headers: respuesta.headers,
+                    // Se devuelve parseado cuando se puede: es lo que el
+                    // asistente va a querer mirar
+                    body: intentarJson(texto)
+                });
+            });
+        });
+
+        peticion.setTimeout(timeout, () => {
+            peticion.destroy();
+            reject(new Error(`sin respuesta en ${timeout} ms`));
+        });
+        peticion.on('error', reject);
+        if (body) peticion.write(body);
+        peticion.end();
+    });
+}
+
+function intentarJson(texto) {
+    if (!texto) return '';
+    try { return JSON.parse(texto); } catch (e) { return texto; }
+}
+
 function baseFromRoute(ruta) {
     return {
         tipo: ruta.tipo,
@@ -1053,6 +1135,164 @@ function buildServer() {
 
         log.success(`🤖 MCP: ruta ${resultado.id} ${resultado.action} desde la entrada ${args.log_id} del log`);
         return ok(resultado);
+    }));
+
+    server.registerTool('try_route', {
+        title: 'Call a route and see what it answers',
+        description: 'Sends a request to a configured route through this same server and returns the status, headers and body. This is how you close the loop after configuring something: build it, call it, check it, without leaving the conversation. It goes through the whole pipeline, so conditions, scenarios, templating, latency and faults all apply, and the call shows up in the log like any other.',
+        inputSchema: {
+            path: z.string().describe('Path to call, e.g. /orders?page=2'),
+            method: z.string().optional().describe('Default GET'),
+            body: z.string().optional().describe('Request body, as text'),
+            headers: z.array(headerRuleSchema).optional().describe('Request headers, using the set action'),
+            timeout_ms: z.number().optional().describe('Default 10000')
+        }
+    }, async (args) => run('try_route', async () => {
+        const camino = args.path.startsWith('/') ? args.path : `/${args.path}`;
+        if (routesService.isReservedRoute(camino)) {
+            return fail(`${camino} es un prefijo reservado del panel, no una ruta simulada`);
+        }
+
+        const cabeceras = {};
+        for (const regla of args.headers || []) {
+            if (regla.action !== 'remove' && regla.name) cabeceras[regla.name] = regla.value || '';
+        }
+        if (args.body && !cabeceras['content-type'] && !cabeceras['Content-Type']) {
+            // Sin content-type, un cuerpo JSON llega al mock como texto suelto y
+            // las condiciones sobre body no casan: el fallo más probable aquí
+            cabeceras['Content-Type'] = 'application/json';
+        }
+
+        const inicio = Date.now();
+        try {
+            const respuesta = await llamarASiMismo({
+                method: (args.method || 'GET').toUpperCase(),
+                path: camino,
+                headers: cabeceras,
+                body: args.body,
+                timeout: args.timeout_ms || 10000
+            });
+
+            return ok({
+                status: respuesta.status,
+                duration_ms: Date.now() - inicio,
+                headers: respuesta.headers,
+                body: respuesta.body,
+                trace_id: respuesta.headers['x-mock-trace-id'] || null
+            });
+        } catch (e) {
+            return fail(`No se pudo llamar a ${camino}: ${e.message}`);
+        }
+    }));
+
+    server.registerTool('list_waiting', {
+        title: 'Requests held by active wait',
+        description: 'Routes with active wait hold their requests until something releases them. This lists what is currently held, with the response each one is about to send.',
+        inputSchema: {}
+    }, async () => run('list_waiting', async () => {
+        const lista = semaphore.getList();
+        return ok({
+            count: lista.length,
+            waiting: lista.map(e => ({
+                id: e.id, method: e.method, path: e.url, at: e.date,
+                status_code: e.codigo, response_type: e.tiporespuesta
+            }))
+        });
+    }));
+
+    server.registerTool('release_waiting', {
+        title: 'Release a held request',
+        description: 'Lets a request held by active wait continue, optionally overriding what it answers. Without an id, everything currently held is released. This is what makes it possible to drive a flow that pauses, which until now could only be done by hand from the panel.',
+        inputSchema: {
+            id: z.string().optional().describe('The held request id, from list_waiting. Without it, all of them'),
+            status_code: z.string().optional().describe('Override the status it answers'),
+            response: z.string().optional().describe('Override the body it answers')
+        }
+    }, async (args) => run('release_waiting', async () => {
+        const personalizada = (args.status_code || args.response)
+            ? { code: args.status_code, body: args.response }
+            : null;
+
+        const objetivos = args.id ? [args.id] : semaphore.getList().map(e => e.id);
+        if (!objetivos.length) return fail('No hay ninguna petición retenida');
+
+        const liberadas = objetivos.filter(id => semaphore.wakeUp(id, personalizada));
+        log.success(`🤖 MCP: ${liberadas.length} peticiones liberadas`);
+        return ok({ released: liberadas.length, ids: liberadas });
+    }));
+
+    server.registerTool('delete_routes', {
+        title: 'Delete several routes at once',
+        description: 'Removes a set of routes by id, or every route carrying a tag. Deleting is not reversible, so prefer set_routes_active to turn things off.',
+        inputSchema: {
+            ids: z.array(z.number()).optional(),
+            tag: z.string().optional().describe('Tag name or id: every route carrying it')
+        }
+    }, async (args) => run('delete_routes', async () => {
+        const objetivo = await rutasPorIdsOTag(args);
+        if (typeof objetivo === 'string') return fail(objetivo);
+
+        for (const ruta of objetivo) await routesService.deleteRoute(ruta.id);
+        log.success(`🤖 MCP: ${objetivo.length} rutas eliminadas`);
+        return ok({
+            deleted: objetivo.length,
+            routes: objetivo.map(r => ({ id: r.id, method: r.tipo, path: r.ruta }))
+        });
+    }));
+
+    server.registerTool('set_routes_tags', {
+        title: 'Add or remove a tag on several routes',
+        description: 'Tags or untags a set of routes in one call. The tag is created in the registry if it does not exist, so it shows up in the panel filter.',
+        inputSchema: {
+            tag: z.string().describe('Tag name'),
+            action: z.enum(['add', 'remove']),
+            ids: z.array(z.number()).optional(),
+            match_tag: z.string().optional().describe('Instead of ids: every route carrying this other tag')
+        }
+    }, async (args) => run('set_routes_tags', async () => {
+        const objetivo = await rutasPorIdsOTag({ ids: args.ids, tag: args.match_tag });
+        if (typeof objetivo === 'string') return fail(objetivo);
+
+        let cambiadas = 0;
+        for (const fila of objetivo) {
+            const ruta = await routesService.getRoute(fila.id);
+            let actuales = [];
+            try { actuales = ruta.tags ? JSON.parse(ruta.tags) : []; } catch (e) { actuales = []; }
+
+            const nombre = args.tag.toLowerCase();
+            const tenia = actuales.some(t => String(t.name).toLowerCase() === nombre);
+            if (args.action === 'add' && tenia) continue;
+            if (args.action === 'remove' && !tenia) continue;
+
+            const nuevas = args.action === 'remove'
+                ? actuales.filter(t => String(t.name).toLowerCase() !== nombre)
+                : [...actuales, { name: args.tag }];
+
+            await routesService.updateRoute(fila.id, { ...baseFromRoute(ruta), tags: nuevas }, { file: 'keep' });
+            cambiadas += 1;
+        }
+
+        log.success(`🤖 MCP: tag "${args.tag}" ${args.action === 'add' ? 'añadido a' : 'quitado de'} ${cambiadas} rutas`);
+        return ok({ updated: cambiadas, tag: args.tag, action: args.action });
+    }));
+
+    server.registerTool('clear_logs', {
+        title: 'Empty the log',
+        description: 'Deletes recorded traffic. Without filters it clears everything; with them, only what matches, which is the safe way to start a clean measurement without losing the rest.',
+        inputSchema: {
+            from_ms: z.number().optional(),
+            to_ms: z.number().optional(),
+            level: z.string().optional().describe('info, success, warning or error'),
+            type: z.string().optional()
+        }
+    }, async (args) => run('clear_logs', async () => {
+        const eliminados = await logService.clear({
+            from: args.from_ms, to: args.to_ms,
+            level: args.level ? [args.level] : null,
+            type: args.type ? [args.type] : null
+        });
+        log.success(`🤖 MCP: ${eliminados} entradas de log eliminadas`);
+        return ok({ deleted: eliminados });
     }));
 
     // ===== ENTORNOS =====

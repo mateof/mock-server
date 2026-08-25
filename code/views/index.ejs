@@ -3,30 +3,37 @@
   <div class="card-modern animate-fade-in">
     <div class="card-header-modern">
       <h2><i class="fa fa-sitemap"></i> <%= __('routes.title') %></h2>
-      <div class="d-flex gap-2">
-        <button type="button" class="btn-modern btn-modern-success" id="bulkEnableBtn" onclick="bulkSetActive(true)" style="display: none;">
-          <i class="fa fa-check"></i> <span id="bulkEnableCount"></span>
-        </button>
-        <button type="button" class="btn-modern btn-modern-warning" id="bulkDisableBtn" onclick="bulkSetActive(false)" style="display: none;">
-          <i class="fa fa-ban"></i> <span id="bulkDisableCount"></span>
-        </button>
-        <button type="button" class="btn-modern btn-modern-danger" id="bulkDeleteBtn" onclick="openBulkDeleteModal()" style="display: none;">
-          <i class="fa fa-trash"></i> <span id="bulkDeleteCount"></span>
-        </button>
+      <div class="header-actions">
+        <!--
+          De nueve botones a dos.
+          Antes competían aquí acciones sobre la selección, navegación (Logs),
+          creación y herramientas, todo del mismo tamaño y sin un orden claro.
+          Ahora: lo global se fue a la barra superior, las acciones sobre
+          selección tienen su propia barra que aparece al seleccionar, y aquí
+          queda lo que de verdad es de esta pantalla.
+        -->
         <div class="dropdown-modern">
           <button type="button" class="btn-modern btn-modern-secondary dropdown-toggle" onclick="toggleToolsDropdown()">
-            <i class="fa fa-cog"></i> <%= __('routes.tools') %>
+            <i class="fa fa-toolbox"></i> <%= __('routes.tools') %>
           </button>
           <div class="dropdown-menu-modern" id="toolsDropdownMenu">
+            <div class="dropdown-group-label"><%= __('routes.groupOrganize') %></div>
             <button type="button" class="dropdown-item-modern" onclick="normalizeOrder(); closeToolsDropdown();">
               <i class="fa fa-sort-numeric-asc"></i> <%= __('routes.normalize') %>
             </button>
             <button type="button" class="dropdown-item-modern" onclick="openTagManager(); closeToolsDropdown();">
               <i class="fa fa-tags"></i> <%= __('form.manageTags') %>
             </button>
-            <button type="button" class="dropdown-item-modern" onclick="openExportImportModal(); closeToolsDropdown();">
-              <i class="fa fa-exchange"></i> <%= __('exportImport.title') %>
+
+            <div class="dropdown-group-label"><%= __('routes.groupTransfer') %></div>
+            <button type="button" class="dropdown-item-modern" onclick="openImportModal(); closeToolsDropdown();">
+              <i class="fa fa-file-import"></i> <%= __('routes.importOpenApi') %>
             </button>
+            <button type="button" class="dropdown-item-modern" onclick="openExportImportModal(); closeToolsDropdown();">
+              <i class="fa fa-right-left"></i> <%= __('exportImport.title') %>
+            </button>
+
+            <div class="dropdown-group-label"><%= __('routes.groupConnections') %></div>
             <button type="button" class="dropdown-item-modern" onclick="openWSClientsModal(); closeToolsDropdown();">
               <i class="fa fa-plug"></i> <%= __('ws.clientsTitle') %> <span class="ws-clients-badge" id="wsClientsBadge" style="display: none;">0</span>
             </button>
@@ -35,26 +42,93 @@
             </button>
           </div>
         </div>
-        <button type="button" class="btn-modern btn-modern-secondary" onclick="openList()" style="position: relative;">
-          <i class="fa fa-list"></i> <%= __('routes.pendingList') %>
-          <% if (listaEspera.length > 0) { %>
-          <span id="pendingBadge" class="pending-badge"><%=listaEspera.length %></span>
-          <% } else { %>
-          <span id="pendingBadge" class="pending-badge" style="display: none;">0</span>
-          <% } %>
-        </button>
-        <a class="btn-modern btn-modern-secondary" href="/logs">
-          <i class="fa fa-stream"></i> <%= __('logs.title') %>
-        </a>
-        <button type="button" class="btn-modern btn-modern-secondary" onclick="openImportModal()">
-          <i class="fa fa-upload"></i> <%= __('routes.importOpenApi') %>
-        </button>
-        <button type="button" class="btn-modern btn-modern-primary" onclick="openModal('create')">
+        <button type="button" class="btn-modern btn-modern-primary btn-new-route" onclick="openModal('create')">
           <i class="fa fa-plus"></i> <%= __('routes.newRoute') %>
         </button>
       </div>
     </div>
     <div class="card-body-modern">
+      <!--
+        Barra de acciones sobre la selección.
+        Antes estas acciones vivían arriba, visibles siempre aunque no hubiera
+        nada seleccionado, robando sitio el 95% del tiempo. Aquí aparecen solo
+        cuando hacen falta y hay hueco de sobra para las que faltaban.
+      -->
+      <div class="bulk-bar" id="bulkBar" style="display: none;">
+        <div class="bulk-count">
+          <i class="fa fa-check-double"></i>
+          <span id="bulkCount">0</span>
+        </div>
+
+        <div class="bulk-actions">
+          <div class="dropdown-modern">
+            <button type="button" id="bulkTagsBtn" class="btn-modern btn-modern-secondary btn-sm dropdown-toggle"
+                    onclick="Bulk.toggleMenu('bulkTagsMenu')">
+              <i class="fa fa-tags"></i> <%= __('bulk.tags') %>
+            </button>
+            <div class="dropdown-menu-modern bulk-menu" id="bulkTagsMenu">
+              <div class="dropdown-group-label"><%= __('bulk.addTag') %></div>
+              <div id="bulkTagsAdd"></div>
+              <div class="dropdown-group-label"><%= __('bulk.removeTag') %></div>
+              <div id="bulkTagsRemove"></div>
+            </div>
+          </div>
+
+          <div class="dropdown-modern">
+            <button type="button" id="bulkBehaviourBtn" class="btn-modern btn-modern-secondary btn-sm dropdown-toggle"
+                    onclick="Bulk.toggleMenu('bulkBehaviourMenu')">
+              <i class="fa fa-bolt"></i> <%= __('bulk.behaviour') %>
+            </button>
+            <div class="dropdown-menu-modern bulk-menu" id="bulkBehaviourMenu">
+              <div class="dropdown-group-label"><%= __('form.latencyMode') %></div>
+              <div class="bulk-field">
+                <input type="number" id="bulkLatencyMs" class="form-control-modern" min="0" max="60000"
+                       step="100" placeholder="ms">
+                <button type="button" id="bulkApplyLatency" class="btn-modern btn-modern-secondary btn-sm"
+                        onclick="Bulk.aplicarLatencia()"><%= __('buttons.apply') %></button>
+              </div>
+              <div class="dropdown-group-label"><%= __('form.faultRate') %></div>
+              <div class="bulk-field">
+                <input type="number" id="bulkFaultRate" class="form-control-modern" min="0" max="100"
+                       step="5" placeholder="%">
+                <button type="button" class="btn-modern btn-modern-secondary btn-sm"
+                        onclick="Bulk.aplicarFallos()"><%= __('buttons.apply') %></button>
+              </div>
+              <button type="button" class="dropdown-item-modern" onclick="Bulk.limpiarComportamiento()">
+                <i class="fa fa-eraser"></i> <%= __('bulk.clearBehaviour') %>
+              </button>
+            </div>
+          </div>
+
+          <button type="button" class="btn-modern btn-modern-secondary btn-sm" onclick="Bulk.duplicar()">
+            <i class="fa fa-copy"></i> <%= __('bulk.duplicate') %>
+          </button>
+          <button type="button" class="btn-modern btn-modern-secondary btn-sm" onclick="Bulk.reiniciarEscenarios()">
+            <i class="fa fa-rotate-left"></i> <%= __('bulk.resetScenarios') %>
+          </button>
+          <button type="button" class="btn-modern btn-modern-secondary btn-sm" onclick="Bulk.exportar()">
+            <i class="fa fa-download"></i> <%= __('bulk.export') %>
+          </button>
+
+          <span class="bulk-divider"></span>
+
+          <button type="button" class="btn-modern btn-modern-success btn-sm" onclick="bulkSetActive(true)">
+            <i class="fa fa-check"></i> <%= __('bulk.enable') %>
+          </button>
+          <button type="button" class="btn-modern btn-modern-warning btn-sm" onclick="bulkSetActive(false)">
+            <i class="fa fa-ban"></i> <%= __('bulk.disable') %>
+          </button>
+          <button type="button" class="btn-modern btn-modern-danger btn-sm" onclick="openBulkDeleteModal()">
+            <i class="fa fa-trash"></i> <%= __('buttons.delete') %>
+          </button>
+        </div>
+
+        <button type="button" class="bulk-clear" onclick="Bulk.limpiarSeleccion()"
+                title="<%= __('bulk.clearSelection') %>">
+          <i class="fa fa-times"></i>
+        </button>
+      </div>
+
       <!-- Filtros de tabla -->
       <div class="table-filters">
         <div class="filter-group">
@@ -6026,22 +6100,14 @@
 
   function updateBulkSelection() {
     const checked = document.querySelectorAll('.route-select-check:checked');
-    const btn = document.getElementById('bulkDeleteBtn');
-    const count = document.getElementById('bulkDeleteCount');
-    const enable = document.getElementById('bulkEnableBtn');
-    const disable = document.getElementById('bulkDisableBtn');
 
-    if (checked.length > 0) {
-      btn.style.display = '';
-      count.textContent = `${t('bulk.deleteSelected')} (${checked.length})`;
-      enable.style.display = '';
-      disable.style.display = '';
-      document.getElementById('bulkEnableCount').textContent = `${t('bulk.enable')} (${checked.length})`;
-      document.getElementById('bulkDisableCount').textContent = `${t('bulk.disable')} (${checked.length})`;
-    } else {
-      btn.style.display = 'none';
-      enable.style.display = 'none';
-      disable.style.display = 'none';
+    // Los botones ya no viven arriba: la barra entera aparece con la selección
+    const barra = document.getElementById('bulkBar');
+    if (barra) {
+      barra.style.display = checked.length ? '' : 'none';
+      const cuenta = document.getElementById('bulkCount');
+      if (cuenta) cuenta.textContent = t('bulk.selected').replace('{{count}}', checked.length);
+      if (!checked.length) Bulk.cerrarMenus();
     }
     // Update select all checkbox state
     const all = document.querySelectorAll('.route-select-check');
@@ -6094,6 +6160,165 @@
       showToast(e.message, 'error');
     }
   }
+
+  /**
+   * Acciones sobre la selección.
+   *
+   * Todas parten del mismo sitio (las casillas marcadas) y todas recargan la
+   * tabla al terminar, así que comparten el mismo esqueleto en vez de repetirlo
+   * seis veces.
+   */
+  const Bulk = {
+    seleccion() {
+      return Array.from(document.querySelectorAll('.route-select-check:checked'))
+        .map(cb => parseInt(cb.dataset.id));
+    },
+
+    toggleMenu(id) {
+      const menu = document.getElementById(id);
+      if (!menu) return;
+      const abierto = menu.classList.contains('is-open');
+      this.cerrarMenus();
+      if (!abierto) {
+        menu.classList.add('is-open');
+        if (id === 'bulkTagsMenu') this.pintarTags();
+      }
+    },
+
+    cerrarMenus() {
+      document.querySelectorAll('.bulk-menu').forEach(m => m.classList.remove('is-open'));
+    },
+
+    limpiarSeleccion() {
+      document.querySelectorAll('.route-select-check:checked').forEach(cb => { cb.checked = false; });
+      updateBulkSelection();
+    },
+
+    /** Envoltorio común: avisa, recarga y cierra los menús. */
+    async ejecutar(peticion, mensaje) {
+      const ids = this.seleccion();
+      if (!ids.length) return;
+
+      try {
+        const r = await peticion(ids);
+        const datos = await r.json();
+        if (!r.ok || datos.success === false) throw new Error(datos.error || t('errors.generic'));
+
+        this.cerrarMenus();
+        showToast(mensaje(datos, ids), 'success');
+        tabla.ajax.reload(null, false);
+        if (typeof cargarUsoDeRutas === 'function') cargarUsoDeRutas();
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    },
+
+    // ===== TAGS =====
+
+    pintarTags() {
+      const disponibles = TagsModule.availableTags || [];
+      const pintar = (contenedor, accion) => {
+        const el = document.getElementById(contenedor);
+        if (!el) return;
+        el.innerHTML = disponibles.length
+          ? disponibles.map(tag => `
+              <button type="button" class="dropdown-item-modern"
+                      onclick="Bulk.tags('${accion}', '${tag.id}')">
+                <span class="badge-tag badge-tag-sm" style="background: ${tag.color};">${escapeHtml(tag.name)}</span>
+              </button>`).join('')
+          : `<div class="dropdown-empty">${t('bulk.noTags')}</div>`;
+      };
+      pintar('bulkTagsAdd', 'add');
+      pintar('bulkTagsRemove', 'remove');
+    },
+
+    async tags(accion, tagId) {
+      const tag = (TagsModule.availableTags || []).find(t2 => t2.id === tagId);
+      await this.ejecutar(
+        (ids) => fetch('/api/routes/bulk-tags', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids, action: accion, tag })
+        }),
+        (datos) => t(accion === 'add' ? 'bulk.tagAdded' : 'bulk.tagRemoved')
+          .replace('{{tag}}', tag ? tag.name : '')
+          .replace('{{count}}', datos.updated)
+      );
+    },
+
+    // ===== COMPORTAMIENTO =====
+
+    async aplicarLatencia() {
+      const ms = parseInt(document.getElementById('bulkLatencyMs').value);
+      if (isNaN(ms) || ms < 0) return showToast(t('bulk.needNumber'), 'warning');
+      await this.comportamiento({ latencyMode: ms > 0 ? 'fixed' : 'none', latencyMs: ms },
+        (d) => t('bulk.behaviourApplied').replace('{{count}}', d.updated));
+    },
+
+    async aplicarFallos() {
+      const pct = parseInt(document.getElementById('bulkFaultRate').value);
+      if (isNaN(pct) || pct < 0 || pct > 100) return showToast(t('bulk.needPercent'), 'warning');
+      await this.comportamiento({ faultRate: pct },
+        (d) => t('bulk.behaviourApplied').replace('{{count}}', d.updated));
+    },
+
+    async limpiarComportamiento() {
+      await this.comportamiento({ latencyMode: 'none', latencyMs: 0, latencyMaxMs: 0, faultRate: 0 },
+        (d) => t('bulk.behaviourCleared').replace('{{count}}', d.updated));
+    },
+
+    async comportamiento(cambios, mensaje) {
+      await this.ejecutar(
+        (ids) => fetch('/api/routes/bulk-behaviour', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids, ...cambios })
+        }), mensaje);
+    },
+
+    // ===== RESTO =====
+
+    async duplicar() {
+      if (!confirm(t('bulk.confirmDuplicate').replace('{{count}}', this.seleccion().length))) return;
+      await this.ejecutar(
+        (ids) => fetch('/api/routes/bulk-duplicate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids })
+        }),
+        (datos) => t('bulk.duplicated').replace('{{count}}', datos.created));
+    },
+
+    async reiniciarEscenarios() {
+      await this.ejecutar(
+        (ids) => fetch('/api/routes/bulk-reset-scenarios', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids })
+        }),
+        (datos) => t('bulk.scenariosReset').replace('{{count}}', datos.reset));
+    },
+
+    /**
+     * Exportar lo seleccionado.
+     *
+     * Reutiliza el export parcial que ya existía y que solo se podía lanzar
+     * desde su propio modal, eligiendo las rutas otra vez a mano.
+     */
+    exportar() {
+      const ids = this.seleccion();
+      if (!ids.length) return;
+      const url = `/api/export?ids=${encodeURIComponent(ids.join(','))}`;
+      window.location.href = url;
+      this.cerrarMenus();
+      showToast(t('bulk.exporting').replace('{{count}}', ids.length), 'info');
+    }
+  };
+
+  // Los menús de la barra se cierran al pulsar fuera, como el resto
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.bulk-actions')) Bulk.cerrarMenus();
+  });
 
   function openBulkDeleteModal() {
     const checked = document.querySelectorAll('.route-select-check:checked');

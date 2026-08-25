@@ -17,7 +17,10 @@
     "normalize": "Normalize",
     "normalizeTitle": "Reorganize orders sequentially",
     "importOpenApi": "Import OpenAPI",
-    "tools": "Tools"
+    "tools": "Tools",
+    "groupOrganize": "Organise",
+    "groupTransfer": "Import and export",
+    "groupConnections": "Connections"
   },
   "table": {
     "id": "id",
@@ -279,7 +282,8 @@
     "manage": "Manage",
     "addHeader": "Add Header",
     "addCondition": "Add Condition",
-    "toggleCollapse": "Toggle collapse"
+    "toggleCollapse": "Toggle collapse",
+    "apply": "Apply"
   },
   "modal": {
     "confirmDelete": "Confirm Deletion",
@@ -485,7 +489,28 @@
     "enabled": "{{n}} routes enabled",
     "disabled": "{{n}} routes disabled",
     "enableTag": "Enable every route with this tag",
-    "disableTag": "Disable every route with this tag"
+    "disableTag": "Disable every route with this tag",
+    "selected": "{{count}} selected",
+    "tags": "Tags",
+    "addTag": "Add tag",
+    "removeTag": "Remove tag",
+    "noTags": "No tags created yet",
+    "behaviour": "Behaviour",
+    "clearBehaviour": "Clear latency and faults",
+    "duplicate": "Duplicate",
+    "resetScenarios": "Reset scenarios",
+    "export": "Export",
+    "clearSelection": "Clear selection",
+    "tagAdded": "\"{{tag}}\" added to {{count}} routes",
+    "tagRemoved": "\"{{tag}}\" removed from {{count}} routes",
+    "behaviourApplied": "Applied to {{count}} routes",
+    "behaviourCleared": "Latency and faults cleared on {{count}} routes",
+    "confirmDuplicate": "Duplicate the {{count}} selected routes?",
+    "duplicated": "{{count}} routes duplicated",
+    "scenariosReset": "{{count}} scenarios reset",
+    "exporting": "Exporting {{count}} routes",
+    "needNumber": "Enter a number of milliseconds",
+    "needPercent": "Enter a percentage between 0 and 100"
   },
   "duplicate": {
     "newRoute": "New route",
