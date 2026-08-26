@@ -149,7 +149,7 @@ test.describe('pantalla de log', () => {
         await expect(page.locator('#logsBody')).toContainText('/e2e/para-la-traza');
 
         // El botón del diagrama solo está en las filas que tienen traza
-        await page.locator('#logsBody button[title]').filter({ has: page.locator('i.fa-project-diagram') }).first().click();
+        await page.locator('#logsBody button[title]').filter({ has: page.locator('i.fa-sitemap') }).first().click();
 
         await expect(page.locator('#traceModal, .modal:visible').first()).toBeVisible();
         await expect(page.locator('#traceTimeline')).toBeVisible();
@@ -448,7 +448,13 @@ test.describe('acciones sobre la selección', () => {
 
         await page.click('#bulkBehaviourBtn');
         await page.fill('#bulkLatencyMs', '250');
+
+        // Se espera a que el guardado responda: sin esto la medición de abajo
+        // podía correr antes de que la latencia estuviera puesta
+        const guardado = page.waitForResponse(r =>
+            r.url().includes('/api/routes/bulk-behaviour') && r.status() === 200);
         await page.click('#bulkApplyLatency');
+        await guardado;
 
         // La comprobación de verdad es que la ruta tarda, no que salga un aviso
         const inicio = Date.now();
@@ -515,5 +521,94 @@ test.describe('entornos', () => {
         await page.goto('/');
         await expect(page.locator('#envWarningDot')).toBeVisible();
         await expect(page.locator('#envWarningDot')).toHaveAttribute('title', /E2E_SIN_DEFINIR/);
+    });
+});
+
+/**
+ * Detalles de la interfaz que se rompen en silencio.
+ *
+ * Los iconos y la posición de un desplegable no los nota ninguna prueba de
+ * servidor: se ven o no se ven, y hay que mirarlos.
+ */
+test.describe('detalles visuales', () => {
+
+    test('no hay iconos rotos en ninguna pantalla', async ({ page }) => {
+        // El proyecto usa Font Awesome 4.7 y es fácil escribir nombres de FA5 o
+        // FA6, que no fallan: simplemente no pintan nada
+        const sinGlifo = async () => page.evaluate(() => {
+            const malos = [];
+            document.querySelectorAll('i.fa').forEach(el => {
+                const contenido = getComputedStyle(el, ':before').content;
+                if (!contenido || contenido === 'none' || contenido === '""') malos.push(el.className);
+            });
+            return malos;
+        });
+
+        await page.goto('/');
+        expect(await sinGlifo()).toEqual([]);
+
+        await page.goto('/logs');
+        expect(await sinGlifo()).toEqual([]);
+    });
+
+    test('los menús de la barra bulk salen pegados a su botón', async ({ page, request }) => {
+        // Regresión: el CSS los deja en top:0/left:0 hasta que alguien los
+        // coloca, así que sin posicionarlos aparecían arriba a la izquierda
+        await crearRuta(request, { ruta: '/e2e/menus' });
+
+        await page.goto('/');
+        await page.fill('#filterRouteValue', '/e2e/menus');
+        await page.locator('.route-select-check').first().check();
+
+        for (const [boton, menu] of [['#bulkTagsBtn', '#bulkTagsMenu'],
+                                     ['#bulkBehaviourBtn', '#bulkBehaviourMenu']]) {
+            await page.click(boton);
+            const caja = await page.locator(menu).boundingBox();
+            const ref = await page.locator(boton).boundingBox();
+            expect(Math.abs(caja.x - ref.x)).toBeLessThan(20);
+            expect(caja.y).toBeGreaterThan(ref.y);
+        }
+    });
+
+    test('la selección sobrevive a que se repinte la tabla', async ({ page, request }) => {
+        // Regresión: el refresco del uso repinta la tabla cada 30 s, y con la
+        // marca solo en la casilla se perdía sola mientras la barra seguía
+        // diciendo que había rutas elegidas. Pulsar una acción no hacía nada.
+        await crearRuta(request, { ruta: '/e2e/persiste-1' });
+        await crearRuta(request, { ruta: '/e2e/persiste-2' });
+
+        await page.goto('/');
+        await page.fill('#filterRouteValue', '/e2e/persiste-');
+        await expect(page.locator('#dtList tbody tr')).toHaveCount(2);
+        await page.locator('.route-select-check').nth(0).check();
+        await page.locator('.route-select-check').nth(1).check();
+        await expect(page.locator('#bulkCount')).toContainText('2');
+
+        // Lo que hace el refresco automático
+        await page.evaluate(() => cargarUsoDeRutas());
+        await expect(page.locator('.route-select-check:checked')).toHaveCount(2);
+        await expect(page.locator('#bulkCount')).toContainText('2');
+
+        // Y al reordenar, que también recrea las celdas
+        await page.click('#dtList thead th:nth-child(5)');
+        await expect(page.locator('.route-select-check:checked')).toHaveCount(2);
+    });
+
+    test('se puede crear un tag desde la barra y queda aplicado', async ({ page, request }) => {
+        await crearRuta(request, { ruta: '/e2e/tag-al-vuelo' });
+
+        await page.goto('/');
+        await page.fill('#filterRouteValue', '/e2e/tag-al-vuelo');
+        await page.locator('.route-select-check').first().check();
+
+        await page.click('#bulkTagsBtn');
+        await page.fill('#bulkNewTag', 'e2e-al-vuelo');
+        await page.click('#bulkTagsMenu .bulk-new-tag button');
+
+        // Aplicado a la ruta y registrado, que es lo que lo hace aparecer luego
+        // en el filtro de tags
+        await expect(page.locator('#dtList tbody tr').first()).toContainText('e2e-al-vuelo');
+        const { tags } = await (await request.get('/api/tags')).json();
+        expect(tags.some(t => t.name === 'e2e-al-vuelo')).toBe(true);
     });
 });

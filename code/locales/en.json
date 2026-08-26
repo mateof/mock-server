@@ -510,7 +510,10 @@
     "scenariosReset": "{{count}} scenarios reset",
     "exporting": "Exporting {{count}} routes",
     "needNumber": "Enter a number of milliseconds",
-    "needPercent": "Enter a percentage between 0 and 100"
+    "needPercent": "Enter a percentage between 0 and 100",
+    "newTagPlaceholder": "Create new tag...",
+    "createAndApply": "Create and apply to the selection",
+    "needTagName": "Enter a name for the tag"
   },
   "duplicate": {
     "newRoute": "New route",

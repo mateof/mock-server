@@ -166,7 +166,7 @@ const EnvModule = {
     const pista = document.getElementById('envVarsHint');
     if (pista) {
       pista.innerHTML = faltan.size
-        ? `<i class="fa fa-triangle-exclamation"></i> ${t('env.missingHere').replace('{{vars}}', [...faltan].join(', '))}`
+        ? `<i class="fa fa-exclamation-triangle"></i> ${t('env.missingHere').replace('{{vars}}', [...faltan].join(', '))}`
         : '';
     }
   },
