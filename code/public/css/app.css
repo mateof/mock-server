@@ -5150,8 +5150,9 @@ table.dataTable.no-footer {
 
 .bulk-clear:hover { background: var(--bg-hover); color: var(--text-primary); }
 
+/* Se muestra con .show, igual que el resto de desplegables del panel, para que
+   entre en el mismo posicionador flotante */
 .bulk-menu { min-width: 13rem; }
-.bulk-menu.is-open { display: block; }
 
 .bulk-field {
     display: flex;
@@ -5160,6 +5161,13 @@ table.dataTable.no-footer {
 }
 
 .bulk-field input { flex: 1; min-width: 0; }
+
+/* Crear un tag desde la propia barra, sin pasar por el gestor */
+.bulk-new-tag {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.45rem;
+    margin-bottom: 0.2rem;
+}
 
 .dropdown-group-label {
     padding: 0.4rem 0.6rem 0.2rem;

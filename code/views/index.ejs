@@ -14,7 +14,7 @@
         -->
         <div class="dropdown-modern">
           <button type="button" class="btn-modern btn-modern-secondary dropdown-toggle" onclick="toggleToolsDropdown()">
-            <i class="fa fa-toolbox"></i> <%= __('routes.tools') %>
+            <i class="fa fa-wrench"></i> <%= __('routes.tools') %>
           </button>
           <div class="dropdown-menu-modern" id="toolsDropdownMenu">
             <div class="dropdown-group-label"><%= __('routes.groupOrganize') %></div>
@@ -27,10 +27,10 @@
 
             <div class="dropdown-group-label"><%= __('routes.groupTransfer') %></div>
             <button type="button" class="dropdown-item-modern" onclick="openImportModal(); closeToolsDropdown();">
-              <i class="fa fa-file-import"></i> <%= __('routes.importOpenApi') %>
+              <i class="fa fa-upload"></i> <%= __('routes.importOpenApi') %>
             </button>
             <button type="button" class="dropdown-item-modern" onclick="openExportImportModal(); closeToolsDropdown();">
-              <i class="fa fa-right-left"></i> <%= __('exportImport.title') %>
+              <i class="fa fa-exchange"></i> <%= __('exportImport.title') %>
             </button>
 
             <div class="dropdown-group-label"><%= __('routes.groupConnections') %></div>
@@ -38,7 +38,7 @@
               <i class="fa fa-plug"></i> <%= __('ws.clientsTitle') %> <span class="ws-clients-badge" id="wsClientsBadge" style="display: none;">0</span>
             </button>
             <button type="button" class="dropdown-item-modern" onclick="openMcpModal(); closeToolsDropdown();">
-              <i class="fa fa-robot"></i> <%= __('mcp.title') %>
+              <i class="fa fa-magic"></i> <%= __('mcp.title') %>
             </button>
           </div>
         </div>
@@ -56,7 +56,7 @@
       -->
       <div class="bulk-bar" id="bulkBar" style="display: none;">
         <div class="bulk-count">
-          <i class="fa fa-check-double"></i>
+          <i class="fa fa-check-square-o"></i>
           <span id="bulkCount">0</span>
         </div>
 
@@ -68,6 +68,18 @@
             </button>
             <div class="dropdown-menu-modern bulk-menu" id="bulkTagsMenu">
               <div class="dropdown-group-label"><%= __('bulk.addTag') %></div>
+              <!-- Crear y aplicar de una vez: tener que ir al gestor de tags,
+                   crearlo y volver a la selección era el camino largo para algo
+                   que casi siempre se decide en el momento -->
+              <div class="bulk-field bulk-new-tag">
+                <input type="text" id="bulkNewTag" class="form-control-modern"
+                       placeholder="<%= __('bulk.newTagPlaceholder') %>"
+                       onkeydown="if (event.key === 'Enter') { event.preventDefault(); Bulk.crearYAplicarTag(); }">
+                <button type="button" class="btn-modern btn-modern-success btn-sm"
+                        onclick="Bulk.crearYAplicarTag()" title="<%= __('bulk.createAndApply') %>">
+                  <i class="fa fa-plus"></i>
+                </button>
+              </div>
               <div id="bulkTagsAdd"></div>
               <div class="dropdown-group-label"><%= __('bulk.removeTag') %></div>
               <div id="bulkTagsRemove"></div>
@@ -824,7 +836,14 @@
     columns: [
       { data: 'id' },
       { data: null, render: function(data) {
-        return `<input type="checkbox" class="route-select-check" data-id="${data.id}" onchange="updateBulkSelection()">`;
+        // El estado marcado vive en Bulk.seleccionados y no en el DOM: la tabla
+        // se repinta sola (el refresco del uso cada 30 s la invalida) y con la
+        // marca solo en la casilla la selección desaparecía sin avisar, mientras
+        // la barra seguía diciendo que había rutas elegidas
+        const marcada = typeof Bulk !== 'undefined' && Bulk.seleccionados.has(data.id);
+        return `<input type="checkbox" class="route-select-check" data-id="${data.id}"
+                       ${marcada ? 'checked' : ''}
+                       onchange="Bulk.marcar(${data.id}, this.checked)">`;
       }},
       {
         data: 'orden', // Usar el campo orden para ordenar numéricamente
@@ -921,6 +940,10 @@
       }}
     ]
   });
+
+  // DataTables recrea el HTML de las celdas al ordenar, paginar o invalidar, así
+  // que la marca hay que volver a pintarla después de cada dibujado
+  tabla.on('draw', restaurarSeleccion);
 
   // ===== FILTROS PERSONALIZADOS =====
   // Filtro custom para DataTables
@@ -1314,6 +1337,7 @@
   function recolocarMenusFlotantes() {
     posicionarMenuTags();
     posicionarMenuHerramientas();
+    if (typeof Bulk !== 'undefined') Bulk.recolocar();
   }
   window.addEventListener('scroll', recolocarMenusFlotantes, true);
   window.addEventListener('resize', recolocarMenusFlotantes);
@@ -2903,7 +2927,7 @@
       item.dataset.target = `condition-${conditionId}`;
 
       item.innerHTML = `
-        <span class="nav-drag-handle"><i class="fa fa-grip-vertical"></i></span>
+        <span class="nav-drag-handle"><i class="fa fa-bars"></i></span>
         <label class="switch-mini" onclick="event.stopPropagation()">
           <input type="checkbox" id="nav-switch-condition-${conditionId}" ${isActive ? 'checked' : ''}>
           <span class="slider-mini"></span>
@@ -2997,7 +3021,7 @@
       item.dataset.target = `fallback-${fallbackId}`;
 
       item.innerHTML = `
-        <span class="nav-drag-handle"><i class="fa fa-grip-vertical"></i></span>
+        <span class="nav-drag-handle"><i class="fa fa-bars"></i></span>
         <label class="switch-mini" onclick="event.stopPropagation()">
           <input type="checkbox" id="nav-switch-fallback-${fallbackId}" ${isActive ? 'checked' : ''}>
           <span class="slider-mini"></span>
@@ -3104,7 +3128,7 @@
       item.dataset.target = `fc-${fallbackId}-${condId}`;
 
       item.innerHTML = `
-        <span class="nav-drag-handle"><i class="fa fa-grip-vertical"></i></span>
+        <span class="nav-drag-handle"><i class="fa fa-bars"></i></span>
         <label class="switch-mini" onclick="event.stopPropagation()">
           <input type="checkbox" id="nav-switch-fc-${fallbackId}-${condId}" ${isActive ? 'checked' : ''}>
           <span class="slider-mini"></span>
@@ -4059,7 +4083,7 @@
           <!-- Conditional Responses for this fallback -->
           <div class="fallback-conditions-section">
             <div class="fallback-conditions-header" onclick="toggleFallbackConditions(${fallbackCounter})">
-              <span><i class="fa fa-code-branch"></i> ${t('form.conditionalResponses')}</span>
+              <span><i class="fa fa-code-fork"></i> ${t('form.conditionalResponses')}</span>
               <i class="fa fa-chevron-down fallback-conditions-chevron" id="fallback-conditions-chevron-${fallbackCounter}"></i>
             </div>
             <div class="fallback-conditions-body" id="fallback-conditions-body-${fallbackCounter}" style="display: none;">
@@ -6092,30 +6116,55 @@
 
   // Bulk delete functions
   function toggleSelectAllRoutes(checked) {
+    // Solo las visibles: con un filtro puesto, "seleccionar todo" tiene que
+    // significar lo que se está viendo y no las de las otras páginas
     document.querySelectorAll('.route-select-check').forEach(cb => {
       cb.checked = checked;
+      const id = parseInt(cb.dataset.id);
+      if (checked) Bulk.seleccionados.add(id);
+      else Bulk.seleccionados.delete(id);
     });
     updateBulkSelection();
   }
 
   function updateBulkSelection() {
-    const checked = document.querySelectorAll('.route-select-check:checked');
+    // La cuenta sale del estado, no de las casillas: es lo que evita que la
+    // barra diga "10 seleccionadas" después de que un repintado las desmarque
+    const total = Bulk.seleccionados.size;
 
     // Los botones ya no viven arriba: la barra entera aparece con la selección
     const barra = document.getElementById('bulkBar');
     if (barra) {
-      barra.style.display = checked.length ? '' : 'none';
+      barra.style.display = total ? '' : 'none';
       const cuenta = document.getElementById('bulkCount');
-      if (cuenta) cuenta.textContent = t('bulk.selected').replace('{{count}}', checked.length);
-      if (!checked.length) Bulk.cerrarMenus();
+      if (cuenta) cuenta.textContent = t('bulk.selected').replace('{{count}}', total);
+      if (!total) Bulk.cerrarMenus();
     }
+
     // Update select all checkbox state
     const all = document.querySelectorAll('.route-select-check');
+    const marcadas = document.querySelectorAll('.route-select-check:checked');
     const selectAll = document.getElementById('selectAllRoutes');
     if (selectAll) {
-      selectAll.checked = all.length > 0 && checked.length === all.length;
-      selectAll.indeterminate = checked.length > 0 && checked.length < all.length;
+      selectAll.checked = all.length > 0 && marcadas.length === all.length;
+      selectAll.indeterminate = marcadas.length > 0 && marcadas.length < all.length;
     }
+  }
+
+  /**
+   * Devuelve las casillas a su estado tras un repintado de la tabla.
+   *
+   * DataTables vuelve a crear el HTML de cada celda al ordenar, paginar o
+   * invalidar, así que sin esto la marca se quedaría solo en el estado y no se
+   * vería.
+   */
+  function restaurarSeleccion() {
+    if (typeof Bulk === 'undefined') return;
+    Bulk.depurar();
+    document.querySelectorAll('.route-select-check').forEach(cb => {
+      cb.checked = Bulk.seleccionados.has(parseInt(cb.dataset.id));
+    });
+    updateBulkSelection();
   }
 
   /**
@@ -6169,29 +6218,82 @@
    * seis veces.
    */
   const Bulk = {
+    /**
+     * Ids seleccionados.
+     *
+     * Fuera del DOM a propósito: DataTables repinta las celdas por su cuenta
+     * (al refrescar el uso, al ordenar, al paginar) y una marca que solo viva
+     * en la casilla se pierde en ese repintado.
+     */
+    seleccionados: new Set(),
+
     seleccion() {
-      return Array.from(document.querySelectorAll('.route-select-check:checked'))
-        .map(cb => parseInt(cb.dataset.id));
+      return [...this.seleccionados];
+    },
+
+    marcar(id, marcada) {
+      if (marcada) this.seleccionados.add(id);
+      else this.seleccionados.delete(id);
+      updateBulkSelection();
     },
 
     toggleMenu(id) {
       const menu = document.getElementById(id);
       if (!menu) return;
-      const abierto = menu.classList.contains('is-open');
+      const abierto = menu.classList.contains('show');
       this.cerrarMenus();
       if (!abierto) {
-        menu.classList.add('is-open');
         if (id === 'bulkTagsMenu') this.pintarTags();
+        menu.classList.add('show');
+        // Sin esto el menú se queda en el top:0/left:0 del CSS, que es como
+        // aparecía arriba a la izquierda de la pantalla. Se pinta antes de
+        // colocarlo para que ya tenga su alto real cuando se mide
+        this.colocarMenu(id);
       }
     },
 
+    colocarMenu(id) {
+      const menu = document.getElementById(id);
+      const boton = document.getElementById(id.replace('Menu', 'Btn'));
+      if (menu && boton) posicionarMenuFlotante(menu, boton, 'izquierda');
+    },
+
+    /** Al hacer scroll el botón se mueve y el menú se quedaría flotando. */
+    recolocar() {
+      document.querySelectorAll('.bulk-menu.show').forEach(m => this.colocarMenu(m.id));
+    },
+
     cerrarMenus() {
-      document.querySelectorAll('.bulk-menu').forEach(m => m.classList.remove('is-open'));
+      document.querySelectorAll('.bulk-menu').forEach(m => m.classList.remove('show'));
     },
 
     limpiarSeleccion() {
-      document.querySelectorAll('.route-select-check:checked').forEach(cb => { cb.checked = false; });
+      this.seleccionados.clear();
+      document.querySelectorAll('.route-select-check').forEach(cb => { cb.checked = false; });
       updateBulkSelection();
+    },
+
+    /**
+     * Quita de la selección lo que ya no existe.
+     *
+     * Se mira el conjunto de datos de la tabla y NO las casillas visibles: con
+     * un filtro puesto o en otra página no hay casilla para una ruta que sigue
+     * existiendo, y durante una recarga la tabla se queda un instante sin
+     * ninguna. Mirando el DOM, ese instante vaciaba la selección entera.
+     */
+    depurar() {
+      if (typeof tabla === 'undefined') return;
+
+      const datos = tabla.rows().data();
+      // Sin datos todavía no se sabe nada: purgar aquí es justo el fallo
+      if (!datos || datos.length === 0) return;
+
+      const vivos = new Set();
+      for (let i = 0; i < datos.length; i++) vivos.add(datos[i].id);
+
+      for (const id of [...this.seleccionados]) {
+        if (!vivos.has(id)) this.seleccionados.delete(id);
+      }
     },
 
     /** Envoltorio común: avisa, recarga y cierra los menús. */
@@ -6205,6 +6307,7 @@
         if (!r.ok || datos.success === false) throw new Error(datos.error || t('errors.generic'));
 
         this.cerrarMenus();
+        this.seleccionados.clear();
         showToast(mensaje(datos, ids), 'success');
         tabla.ajax.reload(null, false);
         if (typeof cargarUsoDeRutas === 'function') cargarUsoDeRutas();
@@ -6230,6 +6333,36 @@
       };
       pintar('bulkTagsAdd', 'add');
       pintar('bulkTagsRemove', 'remove');
+    },
+
+    /**
+     * Crea un tag y lo aplica a la selección en un paso.
+     *
+     * El servidor registra el tag que no existe al guardar la ruta, así que
+     * basta con mandar el nombre: no hace falta crearlo antes ni conocer su id.
+     */
+    async crearYAplicarTag() {
+      const campo = document.getElementById('bulkNewTag');
+      const nombre = (campo.value || '').trim();
+      if (!nombre) return showToast(t('bulk.needTagName'), 'warning');
+
+      // Si ya existe se reutiliza, que es lo que hace el registro por nombre
+      const existente = (TagsModule.availableTags || [])
+        .find(x => x.name.toLowerCase() === nombre.toLowerCase());
+
+      await this.ejecutar(
+        (ids) => fetch('/api/routes/bulk-tags', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids, action: 'add', tag: existente || { name: nombre } })
+        }),
+        (datos) => t('bulk.tagAdded').replace('{{tag}}', nombre).replace('{{count}}', datos.updated)
+      );
+
+      campo.value = '';
+      // El registro puede tener un tag nuevo: sin recargar, el menú de la
+      // próxima vez seguiría sin ofrecerlo
+      await TagsModule.loadTags();
     },
 
     async tags(accion, tagId) {

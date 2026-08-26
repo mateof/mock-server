@@ -16,7 +16,7 @@
                  que su sitio es la barra y no la cabecera de la lista de rutas -->
             <a class="btn-nav-top<%= (typeof paginaActual !== 'undefined' && paginaActual === 'logs') ? ' is-current' : '' %>"
                href="/logs" title="<%= __('logs.title') %>">
-                <i class="fa fa-stream"></i>
+                <i class="fa fa-list-ul"></i>
                 <span class="btn-nav-label"><%= __('logs.title') %></span>
             </a>
             <button type="button" class="btn-nav-top"
@@ -29,7 +29,7 @@
 
             <div class="env-selector" id="envSelector">
                 <button class="btn-env" type="button" onclick="EnvModule.toggle()" title="<%= __('env.switchHint') %>">
-                    <i class="fa fa-layer-group"></i>
+                    <i class="fa fa-cubes"></i>
                     <span id="envActiveName">—</span>
                     <span class="env-warning-dot" id="envWarningDot" style="display: none;" title="<%= __('env.undefinedHint') %>"></span>
                     <i class="fa fa-chevron-down env-arrow"></i>
@@ -38,7 +38,7 @@
                     <div class="env-menu-header"><%= __('env.switchTo') %></div>
                     <div id="envMenuList"></div>
                     <button type="button" class="env-menu-manage" onclick="EnvModule.openManager()">
-                        <i class="fa fa-sliders-h"></i> <%= __('env.manage') %>
+                        <i class="fa fa-sliders"></i> <%= __('env.manage') %>
                     </button>
                 </div>
             </div>

@@ -510,7 +510,10 @@
     "scenariosReset": "{{count}} escenarios reiniciados",
     "exporting": "Exportando {{count}} rutas",
     "needNumber": "Escribe un número de milisegundos",
-    "needPercent": "Escribe unha porcentaxe entre 0 e 100"
+    "needPercent": "Escribe unha porcentaxe entre 0 e 100",
+    "newTagPlaceholder": "Crear tag novo...",
+    "createAndApply": "Crear e aplicar á selección",
+    "needTagName": "Escribe un nome para o tag"
   },
   "duplicate": {
     "newRoute": "Nova ruta",
