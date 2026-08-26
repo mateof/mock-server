@@ -1,0 +1,17 @@
+<!--
+  El log dentro de la lista de rutas.
+
+  Es el mismo panel que sirve /logs, incluido aquí con enModal para que en vez
+  del enlace a rutas enseñe el botón de cerrar. Se abre vacío y no consulta nada
+  hasta que alguien lo abre, que es lo que evita pedir el log en cada visita a
+  la lista de rutas.
+-->
+<div class="modal fade modal-modern" id="logsModal" tabindex="-1" aria-hidden="true" data-bs-focus="false">
+  <div class="modal-dialog modal-fullwidth">
+    <div class="modal-content">
+      <div class="modal-body">
+        <%- include('../partials/logs-panel', { enModal: true }) %>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1536,12 +1536,20 @@ body {
 }
 
 .logs-level {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
   padding: 0.1rem 0.45rem;
   border-radius: var(--border-radius-xs);
   font-size: 0.7rem;
   text-transform: uppercase;
   font-weight: 600;
+}
+
+/* El icono repite lo que ya dice el color, que es justo para lo que sirve:
+   el color solo no distingue error de aviso si no ves bien el rojo */
+.logs-level i {
+  font-size: 0.75rem;
 }
 
 .logs-level-error { background: var(--danger-light); color: var(--danger); }
@@ -5217,4 +5225,30 @@ table.dataTable.no-footer {
 /* Con poco ancho se quedan solo los iconos: la barra ya lleva idioma y estado */
 @media (max-width: 1100px) {
     .btn-nav-label { display: none; }
+}
+
+/* ===== EL LOG DENTRO DE LA LISTA DE RUTAS ===== */
+
+/* modal-fullwidth deja el cuerpo sin desplazamiento porque el formulario de
+   ruta se lo apaña por dentro. El log no: es una lista larga y necesita
+   desplazarse entera. */
+#logsModal .modal-body {
+  overflow: auto;
+  padding: 1rem;
+}
+
+/* Los botones que actúan sobre la lista se esconden al leer una traza. No
+   pueden ir con .d-flex: es display:flex !important y le gana al display:none
+   que pone el JS */
+.logs-actions-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* La tarjeta ya está dentro del marco del modal; otro borde encima solo
+   añade ruido */
+#logsModal .card-modern {
+  border: none;
+  box-shadow: none;
+  margin: 0;
 }

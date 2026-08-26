@@ -151,11 +151,68 @@ test.describe('pantalla de log', () => {
         // El botón del diagrama solo está en las filas que tienen traza
         await page.locator('#logsBody button[title]').filter({ has: page.locator('i.fa-sitemap') }).first().click();
 
-        await expect(page.locator('#traceModal, .modal:visible').first()).toBeVisible();
+        // La traza ocupa el sitio de la lista, no un modal encima
+        await expect(page.locator('#logsTracePanel')).toBeVisible();
+        await expect(page.locator('#logsListSection')).toBeHidden();
+        // Filtros y botones de la lista se retiran: no actúan sobre la traza.
+        // Se comprueba porque .d-flex es display:flex !important y le ganaba al
+        // display:none, dejándolos puestos sin que nada fallara
+        await expect(page.locator('#logsFilters')).toBeHidden();
+        await expect(page.locator('#logsListActions')).toBeHidden();
         await expect(page.locator('#traceTimeline')).toBeVisible();
         // Toda petición atendida pasa al menos por estos dos
         await expect(page.locator('#traceTimeline')).toContainText('request');
         await expect(page.locator('#traceTimeline')).toContainText('response');
+
+        // Y se puede volver, con todo donde estaba
+        await page.click('#logsTraceBackBtn');
+        await expect(page.locator('#logsListSection')).toBeVisible();
+        await expect(page.locator('#logsTracePanel')).toBeHidden();
+        await expect(page.locator('#logsFilters')).toBeVisible();
+        await expect(page.locator('#logsListActions')).toBeVisible();
+    });
+
+    test('cada nivel lleva su icono, no solo su color', async ({ page, request }) => {
+        await crearRuta(request, { ruta: '/e2e/nivel-con-icono' });
+        await request.get('/e2e/nivel-con-icono');
+        await esperarEnElLog(request, '/e2e/nivel-con-icono');
+
+        await page.goto('/logs');
+        await expect(page.locator('#logsBody')).toContainText('/e2e/nivel-con-icono');
+
+        // Font Awesome 4.7 pinta vacío cualquier nombre de FA5/FA6 sin quejarse,
+        // así que no basta con que el <i> esté: tiene que tener glifo
+        const sinGlifo = await page.evaluate(() => {
+            const malos = [];
+            document.querySelectorAll('#logsBody .logs-level').forEach(nivel => {
+                const icono = nivel.querySelector('i.fa');
+                if (!icono) { malos.push(nivel.textContent.trim() + ': sin <i>'); return; }
+                const c = getComputedStyle(icono, ':before').content;
+                if (!c || c === 'none' || c === '""') malos.push(nivel.textContent.trim() + ': ' + icono.className);
+            });
+            return malos;
+        });
+        expect(sinGlifo).toEqual([]);
+        expect(await page.locator('#logsBody .logs-level i.fa').count()).toBeGreaterThan(0);
+
+        // Lo de arriba solo cubre los niveles que hayan salido, y en una prueba
+        // limpia salen success e info y ninguno más. Los cuatro se comprueban
+        // contra la tabla, que es donde está el nombre que puede estar mal
+        const rotos = await page.evaluate(() => {
+            const malos = [];
+            for (const [nivel, clase] of Object.entries(LogsView.ICONO_NIVEL)) {
+                const i = document.createElement('i');
+                i.className = 'fa ' + clase;
+                document.body.appendChild(i);
+                const c = getComputedStyle(i, ':before').content;
+                if (!c || c === 'none' || c === '""') malos.push(nivel + ': ' + clase);
+                i.remove();
+            }
+            return malos;
+        });
+        expect(rotos).toEqual([]);
+        expect(Object.keys(await page.evaluate(() => LogsView.ICONO_NIVEL)).sort())
+            .toEqual(['error', 'info', 'success', 'warning']);
     });
 
     test('el filtro de método reduce lo que se ve', async ({ page, request }) => {
@@ -182,6 +239,64 @@ test.describe('pantalla de log', () => {
  * que cada sección enseñe lo suyo, que el índice resuma lo configurado, y que
  * cambiar el tipo de ruta no deje al usuario encerrado.
  */
+/**
+ * El log se mira mientras se toca una ruta, así que además de su pantalla se
+ * abre sin salir de la lista. Lo que se prueba aquí es lo que separa "abre un
+ * modal" de "funciona": que no se navegue, que la traza no intente ser un
+ * segundo modal encima del primero (Bootstrap 5 no lo soporta), y que cerrarlo
+ * pare el seguimiento en vivo en vez de dejarlo consultando a escondidas.
+ */
+test.describe('el log dentro de la lista de rutas', () => {
+
+    test('se abre desde la barra sin salir de la lista', async ({ page, request }) => {
+        await crearRuta(request, { ruta: '/e2e/log-en-modal' });
+        await request.get('/e2e/log-en-modal');
+        await esperarEnElLog(request, '/e2e/log-en-modal');
+
+        await page.goto('/');
+        await expect(page.locator('#logsModal')).toBeHidden();
+
+        await page.click('.btn-nav-top[href="/logs"]');
+        await expect(page.locator('#logsModal')).toBeVisible();
+        await expect(page.locator('#logsBody')).toContainText('/e2e/log-en-modal');
+
+        // Lo que distingue esto de un enlace: la lista sigue detrás
+        expect(new URL(page.url()).pathname).toBe('/');
+        await expect(page.locator('#dtList').first()).toBeAttached();
+    });
+
+    test('la traza se abre dentro, sin un segundo modal encima', async ({ page, request }) => {
+        await crearRuta(request, { ruta: '/e2e/traza-en-modal' });
+        await request.get('/e2e/traza-en-modal');
+        await esperarEnElLog(request, '/e2e/traza-en-modal');
+
+        await page.goto('/');
+        await page.click('.btn-nav-top[href="/logs"]');
+        await expect(page.locator('#logsBody')).toContainText('/e2e/traza-en-modal');
+
+        await page.locator('#logsBody button').filter({ has: page.locator('i.fa-sitemap') }).first().click();
+        await expect(page.locator('#traceTimeline')).toContainText('request');
+
+        // Un modal, un fondo. Dos fondos es la pila que Bootstrap no soporta
+        expect(await page.locator('.modal-backdrop').count()).toBe(1);
+        await expect(page.locator('#logsModal')).toBeVisible();
+    });
+
+    test('cerrarlo para el seguimiento en vivo', async ({ page }) => {
+        await page.goto('/');
+        await page.click('.btn-nav-top[href="/logs"]');
+        await expect(page.locator('#logsModal')).toBeVisible();
+
+        await page.click('#logsLiveBtn');
+        expect(await page.evaluate(() => LogsView.live)).toBe(true);
+
+        await page.click('#logsModal [data-bs-dismiss="modal"]');
+        await expect(page.locator('#logsModal')).toBeHidden();
+        // Si no, seguiría consultando cada tres segundos contra algo que no se ve
+        expect(await page.evaluate(() => LogsView.live)).toBe(false);
+    });
+});
+
 test.describe('secciones del formulario de ruta', () => {
 
     async function abrirFormulario(page) {
@@ -259,6 +374,10 @@ test.describe('secciones del formulario de ruta', () => {
         await crearRuta(request, { ruta: '/e2e/para-editar', respuesta: '{"x":1}' });
 
         await page.goto('/');
+        // La tabla pagina de diez en diez: buscar la ruta sin filtrar la
+        // encuentra solo mientras el resto de pruebas no llenen la primera
+        // pagina, que es una condicion que se rompe sola al anadir pruebas
+        await page.fill('#filterRouteValue', '/e2e/para-editar');
         await expect(page.locator('#dtList')).toContainText('/e2e/para-editar');
         await page.locator('#dtList tr', { hasText: '/e2e/para-editar' })
             .locator('button[title*="dit"], button[title*="ditar"]').first().click();
@@ -303,6 +422,7 @@ test.describe('documentación de la ruta', () => {
         await page.fill('#description', texto);
         await page.click('#botonguardar');
 
+        await page.fill('#filterRouteValue', '/e2e/documentada');
         await expect(page.locator('#dtList')).toContainText('/e2e/documentada', { timeout: 10000 });
 
         await page.locator('#dtList tr', { hasText: '/e2e/documentada' })
@@ -333,6 +453,8 @@ test.describe('documentación de la ruta', () => {
         expect(r.ok()).toBeTruthy();
 
         await page.goto('/');
+        await page.fill('#filterRouteValue', '/e2e/docs-por-api');
+        await expect(page.locator('#dtList')).toContainText('/e2e/docs-por-api');
         await page.locator('#dtList tr', { hasText: '/e2e/docs-por-api' })
             .locator('button[title*="dit"]').first().click();
         await page.click('.route-nav-section[data-section-key="documentacion"]');

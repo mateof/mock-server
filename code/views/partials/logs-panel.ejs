@@ -1,0 +1,223 @@
+<%
+  // Este panel lo comparten la pantalla /logs y el modal de la lista de rutas.
+  // esModal decide lo poco que cambia entre los dos sitios; se lee de locals
+  // porque el parcial se incluye tambien sin pasar nada.
+  const esModal = !!locals.enModal;
+%>
+  <div class="card-modern animate-fade-in">
+    <div class="card-header-modern">
+      <h2>
+        <span id="logsHeadingList"><i class="fa fa-list-ul"></i> <%= __('logs.title') %></span>
+        <span id="logsHeadingTrace" style="display: none;"><i class="fa fa-sitemap"></i> <%= __('logs.traceTitle') %></span>
+      </h2>
+      <div class="d-flex gap-2">
+        <button type="button" class="btn-modern btn-modern-secondary" id="logsTraceBackBtn"
+                onclick="LogsView.closeTrace()" style="display: none;">
+          <i class="fa fa-arrow-left"></i> <%= __('logs.traceBack') %>
+        </button>
+        <span class="logs-actions-group" id="logsListActions">
+        <button type="button" class="btn-modern btn-modern-secondary" id="logsLiveBtn" onclick="LogsView.toggleLive()">
+          <i class="fa fa-play"></i> <span id="logsLiveLabel"><%= __('logs.live') %></span>
+        </button>
+        <button type="button" class="btn-modern btn-modern-secondary" onclick="LogsView.refresh()">
+          <i class="fa fa-refresh"></i> <%= __('logs.refresh') %>
+        </button>
+        <button type="button" class="btn-modern btn-modern-secondary" onclick="LogsView.mocksFromResults()"
+                title="<%= __('logs.toMocksHint') %>">
+          <i class="fa fa-dot-circle-o"></i> <%= __('logs.toMocks') %>
+        </button>
+        <button type="button" class="btn-modern btn-modern-danger" onclick="LogsView.clear()">
+          <i class="fa fa-trash"></i> <%= __('logs.clear') %>
+        </button>
+        </span>
+        <% if (esModal) { %>
+        <a class="btn-modern btn-modern-secondary" href="/logs" title="<%= __('logs.openAsPage') %>">
+          <i class="fa fa-external-link"></i>
+        </a>
+        <button type="button" class="btn-modern btn-modern-primary" data-bs-dismiss="modal">
+          <i class="fa fa-times"></i> <%= __('buttons.close') %>
+        </button>
+        <% } else { %>
+        <a class="btn-modern btn-modern-primary" href="/">
+          <i class="fa fa-sitemap"></i> <%= __('logs.backToRoutes') %>
+        </a>
+        <% } %>
+      </div>
+    </div>
+
+    <div class="card-body-modern">
+      <!-- Filtros -->
+      <div class="table-filters" id="logsFilters">
+        <div class="filter-group">
+          <label class="filter-label" for="logRange"><%= __('logs.range') %></label>
+          <select id="logRange" class="filter-select" onchange="LogsView.apply()">
+            <option value="15"><%= __('logs.last15m') %></option>
+            <option value="60" selected><%= __('logs.last1h') %></option>
+            <option value="360"><%= __('logs.last6h') %></option>
+            <option value="1440"><%= __('logs.last24h') %></option>
+            <option value="10080"><%= __('logs.last7d') %></option>
+            <option value=""><%= __('logs.allTime') %></option>
+            <option value="custom"><%= __('logs.customRange') %></option>
+          </select>
+        </div>
+
+        <!-- Rango a medida, con segundos. Solo visible al elegirlo -->
+        <div class="filter-group" id="logCustomRange" style="display: none;">
+          <label class="filter-label" for="logFrom"><%= __('logs.from') %>
+            <button type="button" class="btn-filter-clear-one" id="clear-logFrom" style="display: none;"
+                    onclick="LogsView.clearOne('logFrom')" title="<%= __('filters.clearOne') %>"><i class="fa fa-times"></i></button>
+          </label>
+          <input type="datetime-local" id="logFrom" class="filter-input" step="1" onchange="LogsView.apply()">
+        </div>
+
+        <div class="filter-group" id="logCustomRangeTo" style="display: none;">
+          <label class="filter-label" for="logTo"><%= __('logs.to') %>
+            <button type="button" class="btn-filter-clear-one" id="clear-logTo" style="display: none;"
+                    onclick="LogsView.clearOne('logTo')" title="<%= __('filters.clearOne') %>"><i class="fa fa-times"></i></button>
+          </label>
+          <input type="datetime-local" id="logTo" class="filter-input" step="1" onchange="LogsView.apply()">
+        </div>
+
+        <div class="filter-group">
+          <label class="filter-label" for="logLevel"><%= __('logs.level') %>
+            <button type="button" class="btn-filter-clear-one" id="clear-logLevel" style="display: none;"
+                    onclick="LogsView.clearOne('logLevel')" title="<%= __('filters.clearOne') %>"><i class="fa fa-times"></i></button>
+          </label>
+          <select id="logLevel" class="filter-select" onchange="LogsView.apply()">
+            <option value=""><%= __('filters.all') %></option>
+            <option value="error"><%= __('logs.levelError') %></option>
+            <option value="warning"><%= __('logs.levelWarning') %></option>
+            <option value="success"><%= __('logs.levelSuccess') %></option>
+            <option value="info"><%= __('logs.levelInfo') %></option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label class="filter-label" for="logType"><%= __('logs.type') %>
+            <button type="button" class="btn-filter-clear-one" id="clear-logType" style="display: none;"
+                    onclick="LogsView.clearOne('logType')" title="<%= __('filters.clearOne') %>"><i class="fa fa-times"></i></button>
+          </label>
+          <select id="logType" class="filter-select" onchange="LogsView.apply()">
+            <option value=""><%= __('filters.all') %></option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label class="filter-label" for="logMethod"><%= __('logs.method') %>
+            <button type="button" class="btn-filter-clear-one" id="clear-logMethod" style="display: none;"
+                    onclick="LogsView.clearOne('logMethod')" title="<%= __('filters.clearOne') %>"><i class="fa fa-times"></i></button>
+          </label>
+          <select id="logMethod" class="filter-select" onchange="LogsView.apply()">
+            <option value=""><%= __('filters.all') %></option>
+            <option value="GET">GET</option>
+            <option value="POST">POST</option>
+            <option value="PUT">PUT</option>
+            <option value="DELETE">DELETE</option>
+            <option value="PATCH">PATCH</option>
+            <option value="OPTIONS">OPTIONS</option>
+            <option value="HEAD">HEAD</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label class="filter-label" for="logStatus"><%= __('logs.status') %>
+            <button type="button" class="btn-filter-clear-one" id="clear-logStatus" style="display: none;"
+                    onclick="LogsView.clearOne('logStatus')" title="<%= __('filters.clearOne') %>"><i class="fa fa-times"></i></button>
+          </label>
+          <input type="text" id="logStatus" class="filter-input" placeholder="<%= __('logs.statusPlaceholder') %>"
+                 oninput="LogsView.applyDebounced()" style="width: 110px;">
+        </div>
+
+        <div class="filter-group filter-group-large">
+          <label class="filter-label" for="logSearch"><%= __('logs.search') %>
+            <button type="button" class="btn-filter-clear-one" id="clear-logSearch" style="display: none;"
+                    onclick="LogsView.clearOne('logSearch')" title="<%= __('filters.clearOne') %>"><i class="fa fa-times"></i></button>
+          </label>
+          <input type="text" id="logSearch" class="filter-input" placeholder="<%= __('logs.searchPlaceholder') %>"
+                 oninput="LogsView.applyDebounced()">
+        </div>
+
+        <div class="filter-group">
+          <label class="filter-label" for="logMinDuration"><%= __('logs.minDuration') %>
+            <button type="button" class="btn-filter-clear-one" id="clear-logMinDuration" style="display: none;"
+                    onclick="LogsView.clearOne('logMinDuration')" title="<%= __('filters.clearOne') %>"><i class="fa fa-times"></i></button>
+          </label>
+          <input type="number" id="logMinDuration" class="filter-input" placeholder="ms"
+                 oninput="LogsView.applyDebounced()" style="width: 90px;" min="0">
+        </div>
+
+        <div class="filter-group" id="logTraceGroup" style="display: none;">
+          <label class="filter-label"><%= __('logs.trace') %>
+            <button type="button" class="btn-filter-clear-one" id="clear-logTraceId" style="display: none;"
+                    onclick="LogsView.clearOne('logTraceId')" title="<%= __('filters.clearOne') %>"><i class="fa fa-times"></i></button>
+          </label>
+          <code class="logs-trace-chip" id="logTraceChip"></code>
+          <input type="hidden" id="logTraceId">
+        </div>
+
+        <div class="filter-group filter-actions">
+          <button class="btn-filter-clear" onclick="LogsView.clearAll()">
+            <i class="fa fa-times"></i> <%= __('filters.clearAll') %>
+          </button>
+        </div>
+      </div>
+
+      <div id="logsListSection">
+      <!-- Resumen -->
+      <div class="logs-summary" id="logsSummary"></div>
+
+      <!-- Histograma -->
+      <div class="logs-histogram-wrapper">
+        <div class="logs-histogram" id="logsHistogram"></div>
+        <div class="logs-histogram-axis" id="logsHistogramAxis"></div>
+      </div>
+
+      <!-- Entradas -->
+      <div class="logs-table-wrapper">
+        <table class="logs-table">
+          <thead>
+            <tr>
+              <th style="width: 130px;"><%= __('logs.time') %></th>
+              <th style="width: 70px;"><%= __('logs.level') %></th>
+              <th style="width: 70px;"><%= __('logs.method') %></th>
+              <th><%= __('logs.url') %></th>
+              <th style="width: 70px;"><%= __('logs.status') %></th>
+              <th style="width: 80px;"><%= __('logs.duration') %></th>
+              <th style="width: 96px;"></th>
+            </tr>
+          </thead>
+          <tbody id="logsBody"></tbody>
+        </table>
+        <div id="logsEmpty" class="empty-state" style="display: none;">
+          <i class="fa fa-inbox"></i>
+          <p><%= __('logs.empty') %></p>
+        </div>
+      </div>
+
+      <div class="logs-footer">
+        <span id="logsCount"></span>
+        <button type="button" class="btn-modern btn-modern-secondary" id="logsMoreBtn" onclick="LogsView.more()" style="display: none;">
+          <%= __('logs.loadMore') %>
+        </button>
+      </div>
+      </div>
+
+      <!--
+        El recorrido de una petición se enseña aquí dentro, no en un modal
+        aparte. Este panel se usa también dentro del modal del log en la
+        pantalla de rutas, y Bootstrap 5 documenta que no soporta un modal
+        sobre otro; abriendo la traza en el sitio de la lista el problema no
+        llega a existir, y de paso la traza dispone de todo el ancho.
+      -->
+      <div id="logsTracePanel" style="display: none;">
+        <div id="traceSummary" class="trace-summary"></div>
+        <div id="traceTimeline" class="trace-timeline"></div>
+        <div class="logs-footer">
+          <button type="button" class="btn-modern btn-modern-secondary"
+                  onclick="LogsView.filterByTrace(LogsView.trazaAbierta)">
+            <i class="fa fa-filter"></i> <%= __('logs.traceFilter') %>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>

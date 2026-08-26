@@ -811,7 +811,9 @@
       "exists": "ya existe una ruta para ese método y camino",
       "not-found": "la entrada ya no está en el log",
       "no-response": "la entrada no guarda la respuesta del backend"
-    }
+    },
+    "traceBack": "Volver al log",
+    "openAsPage": "Abrir en su propia pantalla"
   },
   "usage": {
     "calls": "{{n}} llamadas",

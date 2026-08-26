@@ -811,7 +811,9 @@
       "exists": "a route already exists for that method and path",
       "not-found": "the entry is no longer in the log",
       "no-response": "the entry does not store the backend response"
-    }
+    },
+    "traceBack": "Back to log",
+    "openAsPage": "Open in its own screen"
   },
   "usage": {
     "calls": "{{n}} calls",

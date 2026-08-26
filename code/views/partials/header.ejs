@@ -14,8 +14,11 @@
             -->
             <!-- Navegación y estado operativo: valen en cualquier pantalla, así
                  que su sitio es la barra y no la cabecera de la lista de rutas -->
+            <!-- Sigue siendo un enlace de verdad: si el modal no está en esta
+                 pantalla, o el JS no llegó a cargar, navegar sigue funcionando -->
             <a class="btn-nav-top<%= (typeof paginaActual !== 'undefined' && paginaActual === 'logs') ? ' is-current' : '' %>"
-               href="/logs" title="<%= __('logs.title') %>">
+               href="/logs" title="<%= __('logs.title') %>"
+               onclick="if (document.getElementById('logsModal')) { LogsView.abrir(); return false; }">
                 <i class="fa fa-list-ul"></i>
                 <span class="btn-nav-label"><%= __('logs.title') %></span>
             </a>
