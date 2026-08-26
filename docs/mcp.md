@@ -92,7 +92,10 @@ The server is stateless on purpose. A tool-only server needs nothing between cal
 | `set_route_docs` | Writes a route's documentation. Only that field is touched, so nothing else can be lost |
 | `create_tag` / `delete_tag` | Manages tags |
 | `list_environments` | Environments, their variables and which is active |
-| `set_environment` | Creates one or replaces its variables |
+| `get_environment` | One environment, by name or the active one |
+| `set_environment` | Creates one, or adds and updates its variables |
+| `set_env_var` / `delete_env_var` | One variable at a time, leaving the rest alone |
+| `rename_environment` | Renames one, keeping its variables and active flag |
 | `activate_environment` | Switches the active environment |
 | `delete_environment` | Removes one |
 | `check_environment_usage` | Which routes reference `${NAME}` and which names are missing |

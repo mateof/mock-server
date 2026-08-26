@@ -1315,21 +1315,32 @@ function buildServer() {
         description: 'Creates an environment if the name is new, or replaces the variables of an existing one. Replacing is how a variable is removed. Pass activate to make it the one routes resolve against.',
         inputSchema: {
             name: z.string(),
-            variables: z.array(z.object({ key: z.string(), value: z.string() })).optional()
-                .describe('The full set of variables. It replaces what was there, so omitting one deletes it'),
+            variables: z.array(z.object({ key: z.string(), value: z.string() })).optional(),
+            mode: z.enum(['merge', 'replace']).optional()
+                .describe("How to apply variables. 'merge' (default) adds and updates without touching the rest; 'replace' makes the list the whole set, which is how you delete several at once. To change one variable, set_env_var is safer than either"),
             activate: z.boolean().optional().describe('Make it the active environment')
         }
     }, async (args) => run('set_environment', async () => {
         const entornos = await environmentService.listar();
         let entorno = entornos.find(e => e.name.toLowerCase() === args.name.toLowerCase());
 
+        try {
         if (!entorno) {
             entorno = await environmentService.crear(args.name, args.variables);
         } else if (args.variables) {
-            await environmentService.guardarVariables(entorno.id, args.variables);
+            // Mezclar por defecto: reemplazar obliga a leer y reenviar todo, y
+            // el olvido de una variable la borra sin decir nada
+            if (args.mode === 'replace') {
+                await environmentService.guardarVariables(entorno.id, args.variables);
+            } else {
+                await environmentService.mezclarVariables(entorno.id, args.variables);
+            }
         }
 
         if (args.activate) await environmentService.activar(entorno.id);
+        } catch (e) {
+            return fail(e.message);
+        }
 
         log.success(`🤖 MCP: entorno "${args.name}" guardado${args.activate ? ' y activado' : ''}`);
         const actualizados = await environmentService.listar();
@@ -1337,6 +1348,74 @@ function buildServer() {
             active: environmentService.activo().name,
             environment: actualizados.find(e => e.id === entorno.id)
         });
+    }));
+
+    server.registerTool('get_environment', {
+        title: 'Read one environment',
+        description: 'The variables of a single environment, by name. Without a name, the active one.',
+        inputSchema: { name: z.string().optional() }
+    }, async (args) => run('get_environment', async () => {
+        const entornos = await environmentService.listar();
+        const entorno = args.name
+            ? entornos.find(e => e.name.toLowerCase() === args.name.toLowerCase())
+            : entornos.find(e => e.active);
+
+        if (!entorno) return fail(args.name ? `No existe el entorno "${args.name}"` : 'No hay ningún entorno activo');
+        return ok({ environment: entorno });
+    }));
+
+    server.registerTool('set_env_var', {
+        title: 'Set one environment variable',
+        description: 'Creates or updates a single variable, leaving every other one alone. Prefer this over set_environment when changing one value: set_environment takes a list, and getting that list wrong can remove variables you did not mean to touch.',
+        inputSchema: {
+            key: z.string(),
+            value: z.string(),
+            environment: z.string().optional().describe('Environment name. Without it, the active one')
+        }
+    }, async (args) => run('set_env_var', async () => {
+        try {
+            const r = await environmentService.fijarVariable(args.environment, args.key, args.value);
+            log.success(`🤖 MCP: ${r.key} fijada en "${r.environment}"`);
+            const entornos = await environmentService.listar();
+            return ok({
+                updated: true, ...r,
+                environment_detail: entornos.find(e => e.name === r.environment)
+            });
+        } catch (e) {
+            return fail(e.message);
+        }
+    }));
+
+    server.registerTool('delete_env_var', {
+        title: 'Delete one environment variable',
+        description: 'Removes a single variable, leaving the rest in place. Routes referencing it keep the ${NAME} text and start reporting it as undefined, which check_environment_usage will show.',
+        inputSchema: {
+            key: z.string(),
+            environment: z.string().optional().describe('Environment name. Without it, the active one')
+        }
+    }, async (args) => run('delete_env_var', async () => {
+        try {
+            const r = await environmentService.borrarVariable(args.environment, args.key);
+            if (!r.deleted) return fail(`"${args.key}" no existe en "${r.environment}"`);
+            log.success(`🤖 MCP: ${r.key} eliminada de "${r.environment}"`);
+            return ok(r);
+        } catch (e) {
+            return fail(e.message);
+        }
+    }));
+
+    server.registerTool('rename_environment', {
+        title: 'Rename an environment',
+        description: 'Changes the name, keeping its variables and whether it was the active one.',
+        inputSchema: { name: z.string(), new_name: z.string() }
+    }, async (args) => run('rename_environment', async () => {
+        try {
+            const r = await environmentService.renombrar(args.name, args.new_name);
+            log.success(`🤖 MCP: entorno "${r.previous}" renombrado a "${r.name}"`);
+            return ok({ renamed: true, ...r });
+        } catch (e) {
+            return fail(e.message);
+        }
     }));
 
     server.registerTool('activate_environment', {
@@ -1348,7 +1427,11 @@ function buildServer() {
         const entorno = entornos.find(e => e.name.toLowerCase() === args.name.toLowerCase());
         if (!entorno) return fail(`No existe el entorno "${args.name}"`);
 
-        await environmentService.activar(entorno.id);
+        try {
+            await environmentService.activar(entorno.id);
+        } catch (e) {
+            return fail(e.message);
+        }
         log.success(`🤖 MCP: entorno activo cambiado a "${entorno.name}"`);
         return ok({ active: entorno.name, variables: entorno.variables.length });
     }));
@@ -1362,7 +1445,14 @@ function buildServer() {
         const entorno = entornos.find(e => e.name.toLowerCase() === args.name.toLowerCase());
         if (!entorno) return fail(`No existe el entorno "${args.name}"`);
 
-        await environmentService.eliminar(entorno.id);
+        try {
+            await environmentService.eliminar(entorno.id);
+        } catch (e) {
+            // El caso normal aquí es "es el único que queda", que es una regla
+            // del dominio y no un fallo: se cuenta tal cual
+            return fail(e.message);
+        }
+
         log.success(`🤖 MCP: entorno "${entorno.name}" eliminado`);
         return ok({ deleted: true, active: environmentService.activo().name });
     }));
