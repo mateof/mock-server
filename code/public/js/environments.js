@@ -220,7 +220,7 @@ const EnvModule = {
   },
 
   async crear() {
-    const nombre = prompt(t('env.newPrompt'));
+    const nombre = await Dialog.prompt(t('env.newPrompt'), { titulo: t('env.new') });
     if (!nombre || !nombre.trim()) return;
 
     try {
@@ -244,7 +244,8 @@ const EnvModule = {
   async eliminar(id) {
     const entorno = this.entornos.find(e => e.id === id);
     if (!entorno) return;
-    if (!confirm(t('env.confirmDelete').replace('{{name}}', entorno.name))) return;
+    if (!await Dialog.confirm(t('env.confirmDelete').replace('{{name}}', entorno.name),
+                              { peligro: true, textoOk: t('buttons.delete') })) return;
 
     try {
       const r = await fetch(`/api/environments/${id}`, { method: 'DELETE' });

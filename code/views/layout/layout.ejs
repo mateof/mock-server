@@ -63,7 +63,8 @@
                 requestTester: __('requestTester'),
                 ws: __('ws'),
                 exportImport: __('exportImport'),
-                empty: __('empty')
+                empty: __('empty'),
+                dialog: __('dialog')
             }) %>
         };
 
@@ -96,6 +97,12 @@
          modal y su lógica van aquí y no en la vista de rutas -->
     <%- include('../modals/environments.ejs') %>
     <script src="/js/environments.js" defer></script>
+
+    <!-- Confirmaciones y peticiones de dato con el estilo del panel, en lugar
+         de las ventanas del navegador. Van aquí porque hacen falta en todas las
+         pantallas, y sin defer porque environments.js ya las usa al arrancar -->
+    <%- include('../modals/dialog.ejs') %>
+    <script src="/js/dialog.js"></script>
 
     <!-- Toast container -->
     <div id="toastContainer" class="toast-container"></div>

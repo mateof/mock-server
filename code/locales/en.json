@@ -283,7 +283,8 @@
     "addHeader": "Add Header",
     "addCondition": "Add Condition",
     "toggleCollapse": "Toggle collapse",
-    "apply": "Apply"
+    "apply": "Apply",
+    "accept": "OK"
   },
   "modal": {
     "confirmDelete": "Confirm Deletion",
@@ -851,5 +852,10 @@
     "undefinedCount": "{{routes}} routes ask for undefined variables: {{vars}}",
     "missingHere": "Some route asks for these and they are not here: {{vars}}",
     "usageTitle": "{{count}} routes ask for variables \"{{name}}\" does not define"
+  },
+  "dialog": {
+    "confirmTitle": "Confirm",
+    "promptTitle": "Enter a value",
+    "alertTitle": "Notice"
   }
 }

@@ -438,7 +438,7 @@ const LogsView = {
    * salieron, y lo normal es querer revisarlas antes.
    */
   async mocksFromResults() {
-    if (!confirm(t('logs.confirmToMocks'))) return;
+    if (!await Dialog.confirm(t('logs.confirmToMocks'))) return;
 
     const p = this.parametros();
     const cuerpo = { active: false, limit: 1000 };
@@ -475,7 +475,7 @@ const LogsView = {
   },
 
   async clear() {
-    if (!confirm(t('logs.confirmClear'))) return;
+    if (!await Dialog.confirm(t('logs.confirmClear'), { peligro: true, textoOk: t('buttons.clear') })) return;
     // Borra solo lo que se está viendo, que es menos sorprendente que
     // vaciarlo todo cuando hay filtros puestos
     await fetch(`/api/logs?${this.parametros()}`, { method: 'DELETE' });

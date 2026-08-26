@@ -5252,3 +5252,120 @@ table.dataTable.no-footer {
   box-shadow: none;
   margin: 0;
 }
+
+/* ===== DIÁLOGOS PROPIOS ===== */
+
+/* Capa propia y no un modal de Bootstrap: estos diálogos salen desde dentro de
+   otros modales y Bootstrap 5 no soporta apilarlos. El z-index queda por encima
+   de los modales (1055) y por debajo de los toast (9999), que son avisos de
+   paso y no molestan encima */
+.app-dialog {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.app-dialog.is-open {
+  display: flex;
+}
+
+.app-dialog-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+}
+
+/* Cuando el diálogo sale desde dentro de un modal se cuelga de él, así que hay
+   dos fondos superpuestos y el de debajo queda casi negro. Bastante menos: lo
+   que hay detrás sigue siendo el contexto de lo que se está confirmando */
+.modal .app-dialog-backdrop {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.app-dialog-box {
+  position: relative;
+  width: 100%;
+  max-width: 440px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow-lg);
+  padding: 1.5rem;
+  animation: appDialogIn 0.15s ease-out;
+}
+
+/* Corto a propósito: un diálogo que entra despacio se interpone entre el
+   usuario y lo que acababa de pulsar */
+@keyframes appDialogIn {
+  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+
+.app-dialog-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.app-dialog-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--primary-light);
+  color: var(--primary);
+  font-size: 1rem;
+}
+
+.app-dialog-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.app-dialog-message {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  /* Los mensajes vienen de i18n y algunos llevan saltos de línea */
+  white-space: pre-line;
+}
+
+.app-dialog-input {
+  width: 100%;
+  margin-top: 1rem;
+}
+
+.app-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+}
+
+/* El icono acompaña al botón: en rojo, el aviso también */
+.app-dialog-box:has(.btn-modern-danger) .app-dialog-icon {
+  background: var(--danger-light);
+  color: var(--danger);
+}
+
+@media (max-width: 480px) {
+  .app-dialog-actions {
+    flex-direction: column-reverse;
+  }
+  .app-dialog-actions .btn-modern {
+    width: 100%;
+    justify-content: center;
+  }
+}

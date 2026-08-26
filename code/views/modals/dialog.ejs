@@ -1,0 +1,30 @@
+<!--
+  Confirmaciones y peticiones de dato con el estilo del panel.
+
+  No es un modal de Bootstrap a propósito. Estos diálogos salen casi siempre
+  desde dentro de otro modal (entornos, log, MCP), y Bootstrap 5 documenta que
+  no soporta un modal sobre otro. Al ser una capa propia el problema no llega a
+  existir, y de paso se controla el z-index, el foco y qué hace la tecla Escape.
+
+  Vive en el layout porque hace falta en todas las pantallas.
+-->
+<div class="app-dialog" id="appDialog" role="dialog" aria-modal="true" aria-labelledby="appDialogTitle">
+  <div class="app-dialog-backdrop" id="appDialogBackdrop"></div>
+
+  <div class="app-dialog-box" role="document">
+    <div class="app-dialog-head">
+      <span class="app-dialog-icon"><i class="fa fa-question-circle" id="appDialogIcon"></i></span>
+      <h5 class="app-dialog-title" id="appDialogTitle"></h5>
+    </div>
+
+    <p class="app-dialog-message" id="appDialogMessage"></p>
+
+    <input type="text" class="form-control-modern app-dialog-input" id="appDialogInput"
+           autocomplete="off" style="display: none;">
+
+    <div class="app-dialog-actions">
+      <button type="button" class="btn-modern btn-modern-secondary" id="appDialogCancel"></button>
+      <button type="button" class="btn-modern btn-modern-primary" id="appDialogOk"></button>
+    </div>
+  </div>
+</div>
