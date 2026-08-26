@@ -283,7 +283,8 @@
     "addHeader": "Añadir Header",
     "addCondition": "Añadir Condición",
     "toggleCollapse": "Alternar colapso",
-    "apply": "Aplicar"
+    "apply": "Aplicar",
+    "accept": "Aceptar"
   },
   "modal": {
     "confirmDelete": "Confirmar Eliminación",
@@ -851,5 +852,10 @@
     "undefinedCount": "{{routes}} rutas piden variables sin definir: {{vars}}",
     "missingHere": "Alguna ruta pide estas y no están aquí: {{vars}}",
     "usageTitle": "{{count}} rutas piden variables que \"{{name}}\" no define"
+  },
+  "dialog": {
+    "confirmTitle": "Confirmar",
+    "promptTitle": "Escribe un valor",
+    "alertTitle": "Aviso"
   }
 }

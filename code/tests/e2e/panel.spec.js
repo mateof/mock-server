@@ -297,6 +297,100 @@ test.describe('el log dentro de la lista de rutas', () => {
     });
 });
 
+/**
+ * Los diálogos del panel.
+ *
+ * Sustituyen a confirm y prompt del navegador. Lo que se prueba no es el
+ * aspecto sino lo que costó que funcionara: que ninguna acción abra ya una
+ * ventana nativa, que el foco se quede dentro (Bootstrap lo devolvía a su modal
+ * y el campo dejaba de recibir lo que se escribía), y que Escape cierre el
+ * diálogo sin llevarse por delante el modal desde el que salió.
+ */
+test.describe('diálogos propios', () => {
+
+    // Playwright descarta sola las ventanas nativas, así que un confirm que se
+    // colara no rompería nada: devolvería false en silencio. Hay que espiarlas
+    const espiarNativas = (page, lista) =>
+        page.on('dialog', async d => { lista.push(d.type() + ': ' + d.message()); await d.dismiss(); });
+
+    test('crear un entorno pide el nombre sin ventana del navegador', async ({ page }) => {
+        const nativas = [];
+        espiarNativas(page, nativas);
+
+        await page.goto('/');
+        await page.click('.btn-env');
+        await page.click('.env-menu-manage');
+        await expect(page.locator('#environmentsModal')).toBeVisible();
+
+        await page.click('#environmentsModal .btn-icon-success');
+        await expect(page.locator('#appDialog')).toBeVisible();
+
+        // El fallo que costó encontrar: la trampa de foco de Bootstrap se
+        // llevaba el foco al modal y lo que se escribía no llegaba al campo
+        await page.waitForTimeout(300);
+        expect(await page.evaluate(() => document.activeElement.id)).toBe('appDialogInput');
+
+        await page.type('#appDialogInput', 'e2e-dialogo');
+        await page.click('#appDialogOk');
+        await expect(page.locator('#appDialog')).toBeHidden();
+        await expect(page.locator('#envList')).toContainText('e2e-dialogo');
+        expect(nativas).toEqual([]);
+    });
+
+    test('Escape cancela el diálogo y deja abierto el modal de debajo', async ({ page }) => {
+        const nativas = [];
+        espiarNativas(page, nativas);
+
+        await page.goto('/');
+        await page.click('.btn-env');
+        await page.click('.env-menu-manage');
+        await page.click('#environmentsModal .btn-icon-success');
+        await page.fill('#appDialogInput', 'e2e-para-borrar');
+        await page.click('#appDialogOk');
+        await expect(page.locator('#envList')).toContainText('e2e-para-borrar');
+
+        await page.locator('.env-list-item', { hasText: 'e2e-para-borrar' })
+            .locator('.btn-icon-danger').click();
+        await expect(page.locator('#appDialog')).toBeVisible();
+        // Un borrado se anuncia en rojo, no con el botón de aceptar de siempre
+        await expect(page.locator('#appDialogOk')).toHaveClass(/btn-modern-danger/);
+
+        await page.keyboard.press('Escape');
+        await expect(page.locator('#appDialog')).toBeHidden();
+        // Lo que no puede pasar: que la tecla siga subiendo y cierre el modal
+        await expect(page.locator('#environmentsModal')).toBeVisible();
+        await expect(page.locator('#envList')).toContainText('e2e-para-borrar');
+
+        await page.locator('.env-list-item', { hasText: 'e2e-para-borrar' })
+            .locator('.btn-icon-danger').click();
+        await page.click('#appDialogOk');
+        await expect(page.locator('#envList')).not.toContainText('e2e-para-borrar');
+        expect(nativas).toEqual([]);
+    });
+
+    test('vaciar el log tampoco abre una ventana del navegador', async ({ page, request }) => {
+        const nativas = [];
+        espiarNativas(page, nativas);
+
+        await crearRuta(request, { ruta: '/e2e/dialogo-log' });
+        await request.get('/e2e/dialogo-log');
+        await esperarEnElLog(request, '/e2e/dialogo-log');
+
+        await page.goto('/');
+        await page.click('.btn-nav-top[href="/logs"]');
+        await expect(page.locator('#logsBody')).toContainText('/e2e/dialogo-log');
+
+        await page.click('#logsModal .btn-modern-danger');
+        await expect(page.locator('#appDialog')).toBeVisible();
+        // Se cancela: vaciar el log de verdad dejaría sin datos a las demás
+        await page.click('#appDialogCancel');
+        await expect(page.locator('#appDialog')).toBeHidden();
+        await expect(page.locator('#logsModal')).toBeVisible();
+        await expect(page.locator('#logsBody')).toContainText('/e2e/dialogo-log');
+        expect(nativas).toEqual([]);
+    });
+});
+
 test.describe('secciones del formulario de ruta', () => {
 
     async function abrirFormulario(page) {

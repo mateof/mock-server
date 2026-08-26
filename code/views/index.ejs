@@ -1549,7 +1549,7 @@
 
   // ===== ORDER FUNCTIONS =====
   async function normalizeOrder() {
-    if (!confirm(t('confirm.normalizeOrder'))) {
+    if (!await Dialog.confirm(t('confirm.normalizeOrder'))) {
       return;
     }
 
@@ -2029,7 +2029,7 @@
     },
 
     async revoke(id) {
-      if (!confirm(t('mcp.confirmRevoke'))) return;
+      if (!await Dialog.confirm(t('mcp.confirmRevoke'), { peligro: true })) return;
       try {
         await fetch(`/api/mcp/tokens/${id}`, { method: 'DELETE' });
         await McpModule.loadTokens();
@@ -6414,7 +6414,7 @@
     // ===== RESTO =====
 
     async duplicar() {
-      if (!confirm(t('bulk.confirmDuplicate').replace('{{count}}', this.seleccion().length))) return;
+      if (!await Dialog.confirm(t('bulk.confirmDuplicate').replace('{{count}}', this.seleccion().length))) return;
       await this.ejecutar(
         (ids) => fetch('/api/routes/bulk-duplicate', {
           method: 'POST',
