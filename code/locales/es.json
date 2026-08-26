@@ -851,7 +851,9 @@
     "undefinedHint": "Hay rutas pidiendo variables que este entorno no define",
     "undefinedCount": "{{routes}} rutas piden variables sin definir: {{vars}}",
     "missingHere": "Alguna ruta pide estas y no están aquí: {{vars}}",
-    "usageTitle": "{{count}} rutas piden variables que \"{{name}}\" no define"
+    "usageTitle": "{{count}} rutas piden variables que \"{{name}}\" no define",
+    "expandValue": "Ampliar el valor",
+    "collapseValue": "Reducir el valor"
   },
   "dialog": {
     "confirmTitle": "Confirmar",

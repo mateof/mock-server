@@ -851,7 +851,9 @@
     "undefinedHint": "Some routes ask for variables this environment does not define",
     "undefinedCount": "{{routes}} routes ask for undefined variables: {{vars}}",
     "missingHere": "Some route asks for these and they are not here: {{vars}}",
-    "usageTitle": "{{count}} routes ask for variables \"{{name}}\" does not define"
+    "usageTitle": "{{count}} routes ask for variables \"{{name}}\" does not define",
+    "expandValue": "Expand the value",
+    "collapseValue": "Collapse the value"
   },
   "dialog": {
     "confirmTitle": "Confirm",
