@@ -101,10 +101,22 @@ The selector sits in the top bar next to the language and the server status, bec
 | Tool | What it does |
 |------|--------------|
 | `list_environments` | Every environment, its variables, and which is active |
-| `set_environment` | Creates one, or replaces its variables. Replacing is how a variable is deleted |
+| `get_environment` | One environment. Without a name, the active one |
+| `set_environment` | Creates one, or adds and updates its variables |
+| `set_env_var` | Sets **one** variable, leaving the rest alone |
+| `delete_env_var` | Deletes **one** variable |
+| `rename_environment` | Renames one, keeping its variables and active flag |
 | `activate_environment` | Switches the active one |
 | `delete_environment` | Removes one. The last remaining cannot be deleted |
 | `check_environment_usage` | Which routes reference variables, and which names are missing |
+
+### Changing one variable
+
+Use `set_env_var`. It touches one row and nothing else.
+
+`set_environment` takes a list, and a list is a hazard when you only meant to change one thing: it defaults to **merge** (adds and updates, leaves the rest), and `mode: "replace"` makes the list the whole set, which is how you delete several at once. Getting that list wrong with `replace` removes variables you did not mean to touch, so prefer `set_env_var` for a single value and keep `replace` for when deleting is the point.
+
+Refusals read as refusals: deleting the last environment, or renaming onto a name that already exists, come back with the reason rather than as an internal error.
 
 ## Notes
 
