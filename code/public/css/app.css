@@ -3786,7 +3786,7 @@ table.dataTable.no-footer {
 }
 
 .export-route-item:hover {
-  background: var(--bg-hover);
+  background: var(--bg-card-hover);
 }
 
 .export-route-item input[type="checkbox"] {
@@ -3797,7 +3797,7 @@ table.dataTable.no-footer {
   font-size: 0.7rem;
   font-weight: 600;
   padding: 0.15rem 0.4rem;
-  border-radius: var(--radius-sm);
+  border-radius: var(--border-radius-sm);
   min-width: 3rem;
   text-align: center;
   flex-shrink: 0;
@@ -4544,7 +4544,7 @@ table.dataTable.no-footer {
 }
 
 .ws-client-item:hover {
-  background: var(--bg-hover);
+  background: var(--bg-card-hover);
 }
 
 .ws-client-select {
@@ -4704,7 +4704,7 @@ table.dataTable.no-footer {
 }
 
 .ws-tester-msg {
-  border-radius: var(--radius-sm);
+  border-radius: var(--border-radius-sm);
   padding: 0.5rem 0.75rem;
   font-size: 0.85rem;
 }
@@ -4902,8 +4902,8 @@ table.dataTable.no-footer {
     align-items: center;
     gap: 0.45rem;
     padding: 0.35rem 0.7rem;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm, 0.5rem);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
     background: var(--bg-elevated, rgba(255,255,255,0.04));
     color: var(--text-primary);
     font-size: 0.8125rem;
@@ -4930,8 +4930,8 @@ table.dataTable.no-footer {
     right: 0;
     min-width: 15rem;
     background: var(--bg-card, #1e293b);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm, 0.5rem);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
     box-shadow: 0 12px 32px rgba(0,0,0,0.4);
     padding: 0.35rem;
     display: none;
@@ -4963,14 +4963,14 @@ table.dataTable.no-footer {
     cursor: pointer;
 }
 
-.env-menu-item:hover { background: var(--bg-hover); }
+.env-menu-item:hover { background: var(--bg-card-hover); }
 .env-menu-item.is-active { color: var(--primary); }
 .env-menu-name { flex: 1; }
 
 .env-menu-count {
     font-size: 0.68rem;
     color: var(--text-muted);
-    background: var(--bg-hover);
+    background: var(--bg-card-hover);
     padding: 0.05rem 0.4rem;
     border-radius: 999px;
 }
@@ -4983,7 +4983,7 @@ table.dataTable.no-footer {
     margin-top: 0.35rem;
     padding: 0.45rem 0.5rem;
     border: 0;
-    border-top: 1px solid var(--border);
+    border-top: 1px solid var(--border-color);
     border-radius: 0 0 0.375rem 0.375rem;
     background: transparent;
     color: var(--text-secondary);
@@ -4991,14 +4991,56 @@ table.dataTable.no-footer {
     cursor: pointer;
 }
 
-.env-menu-manage:hover { background: var(--bg-hover); color: var(--text-primary); }
+.env-menu-manage:hover { background: var(--bg-card-hover); color: var(--text-primary); }
 
 /* ===== MODAL DE ENTORNOS ===== */
+/* Antes era un <p class="text-muted"> a 0.8125rem sobre fondo oscuro: se leía
+   con esfuerzo justo en el sitio donde se explica una sintaxis que hay que
+   escribir bien */
+.env-help {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    margin-bottom: 1rem;
+    padding: 0.7rem 0.85rem;
+    border-left: 3px solid var(--primary);
+    border-radius: var(--border-radius-sm);
+    background: var(--primary-light);
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    line-height: 1.5;
+}
+
+.env-help i {
+    color: var(--primary);
+    margin-top: 0.1rem;
+}
+
 .env-layout {
     display: grid;
-    grid-template-columns: 15rem 1fr;
+    grid-template-columns: 16rem 1fr;
     gap: 1rem;
-    align-items: start;
+    align-items: stretch;
+}
+
+/* Las dos columnas ocupan alto aunque haya poco dentro: si no, el modal se
+   encoge y los datos quedan pegados al borde de arriba */
+.env-list-panel, .env-vars-panel {
+    min-height: 22rem;
+    display: flex;
+    flex-direction: column;
+}
+
+/* La lista de variables crece y se desplaza por dentro; la cabecera y el aviso
+   se quedan fijos donde están */
+#envVarsContainer {
+    flex: 1;
+    overflow-y: auto;
+}
+
+#envList {
+    flex: 1;
+    overflow-y: auto;
 }
 
 @media (max-width: 760px) {
@@ -5006,8 +5048,8 @@ table.dataTable.no-footer {
 }
 
 .env-list-panel, .env-vars-panel {
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm, 0.5rem);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
     overflow: hidden;
 }
 
@@ -5017,7 +5059,7 @@ table.dataTable.no-footer {
     justify-content: space-between;
     gap: 0.5rem;
     padding: 0.55rem 0.7rem;
-    background: var(--bg-hover);
+    background: var(--bg-card-hover);
     font-size: 0.78rem;
     font-weight: 600;
 }
@@ -5025,12 +5067,12 @@ table.dataTable.no-footer {
 .env-list-item {
     position: relative;
     padding: 0.55rem 0.7rem;
-    border-top: 1px solid var(--border);
+    border-top: 1px solid var(--border-color);
     cursor: pointer;
 }
 
-.env-list-item:hover { background: var(--bg-hover); }
-.env-list-item.is-selected { background: var(--bg-hover); box-shadow: inset 3px 0 0 var(--primary); }
+.env-list-item:hover { background: var(--bg-card-hover); }
+.env-list-item.is-selected { background: var(--bg-card-hover); box-shadow: inset 3px 0 0 var(--primary); }
 .env-list-name { display: flex; align-items: center; gap: 0.4rem; font-size: 0.8125rem; }
 .env-list-meta { font-size: 0.68rem; color: var(--text-muted); margin-top: 0.1rem; }
 
@@ -5056,26 +5098,69 @@ table.dataTable.no-footer {
 
 .env-var-row {
     display: grid;
-    grid-template-columns: 1fr 1.4fr auto;
+    grid-template-columns: 1fr 1.6fr auto;
     gap: 0.45rem;
-    padding: 0.4rem 0.7rem;
-    border-top: 1px solid var(--border);
+    padding: 0.5rem 0.7rem;
+    border-top: 1px solid var(--border-color);
+    align-items: start;
 }
 
-.env-var-key { font-family: var(--font-mono, monospace); font-size: 0.78rem; }
-.env-var-value { font-size: 0.78rem; }
+.env-var-key {
+    font-family: 'Fira Code', monospace;
+    font-size: 0.78rem;
+}
+
+.env-var-value-wrap {
+    position: relative;
+}
+
+/* Un valor puede ser un token de trescientos caracteres. En un input solo se ve
+   el trozo por el que va el cursor, así que es un textarea: se arrastra por la
+   esquina, y el botón lo abre de golpe */
+.env-var-value {
+    width: 100%;
+    display: block;
+    font-family: 'Fira Code', monospace;
+    font-size: 0.78rem;
+    line-height: 1.4;
+    resize: vertical;
+    min-height: 2.6rem;
+    overflow-y: auto;
+    padding-right: 2rem;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.env-var-expand {
+    position: absolute;
+    top: 0.25rem;
+    right: 0.35rem;
+    padding: 0.15rem 0.3rem;
+    border: none;
+    border-radius: var(--border-radius-xs);
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    cursor: pointer;
+    transition: color var(--transition-fast);
+}
+
+.env-var-expand:hover {
+    color: var(--primary);
+    background: var(--bg-card-hover);
+}
 
 .env-vars-hint:not(:empty) {
     padding: 0.5rem 0.7rem;
     font-size: 0.72rem;
     color: var(--warning, #f59e0b);
-    border-top: 1px solid var(--border);
+    border-top: 1px solid var(--border-color);
 }
 
 .env-usage {
     margin-top: 1rem;
     border: 1px solid var(--warning, #f59e0b);
-    border-radius: var(--radius-sm, 0.5rem);
+    border-radius: var(--border-radius-sm);
     overflow: hidden;
 }
 
@@ -5095,7 +5180,7 @@ table.dataTable.no-footer {
     align-items: center;
     gap: 0.5rem;
     padding: 0.4rem 0.7rem;
-    border-top: 1px solid var(--border);
+    border-top: 1px solid var(--border-color);
     font-size: 0.75rem;
 }
 
@@ -5111,7 +5196,7 @@ table.dataTable.no-footer {
     margin-bottom: 1rem;
     padding: 0.6rem 0.85rem;
     border: 1px solid var(--primary);
-    border-radius: var(--radius-sm, 0.5rem);
+    border-radius: var(--border-radius-sm);
     background: linear-gradient(90deg, rgba(99,102,241,0.14), rgba(99,102,241,0.04));
     animation: bulkSlideIn 0.16s ease-out;
 }
@@ -5142,7 +5227,7 @@ table.dataTable.no-footer {
 .bulk-divider {
     width: 1px;
     height: 1.35rem;
-    background: var(--border);
+    background: var(--border-color);
     margin: 0 0.2rem;
 }
 
@@ -5156,7 +5241,7 @@ table.dataTable.no-footer {
     border-radius: 0.375rem;
 }
 
-.bulk-clear:hover { background: var(--bg-hover); color: var(--text-primary); }
+.bulk-clear:hover { background: var(--bg-card-hover); color: var(--text-primary); }
 
 /* Se muestra con .show, igual que el resto de desplegables del panel, para que
    entre en el mismo posicionador flotante */
@@ -5172,7 +5257,7 @@ table.dataTable.no-footer {
 
 /* Crear un tag desde la propia barra, sin pasar por el gestor */
 .bulk-new-tag {
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--border-color);
     padding-bottom: 0.45rem;
     margin-bottom: 0.2rem;
 }
@@ -5210,7 +5295,7 @@ table.dataTable.no-footer {
     position: relative;
     padding: 0.35rem 0.7rem;
     border: 1px solid transparent;
-    border-radius: var(--radius-sm, 0.5rem);
+    border-radius: var(--border-radius-sm);
     background: transparent;
     color: var(--text-secondary);
     font-size: 0.8125rem;
@@ -5219,8 +5304,8 @@ table.dataTable.no-footer {
     transition: color 0.15s ease, background 0.15s ease;
 }
 
-.btn-nav-top:hover { background: var(--bg-hover); color: var(--text-primary); }
-.btn-nav-top.is-current { color: var(--primary); background: var(--bg-hover); }
+.btn-nav-top:hover { background: var(--bg-card-hover); color: var(--text-primary); }
+.btn-nav-top.is-current { color: var(--primary); background: var(--bg-card-hover); }
 
 /* Con poco ancho se quedan solo los iconos: la barra ya lleva idioma y estado */
 @media (max-width: 1100px) {

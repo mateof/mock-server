@@ -17,6 +17,17 @@ const EnvModule = {
 
   async init() {
     await this.cargar();
+
+    // El modal se pinta antes de enseñarse, y un elemento oculto mide cero: el
+    // ajuste de alto de los valores no encontraba contenido que medir. Se repite
+    // cuando ya está a la vista
+    const modal = document.getElementById('environmentsModal');
+    if (modal) {
+      modal.addEventListener('shown.bs.modal', () => {
+        document.querySelectorAll('#envVarsContainer .env-var-value')
+          .forEach(campo => this.ajustarAlto(campo));
+      });
+    }
     // Al pulsar fuera se cierra, como el resto de desplegables del panel
     document.addEventListener('click', (e) => {
       const selector = document.getElementById('envSelector');
@@ -153,15 +164,25 @@ const EnvModule = {
     const faltan = new Set((this.uso && this.editando && this.editando.active)
       ? this.uso.undefined_vars : []);
 
+    // El valor es un textarea y no un input: un token o un certificado no caben
+    // en una linea, y en un input solo se ve el trozo por el que va el cursor.
+    // Se puede arrastrar por la esquina, y el boton lo abre de golpe
     cont.innerHTML = variables.map((v, i) => `
       <div class="env-var-row" data-index="${i}">
         <input type="text" class="form-control-modern env-var-key" value="${this.esc(v.key)}"
                placeholder="${t('env.keyPlaceholder')}" oninput="EnvModule.editarVariable(${i}, 'key', this.value)">
-        <input type="text" class="form-control-modern env-var-value" value="${this.esc(v.value)}"
-               placeholder="${t('env.valuePlaceholder')}" oninput="EnvModule.editarVariable(${i}, 'value', this.value)">
+        <div class="env-var-value-wrap">
+          <textarea class="form-control-modern env-var-value" rows="1" spellcheck="false"
+                    placeholder="${t('env.valuePlaceholder')}"
+                    oninput="EnvModule.editarValor(${i}, this)">${this.esc(v.value)}</textarea>
+          <button type="button" class="env-var-expand" onclick="EnvModule.alternarAlto(${i}, this)"
+                  title="${t('env.expandValue')}"><i class="fa fa-expand"></i></button>
+        </div>
         <button type="button" class="btn-icon btn-icon-danger" onclick="EnvModule.quitarVariable(${i})"
                 title="${t('buttons.delete')}"><i class="fa fa-trash"></i></button>
       </div>`).join('');
+
+    cont.querySelectorAll('.env-var-value').forEach(campo => this.ajustarAlto(campo));
 
     const pista = document.getElementById('envVarsHint');
     if (pista) {
@@ -199,6 +220,28 @@ const EnvModule = {
     this.pintarModal();
   },
 
+  /** Cuatro líneas. Más que eso ya es material para el botón de ampliar. */
+  ALTO_MAXIMO: 96,
+
+  /**
+   * Da al campo el alto de lo que lleva dentro, hasta el tope.
+   *
+   * Un textarea de un renglón con un token de trescientos caracteres enseña la
+   * primera línea y media de la segunda, cortada: se ve que hay más pero no se
+   * lee nada. Con tres líneas de contenido se ven las tres.
+   */
+  ajustarAlto(campo) {
+    if (!campo || campo.dataset.manual === '1') return;
+    campo.style.height = 'auto';
+    campo.style.height = Math.min(campo.scrollHeight, this.ALTO_MAXIMO) + 'px';
+  },
+
+  editarValor(indice, campo) {
+    this.editarVariable(indice, 'value', campo.value);
+    // Pegar un valor largo es el caso normal, y ahí es donde se agradece
+    this.ajustarAlto(campo);
+  },
+
   editarVariable(indice, campo, valor) {
     if (!this.editando) return;
     this.editando.variables[indice][campo] = valor;
@@ -211,6 +254,34 @@ const EnvModule = {
     // El foco al nombre de la nueva: si no, hay que ir a buscarla con el ratón
     const filas = document.querySelectorAll('#envVarsContainer .env-var-key');
     if (filas.length) filas[filas.length - 1].focus();
+  },
+
+  /**
+   * Abre el valor a varias lineas y lo vuelve a cerrar.
+   *
+   * Se escribe la altura en linea y no con una clase porque arrastrar la
+   * esquina tambien escribe altura en linea: con una clase, el boton dejaria de
+   * hacer efecto en cuanto alguien hubiera arrastrado esa fila.
+   */
+  alternarAlto(indice, boton) {
+    const fila = document.querySelector(`.env-var-row[data-index="${indice}"]`);
+    if (!fila) return;
+    const campo = fila.querySelector('.env-var-value');
+    const icono = boton.querySelector('i');
+    const abierto = campo.dataset.manual === '1';
+
+    icono.className = abierto ? 'fa fa-expand' : 'fa fa-compress';
+    boton.title = abierto ? t('env.expandValue') : t('env.collapseValue');
+
+    if (abierto) {
+      // Vuelve a mandar el contenido
+      delete campo.dataset.manual;
+      this.ajustarAlto(campo);
+    } else {
+      campo.dataset.manual = '1';
+      campo.style.height = '14rem';
+      campo.focus();
+    }
   },
 
   quitarVariable(indice) {

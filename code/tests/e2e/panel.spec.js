@@ -703,6 +703,107 @@ test.describe('acciones sobre la selección', () => {
  */
 test.describe('entornos', () => {
 
+    /** Deja el entorno activo con las variables que se le pasen. */
+    async function ponerVariables(request, variables) {
+        const lista = await (await request.get('/api/environments')).json();
+        const activo = lista.environments.find(e => e.active);
+        const r = await request.put(`/api/environments/${activo.id}/variables`, { data: { variables } });
+        expect(r.ok()).toBeTruthy();
+    }
+
+    async function abrirGestor(page) {
+        await page.goto('/');
+        await page.click('.btn-env');
+        await page.click('.env-menu-manage');
+        await expect(page.locator('#environmentsModal')).toBeVisible();
+    }
+
+    /**
+     * Espera a que el campo tenga ya su alto.
+     *
+     * El ajuste va colgado de `shown`, que Bootstrap emite al acabar el fundido.
+     * Esperar a que la opacidad llegue a 1 no vale: llega en el mismo fotograma
+     * en que se emite el evento, y la medición se colaba antes del manejador. Se
+     * espera al efecto, que es lo que se está probando.
+     */
+    const alturaAjustada = (page, i) => expect.poll(() =>
+        page.locator('.env-var-value').nth(i).evaluate(el => el.clientHeight));
+
+    test('los paneles se separan con una línea de verdad', async ({ page }) => {
+        await abrirGestor(page);
+
+        // El borde estaba escrito con var(--border), que no existe en el
+        // proyecto. Una variable sin definir invalida la declaración entera, así
+        // que no salía un borde de otro color: salía border-style: none, y el
+        // modal se veía plano sin que nada fallara
+        const bordes = await page.evaluate(() => {
+            const leer = sel => {
+                const cs = getComputedStyle(document.querySelector(sel));
+                return { estilo: cs.borderTopStyle, ancho: parseFloat(cs.borderTopWidth) };
+            };
+            return { lista: leer('.env-list-panel'), variables: leer('.env-vars-panel') };
+        });
+
+        for (const panel of Object.values(bordes)) {
+            expect(panel.estilo).not.toBe('none');
+            expect(panel.ancho).toBeGreaterThan(0);
+        }
+    });
+
+    test('un valor largo se ve entero sin tener que hacer nada', async ({ page, request }) => {
+        const largo = 'x'.repeat(220);
+        await ponerVariables(request, [{ key: 'CORTA', value: 'ab' }, { key: 'LARGA', value: largo }]);
+        await abrirGestor(page);
+        await expect(page.locator('.env-var-row')).toHaveCount(2);
+
+        await alturaAjustada(page, 1).toBeGreaterThan(60);
+
+        const alto = i => page.locator('.env-var-value').nth(i)
+            .evaluate(el => ({ visible: el.clientHeight, contenido: el.scrollHeight }));
+
+        // La corta se queda en un renglón; la larga crece hasta caber
+        const corta = await alto(0);
+        const larga = await alto(1);
+        expect(corta.visible).toBeLessThan(larga.visible);
+        expect(larga.visible).toBeGreaterThanOrEqual(Math.min(larga.contenido, 96) - 2);
+    });
+
+    test('el botón amplía el valor y lo vuelve a cerrar', async ({ page, request }) => {
+        // Tan largo que ni ampliándose entra: para eso está el botón
+        await ponerVariables(request, [{ key: 'ENORME', value: 'y'.repeat(900) }]);
+        await abrirGestor(page);
+
+        await alturaAjustada(page, 0).toBeGreaterThan(60);
+
+        const campo = page.locator('.env-var-value').first();
+        const antes = await campo.evaluate(el => el.clientHeight);
+
+        // .form-control-modern lleva transición, así que el alto no salta: crece.
+        // Medir justo después del clic devolvía el de antes, y la prueba pasaba
+        // o fallaba según lo cargada que fuera la máquina
+        await page.locator('.env-var-expand').first().click();
+        await expect(page.locator('.env-var-expand i')).toHaveClass(/fa-compress/);
+        await expect.poll(() => campo.evaluate(el => el.clientHeight)).toBeGreaterThan(antes);
+
+        await page.locator('.env-var-expand').first().click();
+        await expect(page.locator('.env-var-expand i')).toHaveClass(/fa-expand/);
+        await expect.poll(() => campo.evaluate(el => el.clientHeight)).toBe(antes);
+    });
+
+    test('lo escrito en el valor se guarda, aunque lleve saltos de línea', async ({ page, request }) => {
+        await ponerVariables(request, [{ key: 'CERT', value: 'inicial' }]);
+        await abrirGestor(page);
+
+        await page.locator('.env-var-value').first().fill('linea uno\nlinea dos');
+        await page.click('#environmentsModal .btn-modern-primary');
+
+        await expect.poll(async () => {
+            const lista = await (await request.get('/api/environments')).json();
+            const activo = lista.environments.find(e => e.active);
+            return (activo.variables.find(v => v.key === 'CERT') || {}).value;
+        }).toBe('linea uno\nlinea dos');
+    });
+
     test('el selector está en la barra y lista los entornos', async ({ page }) => {
         await page.goto('/');
         await expect(page.locator('#envActiveName')).not.toHaveText('');
