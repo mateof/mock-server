@@ -489,13 +489,13 @@ async function verificarLlamadas(criterios = {}, expectativa = {}) {
     let esperado = null;
 
     if (expectativa.times !== undefined && expectativa.times !== null) {
-        esperado = `exactamente ${expectativa.times}`;
+        esperado = `exactly ${expectativa.times}`;
         cumple = total === Number(expectativa.times);
     } else if (expectativa.atLeast !== undefined && expectativa.atLeast !== null) {
-        esperado = `al menos ${expectativa.atLeast}`;
+        esperado = `at least ${expectativa.atLeast}`;
         cumple = total >= Number(expectativa.atLeast);
     } else if (expectativa.atMost !== undefined && expectativa.atMost !== null) {
-        esperado = `como mucho ${expectativa.atMost}`;
+        esperado = `at most ${expectativa.atMost}`;
         cumple = total <= Number(expectativa.atMost);
     }
 

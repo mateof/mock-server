@@ -866,6 +866,12 @@ test.describe('detalles visuales', () => {
 
         await page.goto('/logs');
         expect(await sinGlifo()).toEqual([]);
+
+        await page.goto('/api-docs');
+        // El estado de la autenticación pinta su icono al responder /health, así
+        // que se espera a que esté antes de mirar
+        await page.waitForSelector('#apiAuthState i.fa-unlock, #apiAuthState i.fa-lock');
+        expect(await sinGlifo()).toEqual([]);
     });
 
     test('los menús de la barra bulk salen pegados a su botón', async ({ page, request }) => {

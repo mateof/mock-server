@@ -1,0 +1,338 @@
+/**
+ * Swagger UI con el aspecto del panel
+ *
+ * Swagger UI viene en claro y el panel es oscuro: sin esto la pantalla parece
+ * otra aplicación incrustada. Se sobrescribe con las mismas variables que usa
+ * el resto del panel, así que si cambian los colores, cambian también aquí.
+ *
+ * Solo color y fondo: el layout de Swagger se deja en paz a propósito, porque
+ * es lo que se rompe al actualizar la librería.
+ */
+
+/* ===== PANEL DE LA PANTALLA ===== */
+
+.api-docs-intro {
+  color: var(--text-secondary);
+  margin-bottom: 1.25rem;
+  max-width: 900px;
+  line-height: 1.6;
+}
+
+.api-docs-auth {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+  background: var(--bg-dark);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+}
+
+.api-docs-auth-state {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: var(--border-radius-xs);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  white-space: nowrap;
+}
+
+.api-docs-auth-state.is-open {
+  color: var(--success);
+  border-color: rgba(16, 185, 129, 0.4);
+  background: var(--success-light);
+}
+
+.api-docs-auth-state.is-closed {
+  color: var(--warning);
+  border-color: rgba(245, 158, 11, 0.4);
+  background: var(--warning-light);
+}
+
+.api-docs-auth-token {
+  flex: 1 1 420px;
+  min-width: 280px;
+}
+
+.api-docs-auth-token .filter-input {
+  flex: 1;
+}
+
+.api-docs-hint {
+  display: block;
+  margin-top: 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+/* ===== SWAGGER UI EN OSCURO ===== */
+
+.swagger-ui,
+.swagger-ui .info .title,
+.swagger-ui .info li,
+.swagger-ui .info p,
+.swagger-ui .info table,
+.swagger-ui .opblock-tag,
+.swagger-ui .opblock-tag small,
+.swagger-ui .opblock .opblock-summary-description,
+.swagger-ui .opblock .opblock-summary-operation-id,
+.swagger-ui .opblock-description-wrapper p,
+.swagger-ui .opblock-external-docs-wrapper p,
+.swagger-ui .opblock-title_normal p,
+.swagger-ui .responses-inner h4,
+.swagger-ui .responses-inner h5,
+.swagger-ui .response-col_status,
+.swagger-ui .response-col_links,
+.swagger-ui .parameter__name,
+.swagger-ui .parameter__type,
+.swagger-ui .parameter__in,
+.swagger-ui .parameter__extension,
+.swagger-ui table thead tr td,
+.swagger-ui table thead tr th,
+.swagger-ui .tab li,
+.swagger-ui label,
+.swagger-ui .model-title,
+.swagger-ui .model,
+.swagger-ui section.models h4,
+.swagger-ui .dialog-ux .modal-ux-content h4,
+.swagger-ui .dialog-ux .modal-ux-header h3,
+.swagger-ui .markdown p,
+.swagger-ui .renderedMarkdown p,
+.swagger-ui .markdown li,
+.swagger-ui .renderedMarkdown li {
+  color: var(--text-primary);
+}
+
+.swagger-ui .opblock-tag small,
+.swagger-ui .parameter__type,
+.swagger-ui .parameter__in,
+.swagger-ui .prop-format,
+.swagger-ui .response-col_description__inner p,
+.swagger-ui .info .base-url,
+.swagger-ui .info__license,
+.swagger-ui .info__tos {
+  color: var(--text-secondary);
+}
+
+/* Los títulos dentro de la descripción vienen casi negros: en un fondo oscuro
+   desaparecen, y son los que ordenan toda la documentación */
+.swagger-ui .info h1,
+.swagger-ui .info h2,
+.swagger-ui .info h3,
+.swagger-ui .info h4,
+.swagger-ui .info h5,
+.swagger-ui .markdown h1,
+.swagger-ui .markdown h2,
+.swagger-ui .markdown h3,
+.swagger-ui .markdown h4,
+.swagger-ui .markdown h5,
+.swagger-ui .renderedMarkdown h1,
+.swagger-ui .renderedMarkdown h2,
+.swagger-ui .renderedMarkdown h3,
+.swagger-ui .renderedMarkdown h4,
+.swagger-ui .renderedMarkdown h5,
+.swagger-ui .markdown strong,
+.swagger-ui .renderedMarkdown strong,
+.swagger-ui .markdown ol li,
+.swagger-ui .renderedMarkdown ol li,
+.swagger-ui .markdown blockquote,
+.swagger-ui .renderedMarkdown blockquote {
+  color: var(--text-primary);
+}
+
+.swagger-ui .info hgroup.main a,
+.swagger-ui a.nostyle,
+.swagger-ui .markdown a,
+.swagger-ui .renderedMarkdown a {
+  color: var(--primary);
+}
+
+/* Cabeceras de grupo y bloques */
+.swagger-ui .opblock-tag {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.swagger-ui .opblock-tag:hover {
+  background: rgba(99, 102, 241, 0.06);
+}
+
+.swagger-ui .opblock {
+  background: var(--bg-dark);
+  border-color: var(--border-color);
+  box-shadow: none;
+}
+
+.swagger-ui .opblock .opblock-section-header {
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-color);
+  box-shadow: none;
+}
+
+.swagger-ui .opblock .opblock-section-header h4,
+.swagger-ui .opblock .opblock-section-header > label {
+  color: var(--text-primary);
+}
+
+.swagger-ui .opblock.opblock-get { background: rgba(59, 130, 246, 0.08); border-color: var(--info); }
+.swagger-ui .opblock.opblock-post { background: rgba(16, 185, 129, 0.08); border-color: var(--success); }
+.swagger-ui .opblock.opblock-put { background: rgba(245, 158, 11, 0.08); border-color: var(--warning); }
+.swagger-ui .opblock.opblock-patch { background: rgba(99, 102, 241, 0.08); border-color: var(--primary); }
+.swagger-ui .opblock.opblock-delete { background: rgba(239, 68, 68, 0.08); border-color: var(--danger); }
+
+.swagger-ui .opblock .opblock-summary {
+  border-color: inherit;
+}
+
+.swagger-ui .opblock-summary-path,
+.swagger-ui .opblock-summary-path__deprecated,
+.swagger-ui .opblock-summary-path a {
+  color: var(--text-primary);
+}
+
+/* Tablas, modelos y respuestas */
+.swagger-ui table tbody tr td {
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+.swagger-ui .responses-table,
+.swagger-ui .parameters-col_description {
+  color: var(--text-primary);
+}
+
+.swagger-ui .model-box,
+.swagger-ui section.models,
+.swagger-ui section.models .model-container {
+  background: var(--bg-dark);
+  border-color: var(--border-color);
+}
+
+.swagger-ui section.models .model-container:hover {
+  background: var(--bg-card);
+}
+
+.swagger-ui .model-toggle::after {
+  filter: invert(1) brightness(1.6);
+}
+
+.swagger-ui .prop-type { color: var(--primary); }
+.swagger-ui .model .property.primitive { color: var(--text-secondary); }
+
+/* Etiquetas sueltas que Swagger deja casi negras */
+.swagger-ui .examples-select__section-label,
+.swagger-ui .response-col_description,
+.swagger-ui .response-col_description__inner div.markdown,
+.swagger-ui .opblock-description-wrapper,
+.swagger-ui .responses-inner > div > h4,
+.swagger-ui .parameter__deprecated,
+.swagger-ui .tab li button.tablinks,
+.swagger-ui .opblock-body .opblock-title {
+  color: var(--text-secondary);
+}
+
+/* Código y ejemplos */
+.swagger-ui .microlight,
+.swagger-ui .highlight-code > .microlight,
+.swagger-ui .responses-inner pre,
+.swagger-ui .curl-command pre {
+  background: #0b1220 !important;
+  color: #e2e8f0 !important;
+}
+
+.swagger-ui .markdown code,
+.swagger-ui .renderedMarkdown code {
+  background: rgba(99, 102, 241, 0.12);
+  color: #c7d2fe;
+}
+
+/* Formularios */
+.swagger-ui input[type=text],
+.swagger-ui input[type=password],
+.swagger-ui input[type=email],
+.swagger-ui input[type=file],
+.swagger-ui input[type=search],
+.swagger-ui textarea,
+.swagger-ui select {
+  background: var(--bg-input);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.swagger-ui input::placeholder,
+.swagger-ui textarea::placeholder {
+  color: var(--text-muted);
+}
+
+.swagger-ui .filter .operation-filter-input {
+  border: 1px solid var(--border-color);
+}
+
+/* Botones */
+.swagger-ui .btn {
+  color: var(--text-primary);
+  border-color: var(--border-color);
+  background: var(--bg-card);
+}
+
+.swagger-ui .btn:hover {
+  box-shadow: none;
+  border-color: var(--primary);
+}
+
+.swagger-ui .btn.execute {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.swagger-ui .btn.authorize {
+  color: var(--success);
+  border-color: var(--success);
+}
+
+.swagger-ui .btn.authorize svg { fill: var(--success); }
+
+.swagger-ui .btn.cancel {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: transparent;
+}
+
+/* Barra de servidores */
+.swagger-ui .scheme-container {
+  background: var(--bg-dark);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  box-shadow: none;
+}
+
+/* Diálogo de Authorize */
+.swagger-ui .dialog-ux .modal-ux {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+}
+
+.swagger-ui .dialog-ux .modal-ux-header {
+  border-bottom: 1px solid var(--border-color);
+}
+
+/* Flechas y iconos, que vienen en negro sobre fondo oscuro */
+.swagger-ui svg.arrow,
+.swagger-ui .expand-methods svg,
+.swagger-ui .expand-operation svg {
+  fill: var(--text-secondary);
+}
+
+/* La cabecera propia de Swagger sobra: la pantalla ya tiene la del panel */
+.swagger-ui .topbar { display: none; }
+
+.swagger-ui .info {
+  margin: 1rem 0 2rem;
+}

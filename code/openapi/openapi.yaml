@@ -1,0 +1,2541 @@
+openapi: 3.0.3
+
+info:
+  title: Mock Server API
+  version: 0.0.0
+  description: |
+    The control API of Mock Server: everything the panel can do, available to a
+    script, a test suite or another application.
+
+    It exists for the case where the mocks are not driven by hand. A test run
+    picks which mock answers, exercises the system under test, and then asks the
+    server what was actually called. All of that happens over this API, with no
+    browser involved.
+
+    ## The loop this API is built for
+
+    1. `POST /routes` (or import them once from the panel) to have both variants
+       of an endpoint: the happy path and the failure you want to rehearse.
+    2. Tag them, for example `checkout-ok` and `checkout-down`.
+    3. Before each case, `POST /routes/activate` with that tag and
+       `exclusive: true`. The chosen mocks come up and the ones that competed
+       for the same request go down, so there is no ambiguity about who answers.
+    4. Run the test.
+    5. `POST /verify/calls` to assert what arrived: how many times, with what
+       body, answering which status.
+    6. `POST /scenarios/reset` to put stateful routes back to their first step.
+
+    ## Identifying routes without knowing ids
+
+    Every bulk operation takes the same **selector**: `ids`, `tag`, `method`,
+    `path`, `path_contains`, `response_type` or `search`. They combine with AND.
+    A script that created its mocks with a tag never needs to learn the numeric
+    ids the database assigned.
+
+    ## Authentication
+
+    Open by default, because a mock server usually runs next to the thing it is
+    mocking and asking for a token would break every existing script. Set
+    `MOCK_SERVER_API_AUTH=required` to demand `Authorization: Bearer <token>` on
+    every call. Valid tokens are `MOCK_SERVER_API_TOKEN` (fixed, for CI) and the
+    ones created from the panel under **Tools → MCP Connection**, which are the
+    same ones the MCP server accepts.
+
+    A wrong token is always rejected, even with the API open.
+
+    ## Errors
+
+    Failures answer with `{ "error": "...", "code": "..." }` and the matching
+    status: `400` for a malformed request, `404` for something that does not
+    exist, `422` for something that exists but cannot do what was asked (a
+    scenario on a proxy route, for instance), `500` for a bug on this side.
+
+    ## Routes that answer with a file
+
+    Send the route as `multipart/form-data` with a `file` part instead of a JSON
+    body, on create and on update alike. Everything else is the same, except
+    that a form carries only text: booleans travel as `"true"`/`"false"` and
+    `tags`, `custom_headers` and `conditions` as JSON inside their field.
+
+    Updating without a `file` part keeps the one already there, so a patch that
+    changes the path does not lose the file.
+
+    ## What is not here
+
+    The `/api/*` endpoints without `/v1` are the panel's own; they change with
+    the screen and are not part of this contract.
+  license:
+    name: MIT
+    url: https://github.com/mateof/mock-server/blob/main/LICENSE
+
+servers:
+  - url: http://localhost:3880/api/v1
+    description: Local server
+
+security:
+  - {}
+  - bearerAuth: []
+
+tags:
+  - name: Server
+    description: State of the server itself and the contract it serves.
+  - name: Routes
+    description: Creating, reading, editing and, above all, turning routes on and off.
+  - name: Route behaviour
+    description: 'What a route does beyond its default answer: conditions, scenarios, latency, faults, proxy transforms, GraphQL and WebSocket.'
+  - name: Tags
+    description: Labels used to group routes, which is what makes bulk operations addressable.
+  - name: Environments
+    description: Variables that routes resolve as ${NAME}. Only one environment is active at a time.
+  - name: Logs
+    description: What actually arrived and what was answered, with the full story of a single request.
+  - name: Testing
+    description: Assertions over recorded traffic, held requests and calling a route through the server.
+  - name: WebSocket
+    description: Clients connected to WebSocket routes.
+  - name: Validation
+    description: Checking a regex, a criteria expression or a script without saving it.
+
+paths:
+
+  # ===== SERVER =====
+
+  /health:
+    get:
+      tags: [Server]
+      summary: Liveness check
+      description: Answers without touching the database and without needing a token, so it works as a readiness probe.
+      security: []
+      operationId: health
+      responses:
+        '200':
+          description: The server is up
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+                  auth: { $ref: '#/components/schemas/AuthState' }
+
+  /server:
+    get:
+      tags: [Server]
+      summary: Server state and the rules worth knowing
+      description: |
+        Version, route counts by type, the active environment, log retention and
+        the matching rules. Read this first when writing an integration: it is
+        what tells you, for instance, that proxy routes always lose against
+        mocks whatever their order.
+      operationId: serverInfo
+      responses:
+        '200':
+          description: Server state
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ServerInfo' }
+
+  /version:
+    get:
+      tags: [Server]
+      summary: Running version, and whether a newer one is published
+      operationId: versionStatus
+      parameters:
+        - name: force
+          in: query
+          description: Ask the registry again instead of using the cached answer.
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: Version state
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VersionStatus' }
+
+  /openapi.json:
+    get:
+      tags: [Server]
+      summary: This contract, as JSON
+      description: Served without authentication, with the `servers` entry pointing at the host you asked from.
+      security: []
+      operationId: openapiJson
+      responses:
+        '200':
+          description: The OpenAPI document
+          content:
+            application/json:
+              schema: { type: object }
+
+  /openapi.yaml:
+    get:
+      tags: [Server]
+      summary: This contract, as YAML
+      security: []
+      operationId: openapiYaml
+      responses:
+        '200':
+          description: The OpenAPI document
+          content:
+            application/yaml:
+              schema: { type: string }
+
+  # ===== ROUTES =====
+
+  /routes:
+    get:
+      tags: [Routes]
+      summary: List routes
+      description: |
+        In priority order: the first one that matches a request is the one that
+        answers. Routes carrying documentation are flagged with `has_docs`;
+        `include_docs` returns that documentation inline, which is the cheap way
+        to find out how a set of mocks is meant to be used before touching it.
+      operationId: listRoutes
+      parameters:
+        - name: method
+          in: query
+          schema: { $ref: '#/components/schemas/HttpMethod' }
+        - name: response_type
+          in: query
+          schema: { $ref: '#/components/schemas/ResponseType' }
+        - name: active
+          in: query
+          schema: { type: boolean }
+        - name: tag
+          in: query
+          description: Tag name or id.
+          schema: { type: string }
+        - name: search
+          in: query
+          description: Free text over the path, the summary, the operationId and the documentation.
+          schema: { type: string }
+        - name: include_docs
+          in: query
+          description: Include each route's documentation. Off by default because it can be long.
+          schema: { type: boolean }
+        - name: documented
+          in: query
+          description: Only routes that have documentation (true) or only those that lack it (false).
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: Routes in priority order
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count: { type: integer }
+                  documented: { type: integer, description: How many of them carry documentation }
+                  routes:
+                    type: array
+                    items: { $ref: '#/components/schemas/Route' }
+    post:
+      tags: [Routes]
+      summary: Create a route
+      description: |
+        A JSON mock needs `method`, `path`, `status_code`, `response_type` and
+        `response`. On a proxy route, `response` is the target URL.
+
+        Paths under `/api` or `/mcp` are rejected: they belong to the panel and
+        a mock there would never answer.
+      operationId: createRoute
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RouteInput' }
+            examples:
+              json:
+                summary: A JSON mock
+                value:
+                  method: get
+                  path: /fake-api/orders/42
+                  status_code: '200'
+                  response_type: json
+                  response: '{"id":42,"status":"paid"}'
+                  tags: [{ name: checkout-ok }]
+              proxy:
+                summary: A proxy to the real backend
+                value:
+                  method: any
+                  path: /fake-api
+                  status_code: '200'
+                  response_type: proxy
+                  response: https://api.example.com
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/RouteWithFile' }
+      responses:
+        '201':
+          description: Route created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  created: { type: boolean }
+                  route: { $ref: '#/components/schemas/RouteDetail' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /routes/activate:
+    post:
+      tags: [Routes]
+      summary: Turn routes on
+      description: |
+        Enables everything the selector matches.
+
+        With `exclusive: true` it also disables any other active route that
+        would compete for the same request (same path, overlapping method).
+        That is what makes it a scenario switch: activating the failure mock
+        puts the happy-path one away instead of leaving both on and letting the
+        order decide. Routes that answer something else are never touched.
+      operationId: activateRoutes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/RouteSelector'
+                - type: object
+                  properties:
+                    exclusive:
+                      type: boolean
+                      default: false
+                      description: Disable the routes that collide with the ones being enabled.
+            examples:
+              scenario:
+                summary: Switch the checkout mocks to the failure variant
+                value: { tag: checkout-down, exclusive: true }
+      responses:
+        '200':
+          description: State applied
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ActiveResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /routes/deactivate:
+    post:
+      tags: [Routes]
+      summary: Turn routes off
+      description: |
+        Disables everything the selector matches. This is how traffic falls
+        through to a proxy again without deleting the mocks.
+      operationId: deactivateRoutes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RouteSelector' }
+            examples:
+              byTag:
+                summary: Everything tagged payments
+                value: { tag: payments }
+              byPath:
+                summary: One endpoint, whatever its id
+                value: { method: get, path: /fake-api/orders }
+      responses:
+        '200':
+          description: State applied
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ActiveResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /routes/delete:
+    post:
+      tags: [Routes]
+      summary: Delete several routes
+      description: Deleting cannot be undone; prefer `/routes/deactivate` to turn things off between test cases.
+      operationId: deleteRoutes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RouteSelector' }
+      responses:
+        '200':
+          description: Routes deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted: { type: integer }
+                  routes:
+                    type: array
+                    items: { $ref: '#/components/schemas/RouteRef' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /routes/tags:
+    post:
+      tags: [Routes]
+      summary: Add or remove a tag on several routes
+      description: |
+        `tag` is the one being applied; the selector says to which routes. To
+        select by another tag use `match_tag`, so that "remove `wip` from
+        everything tagged `checkout`" is expressible.
+
+        Unknown tags are registered automatically, so they show up in the panel
+        filter.
+      operationId: setRoutesTags
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - type: object
+                  required: [tag, action]
+                  properties:
+                    tag: { type: string, description: The tag being added or removed }
+                    action: { type: string, enum: [add, remove] }
+                    match_tag: { type: string, description: 'Select by this other tag' }
+                - $ref: '#/components/schemas/RouteSelectorNoTag'
+      responses:
+        '200':
+          description: Tag applied
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updated: { type: integer, description: Routes that actually changed }
+                  tag: { type: string }
+                  action: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /routes/reorder:
+    post:
+      tags: [Routes]
+      summary: Set the priority order
+      description: |
+        When several routes could answer the same request, the lowest order
+        wins. Pass the ids highest priority first.
+
+        Proxy routes are numbered in their own high range, so they stay behind
+        every mock whatever position you give them.
+      operationId: reorderRoutes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [order]
+              properties:
+                order:
+                  type: array
+                  items: { type: integer }
+                  description: Route ids, highest priority first.
+      responses:
+        '200':
+          description: Order applied
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  reordered: { type: integer }
+                  order:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: integer }
+                        orden: { type: integer }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /routes/try:
+    post:
+      tags: [Testing]
+      summary: Call a route through this server
+      description: |
+        Sends a real request to the configured route and returns what it
+        answered. It goes through the whole pipeline, so conditions, scenarios,
+        templating, latency and faults apply, and the call shows up in the log
+        like any other, with its trace id.
+
+        This is the difference between "the mock is saved" and "the mock
+        answers what I think it answers".
+      operationId: tryRoute
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [path]
+              properties:
+                path: { type: string, example: /fake-api/orders?page=2 }
+                method: { type: string, default: GET }
+                body: { type: string, description: 'Request body, as text' }
+                headers:
+                  type: array
+                  items: { $ref: '#/components/schemas/HeaderRule' }
+                timeout_ms: { type: integer, default: 10000 }
+      responses:
+        '200':
+          description: What the route answered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: integer }
+                  duration_ms: { type: integer }
+                  headers: { type: object, additionalProperties: true }
+                  body: { description: 'Parsed when it was JSON, raw text otherwise' }
+                  trace_id: { type: string, nullable: true }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /routes/usage:
+    get:
+      tags: [Logs]
+      summary: Which routes are actually used
+      description: |
+        Calls, last use, errors and average duration per route, taken from the
+        log. Useful to find dead mocks before cleaning up, or to confirm the
+        traffic you expected actually landed. Bounded by log retention.
+      operationId: routeUsage
+      parameters:
+        - name: since_ms
+          in: query
+          description: Epoch milliseconds lower bound. Without it, everything still in the log.
+          schema: { type: integer, format: int64 }
+        - name: include_unused
+          in: query
+          description: Also list routes with no calls. Default true.
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: Usage per route
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  routes:
+                    type: array
+                    items: { $ref: '#/components/schemas/RouteUsage' }
+                  unused: { type: integer }
+                  total: { type: integer }
+
+  /routes/{id}:
+    parameters:
+      - $ref: '#/components/parameters/RouteId'
+    get:
+      tags: [Routes]
+      summary: Full detail of a route
+      description: Body, headers, conditions, scenario and, for proxies, fallbacks and transforms.
+      operationId: getRoute
+      responses:
+        '200':
+          description: The route
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RouteDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Routes]
+      summary: Change some fields of a route
+      description: |
+        Only what you send is changed; everything else is kept, including the
+        parts that are configured elsewhere (conditions, scenario, recording,
+        latency). This is the safe way to flip one field, for example
+        `{"active": false}` or `{"status_code": "500"}`.
+      operationId: updateRoute
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RoutePatch' }
+            examples:
+              disable:
+                summary: Turn one route off
+                value: { active: false }
+              failure:
+                summary: Make it answer 500
+                value: { status_code: '500', response: '{"error":"boom"}' }
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/RouteWithFile' }
+      responses:
+        '200':
+          description: Route updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updated: { type: boolean }
+                  route: { $ref: '#/components/schemas/RouteDetail' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Routes]
+      summary: Delete a route
+      description: 'Deletes the route and everything attached to it: conditions, fallbacks, operations, messages.'
+      operationId: deleteRoute
+      responses:
+        '200':
+          description: Route deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted: { type: boolean }
+                  id: { type: integer }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /routes/{id}/duplicate:
+    parameters:
+      - $ref: '#/components/parameters/RouteId'
+    post:
+      tags: [Routes]
+      summary: Copy a route to another path
+      description: Copies conditions, fallbacks, GraphQL operations and WebSocket messages too, which is what makes it useful for building a variant of a flow.
+      operationId: duplicateRoute
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [new_path]
+              properties:
+                new_path: { type: string, example: /fake-api/orders-v2 }
+      responses:
+        '201':
+          description: Copy created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  created: { type: boolean }
+                  route: { $ref: '#/components/schemas/RouteDetail' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /routes/{id}/docs:
+    parameters:
+      - $ref: '#/components/parameters/RouteId'
+    get:
+      tags: [Routes]
+      summary: Read a route's documentation
+      description: What the route simulates, how it is meant to be called, what to be careful with. Worth reading before changing a route somebody else configured.
+      operationId: getRouteDocs
+      responses:
+        '200':
+          description: The documentation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: integer }
+                  method: { type: string }
+                  path: { type: string }
+                  docs: { type: string, nullable: true }
+                  documented: { type: boolean }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Routes]
+      summary: Write a route's documentation
+      description: |
+        Replaces the documentation, or adds to it with `append`. Markdown is the
+        convention. Only this field is touched, so nothing else about the route
+        can be lost. An empty string clears it.
+      operationId: setRouteDocs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [docs]
+              properties:
+                docs: { type: string }
+                append: { type: boolean, default: false }
+      responses:
+        '200':
+          description: Documentation saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updated: { type: boolean }
+                  id: { type: integer }
+                  docs: { type: string, nullable: true }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ===== ROUTE BEHAVIOUR =====
+
+  /routes/{id}/conditions:
+    parameters:
+      - $ref: '#/components/parameters/RouteId'
+    get:
+      tags: [Route behaviour]
+      summary: Conditional responses of a route
+      operationId: getRouteConditions
+      responses:
+        '200':
+          description: The conditions, in evaluation order
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: integer }
+                  conditions:
+                    type: array
+                    items: { $ref: '#/components/schemas/Condition' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Route behaviour]
+      summary: Replace the conditional responses
+      description: |
+        Evaluated in order: the first match wins, and if none matches the
+        default response is used. An empty array removes them all.
+
+        Every expression is compiled before saving, so a broken criteria is
+        rejected here instead of silently never matching at runtime.
+      operationId: setRouteConditions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [conditions]
+              properties:
+                conditions:
+                  type: array
+                  items: { $ref: '#/components/schemas/ConditionInput' }
+            examples:
+              premium:
+                summary: Answer differently to a premium key
+                value:
+                  conditions:
+                    - name: premium
+                      criteria: "headers['x-api-key'] === 'premium'"
+                      status_code: '200'
+                      response_type: json
+                      response: '{"plan":"premium"}'
+      responses:
+        '200':
+          description: Conditions saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updated: { type: boolean }
+                  count: { type: integer }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /routes/{id}/sequence:
+    parameters:
+      - $ref: '#/components/parameters/RouteId'
+    put:
+      tags: [Route behaviour]
+      summary: Set a stateful scenario
+      description: |
+        Makes a route answer differently depending on how many times it has been
+        called: first `pending`, then `processing`, then `done`. This is what
+        simulates polling flows, which conditions cannot: conditions only look
+        at the request, and in a poll every request is identical.
+
+        The scenario wins over conditional responses. The call counter lives in
+        memory: it resets when the server restarts or when you reset it. An
+        empty array removes the scenario.
+
+        Not available on proxy routes.
+      operationId: setRouteSequence
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sequence]
+              properties:
+                mode:
+                  type: string
+                  enum: [stick, loop]
+                  default: stick
+                  description: After the last step, `stick` repeats it and `loop` starts over.
+                sequence:
+                  type: array
+                  items: { $ref: '#/components/schemas/SequenceStep' }
+            examples:
+              polling:
+                summary: pending, pending, done
+                value:
+                  mode: stick
+                  sequence:
+                    - { name: pending, status_code: '200', response_type: json, response: '{"state":"pending"}', repeat: 2 }
+                    - { name: done, status_code: '200', response_type: json, response: '{"state":"done"}' }
+      responses:
+        '200':
+          description: Scenario saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updated: { type: boolean }
+                  route: { $ref: '#/components/schemas/RouteDetail' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /routes/{id}/sequence/reset:
+    parameters:
+      - $ref: '#/components/parameters/RouteId'
+    post:
+      tags: [Route behaviour]
+      summary: Restart one route's scenario
+      description: Puts the call counter back to zero, so the next call gets the first step again. Call it between test cases.
+      operationId: resetRouteSequence
+      responses:
+        '200':
+          description: Scenario reset
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ScenarioReset' }
+
+  /routes/{id}/faults:
+    parameters:
+      - $ref: '#/components/parameters/RouteId'
+    put:
+      tags: [Route behaviour]
+      summary: Set latency and fault injection
+      description: |
+        Makes a route slow, unreliable, or both, which is how timeouts, retries
+        and degradation get exercised. Works on any route type. On a proxy the
+        delay happens before calling the backend and an injected fault never
+        reaches it.
+
+        Only the fields you send are changed.
+      operationId: setRouteFaults
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FaultsInput' }
+            examples:
+              slow:
+                summary: Half a second, always
+                value: { latency_mode: fixed, latency_ms: 500 }
+              flaky:
+                summary: One in five calls drops the connection
+                value: { fault_rate: 20, fault_type: reset }
+      responses:
+        '200':
+          description: Applied
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updated: { type: boolean }
+                  route: { $ref: '#/components/schemas/RouteDetail' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /routes/{id}/recording:
+    parameters:
+      - $ref: '#/components/parameters/RouteId'
+    put:
+      tags: [Route behaviour]
+      summary: Turn recording on or off
+      description: |
+        Puts a proxy route into recording mode: every backend response is saved
+        as a mock route.
+
+        Recorded routes are created **inactive**, because an active mock
+        outranks the proxy and would stop any further traffic from reaching the
+        backend. Activate them once the session is captured.
+      operationId: setRouteRecording
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [recording]
+              properties:
+                recording: { type: boolean }
+                mode:
+                  type: string
+                  enum: [update, skip]
+                  description: What to do when a mock for that method and path already exists. Default update.
+      responses:
+        '200':
+          description: Applied
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updated: { type: boolean }
+                  route: { $ref: '#/components/schemas/RouteDetail' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /routes/{id}/proxy-transform:
+    parameters:
+      - $ref: '#/components/parameters/RouteId'
+    put:
+      tags: [Route behaviour]
+      summary: Set a proxy transform
+      description: |
+        Header and query parameter rules applied to the request before calling
+        the backend, plus the `ms.*` scripts that transform the request and the
+        response. Proxy routes only.
+      operationId: setProxyTransform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                request_headers:
+                  type: array
+                  items: { $ref: '#/components/schemas/HeaderRule' }
+                request_params:
+                  type: array
+                  items: { $ref: '#/components/schemas/HeaderRule' }
+                pre_script:
+                  type: string
+                  description: Transforms the request. It can short-circuit with ms.respond(code, body).
+                post_script:
+                  type: string
+                  description: Transforms the response before returning it.
+      responses:
+        '200':
+          description: Applied
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updated: { type: boolean }
+                  route: { $ref: '#/components/schemas/RouteDetail' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /routes/{id}/proxy-fallbacks:
+    parameters:
+      - $ref: '#/components/parameters/RouteId'
+    put:
+      tags: [Route behaviour]
+      summary: Replace the proxy fallbacks
+      description: |
+        Canned answers for when the backend times out, refuses the connection or
+        returns 5xx. Each one can carry its own conditions. An empty array
+        removes them all. Proxy routes only.
+      operationId: setProxyFallbacks
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fallbacks]
+              properties:
+                fallbacks:
+                  type: array
+                  items: { $ref: '#/components/schemas/FallbackInput' }
+      responses:
+        '200':
+          description: Applied
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updated: { type: boolean }
+                  route: { $ref: '#/components/schemas/RouteDetail' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /routes/{id}/graphql-operations:
+    parameters:
+      - $ref: '#/components/parameters/RouteId'
+    put:
+      tags: [Route behaviour]
+      summary: Replace the GraphQL operations
+      description: Each operation answers a query or mutation by name, either with mock data or by forwarding to the real server. GraphQL routes only.
+      operationId: setGraphqlOperations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [operations]
+              properties:
+                operations:
+                  type: array
+                  items: { $ref: '#/components/schemas/GraphqlOperationInput' }
+      responses:
+        '200':
+          description: Applied
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updated: { type: boolean }
+                  route: { $ref: '#/components/schemas/RouteDetail' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /routes/{id}/graphql-schema/import:
+    parameters:
+      - $ref: '#/components/parameters/RouteId'
+    post:
+      tags: [Route behaviour]
+      summary: Import a GraphQL schema by introspection
+      description: Reads a real GraphQL endpoint and generates the mock operations automatically. The fastest way to get a usable GraphQL route.
+      operationId: importGraphqlSchema
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url: { type: string, example: https://rickandmortyapi.com/graphql }
+      responses:
+        '200':
+          description: Schema imported
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  imported: { type: boolean }
+                  operation_count: { type: integer }
+                  operations:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name: { type: string }
+                        type: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /routes/{id}/websocket-messages:
+    parameters:
+      - $ref: '#/components/parameters/RouteId'
+    put:
+      tags: [Route behaviour]
+      summary: Replace the WebSocket handlers
+      description: |
+        What to send on connect, what to answer to an incoming message, and what
+        to send periodically. An empty array removes them all. WebSocket routes
+        only.
+
+        Clients already connected pick up the new configuration.
+      operationId: setWebsocketMessages
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [messages]
+              properties:
+                messages:
+                  type: array
+                  items: { $ref: '#/components/schemas/WebsocketMessageInput' }
+      responses:
+        '200':
+          description: Applied
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updated: { type: boolean }
+                  route: { $ref: '#/components/schemas/RouteDetail' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  # ===== TAGS =====
+
+  /tags:
+    get:
+      tags: [Tags]
+      summary: List tags
+      operationId: listTags
+      responses:
+        '200':
+          description: Tags in the registry
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count: { type: integer }
+                  tags:
+                    type: array
+                    items: { $ref: '#/components/schemas/Tag' }
+    post:
+      tags: [Tags]
+      summary: Create a tag
+      description: Returns the existing one if the name is taken, so it is safe to call at the start of every run.
+      operationId: createTag
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                color: { type: string, example: '#6366f1' }
+      responses:
+        '201':
+          description: Tag available
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tag: { $ref: '#/components/schemas/Tag' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /tags/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    delete:
+      tags: [Tags]
+      summary: Delete a tag
+      description: Removes it from the registry and from every route carrying it.
+      operationId: deleteTag
+      responses:
+        '200':
+          description: Tag deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted: { type: boolean }
+                  id: { type: string }
+
+  # ===== ENVIRONMENTS =====
+
+  /environments:
+    get:
+      tags: [Environments]
+      summary: List environments and their variables
+      description: |
+        Environments hold variables that routes reference as `${NAME}` in the
+        proxy target, the response body and the headers. Only one is active, and
+        that is the one routes resolve against.
+      operationId: listEnvironments
+      responses:
+        '200':
+          description: Environments
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  active: { type: string, nullable: true }
+                  count: { type: integer }
+                  environments:
+                    type: array
+                    items: { $ref: '#/components/schemas/Environment' }
+
+  /environments/usage:
+    get:
+      tags: [Environments]
+      summary: Which routes use variables, and which are missing
+      description: |
+        Every route that references `${NAME}` and, of those, which names the
+        active environment does not define. It looks at the response body,
+        headers, proxy target and rules, the scripts, and the criteria of
+        conditions and fallbacks.
+
+        Undefined variables are left in the text rather than blanked, so a route
+        can end up answering with `${NAME}` inside it. This is how you find that
+        before it happens.
+      operationId: environmentUsage
+      responses:
+        '200':
+          description: Usage report
+          content:
+            application/json:
+              schema: { type: object }
+
+  /environments/{name}:
+    parameters:
+      - $ref: '#/components/parameters/EnvironmentName'
+    get:
+      tags: [Environments]
+      summary: Read one environment
+      operationId: getEnvironment
+      responses:
+        '200':
+          description: The environment
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  environment: { $ref: '#/components/schemas/Environment' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Environments]
+      summary: Create an environment or change its variables
+      description: |
+        Creates it if the name is new, otherwise applies the variables.
+
+        `merge` (the default) adds and updates without touching the rest;
+        `replace` makes the list the whole set, which is how several variables
+        are deleted at once. To change one value, the single-variable endpoint
+        is safer than either.
+      operationId: setEnvironment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                variables:
+                  type: array
+                  items: { $ref: '#/components/schemas/EnvironmentVariable' }
+                mode: { type: string, enum: [merge, replace], default: merge }
+                activate: { type: boolean, description: Make it the active environment }
+            examples:
+              staging:
+                value:
+                  variables:
+                    - { key: BACKEND_URL, value: https://staging.example.com }
+                  activate: true
+      responses:
+        '200':
+          description: Environment saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  active: { type: string }
+                  environment: { $ref: '#/components/schemas/Environment' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+    delete:
+      tags: [Environments]
+      summary: Delete an environment
+      description: The last remaining one cannot be deleted; deleting the active one moves the flag to another.
+      operationId: deleteEnvironment
+      responses:
+        '200':
+          description: Environment deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted: { type: boolean }
+                  active: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /environments/{name}/activate:
+    parameters:
+      - $ref: '#/components/parameters/EnvironmentName'
+    post:
+      tags: [Environments]
+      summary: Switch the active environment
+      description: 'Takes effect on the next request, with no reload. This is the other half of "run the suite against staging": point the variables somewhere else without touching a single route.'
+      operationId: activateEnvironment
+      responses:
+        '200':
+          description: Environment activated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  active: { type: string }
+                  variables: { type: integer }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /environments/{name}/rename:
+    parameters:
+      - $ref: '#/components/parameters/EnvironmentName'
+    post:
+      tags: [Environments]
+      summary: Rename an environment
+      description: Keeps its variables and whether it was the active one.
+      operationId: renameEnvironment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [new_name]
+              properties:
+                new_name: { type: string }
+      responses:
+        '200':
+          description: Environment renamed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  renamed: { type: boolean }
+                  name: { type: string }
+                  previous: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /environments/{name}/variables/{key}:
+    parameters:
+      - $ref: '#/components/parameters/EnvironmentName'
+      - name: key
+        in: path
+        required: true
+        description: Variable name, as it appears inside ${...}.
+        schema: { type: string }
+    put:
+      tags: [Environments]
+      summary: Set one variable
+      description: Creates or updates a single variable, leaving every other one alone.
+      operationId: setEnvVar
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                value: { type: string }
+      responses:
+        '200':
+          description: Variable set
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updated: { type: boolean }
+                  environment: { type: string }
+                  key: { type: string }
+                  environment_detail: { $ref: '#/components/schemas/Environment' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+    delete:
+      tags: [Environments]
+      summary: Delete one variable
+      description: Routes referencing it keep the `${NAME}` text and start reporting it as undefined, which the usage report shows.
+      operationId: deleteEnvVar
+      responses:
+        '200':
+          description: Variable deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted: { type: boolean }
+                  environment: { type: string }
+                  key: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ===== LOGS =====
+
+  /logs:
+    get:
+      tags: [Logs]
+      summary: Query the log
+      description: |
+        Which requests arrived, what was answered, how long it took and, for
+        proxied requests, the full headers and bodies. This is how you find out
+        what actually happened instead of guessing.
+      operationId: queryLogs
+      parameters:
+        - $ref: '#/components/parameters/LogFrom'
+        - $ref: '#/components/parameters/LogTo'
+        - $ref: '#/components/parameters/LogMinutes'
+        - $ref: '#/components/parameters/LogLevel'
+        - $ref: '#/components/parameters/LogType'
+        - $ref: '#/components/parameters/LogMethod'
+        - $ref: '#/components/parameters/LogStatus'
+        - $ref: '#/components/parameters/LogUrl'
+        - $ref: '#/components/parameters/LogSearch'
+        - $ref: '#/components/parameters/LogRouteId'
+        - $ref: '#/components/parameters/LogTraceId'
+        - $ref: '#/components/parameters/LogMinDuration'
+        - name: limit
+          in: query
+          description: Entries to return, 100 by default, 1000 max.
+          schema: { type: integer, default: 100, maximum: 1000 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0 }
+        - name: include_details
+          in: query
+          description: Include headers and bodies. Off by default because they are big.
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: Log entries, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total: { type: integer, description: Entries matching the filters }
+                  returned: { type: integer }
+                  entries:
+                    type: array
+                    items: { $ref: '#/components/schemas/LogEntry' }
+    delete:
+      tags: [Logs]
+      summary: Empty the log
+      description: Without filters it clears everything; with them, only what matches, which is the safe way to start a clean measurement without losing the rest.
+      operationId: clearLogs
+      parameters:
+        - $ref: '#/components/parameters/LogFrom'
+        - $ref: '#/components/parameters/LogTo'
+        - $ref: '#/components/parameters/LogLevel'
+        - $ref: '#/components/parameters/LogType'
+      responses:
+        '200':
+          description: Entries deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted: { type: integer }
+
+  /logs/stats:
+    get:
+      tags: [Logs]
+      summary: Log summary
+      description: Totals by level, by type and by status code, average and worst duration, and a histogram over time. Use it to spot what is failing before pulling the individual entries.
+      operationId: logStats
+      parameters:
+        - $ref: '#/components/parameters/LogFrom'
+        - $ref: '#/components/parameters/LogTo'
+        - $ref: '#/components/parameters/LogMinutes'
+        - $ref: '#/components/parameters/LogLevel'
+        - $ref: '#/components/parameters/LogType'
+        - $ref: '#/components/parameters/LogMethod'
+        - $ref: '#/components/parameters/LogStatus'
+        - $ref: '#/components/parameters/LogUrl'
+        - $ref: '#/components/parameters/LogSearch'
+        - $ref: '#/components/parameters/LogRouteId'
+        - $ref: '#/components/parameters/LogTraceId'
+        - $ref: '#/components/parameters/LogMinDuration'
+      responses:
+        '200':
+          description: Summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LogStats' }
+
+  /logs/traces/{traceId}:
+    parameters:
+      - name: traceId
+        in: path
+        required: true
+        description: Every answer carries it in the X-Mock-Trace-Id header, and the log returns it.
+        schema: { type: string }
+    get:
+      tags: [Logs]
+      summary: The full story of one request
+      description: |
+        In order: which route matched, which condition won, what each script
+        did, what was asked of the backend and what came back. This is how you
+        find out why a request answered what it answered instead of guessing
+        from the final line.
+      operationId: getTrace
+      responses:
+        '200':
+          description: The trace
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Trace' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /logs/mocks:
+    post:
+      tags: [Logs]
+      summary: Turn recorded traffic into mocks
+      description: |
+        Creates mock routes from proxied traffic already in the log: "everything
+        that went through /orders in the last hour". Takes the newest response
+        for each method and path, so repeated calls yield one route, not one per
+        call.
+
+        Entries whose body the log truncated, or whose response is binary, are
+        reported as skipped instead of producing a broken mock.
+      operationId: createMocksFromLogs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url: { type: string, description: Substring of the path }
+                from: { type: integer, format: int64 }
+                to: { type: integer, format: int64 }
+                method: { type: string }
+                status: { type: string, description: 'Exact code (404) or family (2xx)' }
+                search: { type: string }
+                route_id: { type: integer }
+                trace_id: { type: string }
+                limit: { type: integer, description: 'Log entries to examine, 1000 max' }
+                active:
+                  type: boolean
+                  default: false
+                  description: Whether the created routes are active. Off by default, so they do not shadow the proxy they came from.
+                mode: { type: string, enum: [update, skip], default: update }
+                tags:
+                  type: array
+                  items: { type: string }
+      responses:
+        '200':
+          description: What was created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecordingSummary' }
+
+  /logs/{id}/mock:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Log entry id, as returned by the log query.
+        schema: { type: integer }
+    post:
+      tags: [Logs]
+      summary: Turn one log line into a mock
+      description: Created active, because asking for one specific entry is an explicit choice.
+      operationId: createMockFromLogEntry
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                active: { type: boolean, default: true }
+                mode: { type: string, enum: [update, skip], default: update }
+                tags:
+                  type: array
+                  items: { type: string }
+      responses:
+        '200':
+          description: Route created or updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  action: { type: string, enum: [created, updated] }
+                  id: { type: integer }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  # ===== TESTING =====
+
+  /verify/calls:
+    post:
+      tags: [Testing]
+      summary: Assert what was actually called
+      description: |
+        Answers "was /orders called, how many times, and with what?". Give an
+        expectation (`times`, `at_least`, `at_most`) and `passed` tells you
+        whether it holds, so a test can assert on it directly.
+
+        Matches on the recorded request: path, method, the status that was
+        answered, and a substring of the body. Use `since_ms` to check only what
+        happened after a given point, which is what makes it usable per test
+        case without clearing the log.
+
+        Bounded by log retention.
+      operationId: verifyCalls
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                path: { type: string, description: Substring of the path }
+                method: { type: string }
+                status: { type: string, description: 'Exact code (404) or family (2xx) of the answer' }
+                body_contains: { type: string }
+                since_ms: { type: integer, format: int64 }
+                times: { type: integer, description: Expect exactly this many }
+                at_least: { type: integer }
+                at_most: { type: integer }
+            examples:
+              once:
+                summary: The payment endpoint was hit exactly once
+                value: { path: /fake-api/payments, method: post, times: 1 }
+      responses:
+        '200':
+          description: What was found and whether the expectation holds
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VerifyResult' }
+
+  /scenarios:
+    get:
+      tags: [Testing]
+      summary: Scenarios in progress
+      description: How many calls each stateful route has served so far.
+      operationId: listScenarios
+      responses:
+        '200':
+          description: Counters
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count: { type: integer }
+                  scenarios:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        route_id: { type: integer }
+                        calls: { type: integer }
+
+  /scenarios/reset:
+    post:
+      tags: [Testing]
+      summary: Restart scenarios
+      description: Without a body, every scenario goes back to its first step. With `id`, only that route's.
+      operationId: resetScenarios
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id: { type: integer }
+      responses:
+        '200':
+          description: Scenarios reset
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ScenarioReset' }
+
+  /waiting:
+    get:
+      tags: [Testing]
+      summary: Requests held by active wait
+      description: |
+        Routes with active wait hold their requests until something releases
+        them. This lists what is currently held, with the answer each one is
+        about to send.
+
+        It is how a race is staged: hold the request, do something else, then
+        let it through.
+      operationId: listWaiting
+      responses:
+        '200':
+          description: Held requests
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count: { type: integer }
+                  waiting:
+                    type: array
+                    items: { $ref: '#/components/schemas/WaitingRequest' }
+
+  /waiting/release:
+    post:
+      tags: [Testing]
+      summary: Release a held request
+      description: Without an id, everything currently held is released. The answer can be overridden on the way out.
+      operationId: releaseWaiting
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id: { type: string, description: 'The held request id. Without it, all of them.' }
+                status_code: { type: string, description: Override the status it answers }
+                response: { type: string, description: Override the body it answers }
+      responses:
+        '200':
+          description: Released
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  released: { type: integer }
+                  ids:
+                    type: array
+                    items: { type: string }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ===== WEBSOCKET =====
+
+  /ws/clients:
+    get:
+      tags: [WebSocket]
+      summary: Connected WebSocket clients
+      operationId: listWsClients
+      responses:
+        '200':
+          description: Clients
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count: { type: integer }
+                  clients:
+                    type: array
+                    items: { type: object }
+
+  /ws/clients/send:
+    post:
+      tags: [WebSocket]
+      summary: Push a message to connected clients
+      description: Sends a message to the given clients, as if the route had produced it. Useful to simulate a server-side event in the middle of a test.
+      operationId: sendWsMessage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [client_ids, message]
+              properties:
+                client_ids:
+                  type: array
+                  items: { type: string }
+                message: { type: string }
+      responses:
+        '200':
+          description: Messages sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sent: { type: integer }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /ws/clients/{clientId}/disconnect:
+    parameters:
+      - name: clientId
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [WebSocket]
+      summary: Disconnect a client
+      description: Drops the connection from the server side, which is how a reconnection is exercised.
+      operationId: disconnectWsClient
+      responses:
+        '200':
+          description: Client disconnected
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  disconnected: { type: boolean }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ===== VALIDATION =====
+
+  /validate/regex:
+    post:
+      tags: [Validation]
+      summary: Test a regex path
+      description: Checks that the expression compiles and, optionally, whether it matches a test URL.
+      operationId: validateRegex
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pattern]
+              properties:
+                pattern: { type: string }
+                test_url: { type: string }
+      responses:
+        '200':
+          description: 'Result. `valid: false` is an answer, not an error.'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid: { type: boolean }
+                  matches: { type: boolean, nullable: true }
+                  error: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /validate/criteria:
+    post:
+      tags: [Validation]
+      summary: Validate a criteria expression
+      description: Checks a conditional-response expression and, when given a context, evaluates it against it. Without a context it also returns the helpers available inside expressions.
+      operationId: validateCriteria
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [criteria]
+              properties:
+                criteria: { type: string, example: "headers['x-api-key'] === 'premium'" }
+                test_context:
+                  type: object
+                  properties:
+                    headers: { type: object, additionalProperties: { type: string } }
+                    query: { type: object, additionalProperties: { type: string } }
+                    body: {}
+                    path: { type: string }
+                    method: { type: string }
+      responses:
+        '200':
+          description: Result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid: { type: boolean }
+                  result: {}
+                  error: { type: string }
+                  helpers: { type: array, items: { type: object } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /validate/script:
+    post:
+      tags: [Validation]
+      summary: Validate a transform script
+      description: Checks an `ms.*` script without saving it. With `test_context` it also runs it and returns what it produced.
+      operationId: validateScript
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [script]
+              properties:
+                script: { type: string }
+                phase: { type: string, enum: [request, response], default: request }
+                test_context:
+                  type: object
+                  properties:
+                    method: { type: string }
+                    path: { type: string }
+                    headers: { type: object, additionalProperties: { type: string } }
+                    query: { type: object, additionalProperties: { type: string } }
+                    body: { type: string }
+                    status: { type: integer }
+      responses:
+        '200':
+          description: Result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid: { type: boolean }
+                  result: { type: object }
+                  error: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        Only enforced when the server runs with `MOCK_SERVER_API_AUTH=required`.
+        Use `MOCK_SERVER_API_TOKEN` or a token created from the panel.
+
+  parameters:
+    RouteId:
+      name: id
+      in: path
+      required: true
+      description: Route id.
+      schema: { type: integer }
+    EnvironmentName:
+      name: name
+      in: path
+      required: true
+      description: Environment name, as it shows in the panel. Case is ignored.
+      schema: { type: string }
+    LogFrom:
+      name: from
+      in: query
+      description: Start of the range, epoch milliseconds.
+      schema: { type: integer, format: int64 }
+    LogTo:
+      name: to
+      in: query
+      description: End of the range, epoch milliseconds.
+      schema: { type: integer, format: int64 }
+    LogMinutes:
+      name: minutes
+      in: query
+      description: Shortcut for the last N minutes. Ignored when `from` is given.
+      schema: { type: integer }
+    LogLevel:
+      name: level
+      in: query
+      description: Comma separated.
+      schema:
+        type: string
+        example: warning,error
+    LogType:
+      name: type
+      in: query
+      description: 'Entry type, comma separated: mock, proxy, proxy-detailed, error, wait...'
+      schema: { type: string }
+    LogMethod:
+      name: method
+      in: query
+      schema: { type: string }
+    LogStatus:
+      name: status
+      in: query
+      description: 'Exact code (404) or family (4xx).'
+      schema: { type: string }
+    LogUrl:
+      name: url
+      in: query
+      description: Substring of the requested URL.
+      schema: { type: string }
+    LogSearch:
+      name: search
+      in: query
+      description: Free text over message, URL and details.
+      schema: { type: string }
+    LogRouteId:
+      name: route_id
+      in: query
+      schema: { type: integer }
+    LogTraceId:
+      name: trace_id
+      in: query
+      description: Only the entries of one request.
+      schema: { type: string }
+    LogMinDuration:
+      name: min_duration
+      in: query
+      description: Only entries slower than this, in milliseconds.
+      schema: { type: integer }
+
+  responses:
+    BadRequest:
+      description: The request is malformed or the arguments do not make sense
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Missing or invalid token
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Nothing matches
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unprocessable:
+      description: It exists, but it cannot do what was asked
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+
+    Error:
+      type: object
+      properties:
+        error: { type: string, description: 'What went wrong, in plain words' }
+        code:
+          type: string
+          enum: [invalid, unauthorized, not_found, conflict, unprocessable, internal_error]
+      example:
+        error: Route 42 not found
+        code: not_found
+
+    AuthState:
+      type: object
+      properties:
+        required: { type: boolean, description: Whether a token is demanded }
+        scheme: { type: string, example: bearer }
+        static_token_configured: { type: boolean, description: Whether MOCK_SERVER_API_TOKEN is set }
+
+    HttpMethod:
+      type: string
+      enum: [get, post, put, delete, patch, options, head, any]
+      description: "`any` answers every method."
+
+    ResponseType:
+      type: string
+      enum: [json, xml, soap, text, html, page, empty, sse, file, graphql, websocket, proxy]
+
+    BodyResponseType:
+      type: string
+      enum: [json, xml, soap, text, html, page, empty, sse]
+      description: |
+        What a step, a condition or a fallback can impose. Only the types built
+        from a text body: `file` needs an upload, `graphql` needs its
+        operations, and `proxy` and `websocket` are resolved by another path
+        entirely.
+
+    HeaderRule:
+      type: object
+      required: [action, name]
+      properties:
+        action: { type: string, enum: [set, remove] }
+        name: { type: string }
+        value: { type: string, description: Only for `set` }
+
+    Tag:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        color: { type: string }
+
+    TagInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          description: The identity. Unknown names are registered automatically.
+        color: { type: string, description: 'Hex colour, only used when the tag is created' }
+        id: { type: string, description: 'Ignored on write: the registry decides it' }
+
+    Condition:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string, nullable: true }
+        criteria: { type: string }
+        status_code: { type: string, nullable: true }
+        response_type: { type: string, nullable: true }
+        response: { type: string, nullable: true }
+
+    ConditionInput:
+      type: object
+      required: [criteria]
+      properties:
+        name: { type: string }
+        criteria:
+          type: string
+          description: |
+            JavaScript expression over `headers`, `body`, `query`, `path`,
+            `params` and `method`.
+          example: "body.amount > 100"
+        status_code: { type: string }
+        response_type: { $ref: '#/components/schemas/BodyResponseType' }
+        response: { type: string }
+
+    SequenceStep:
+      type: object
+      properties:
+        name: { type: string, description: 'Label for the step, shown in the trace' }
+        status_code: { type: string }
+        response_type: { $ref: '#/components/schemas/BodyResponseType' }
+        response: { type: string }
+        repeat: { type: integer, default: 1, description: How many consecutive calls this step covers }
+        active: { type: boolean, default: true }
+
+    FallbackInput:
+      type: object
+      required: [path_pattern, error_types]
+      properties:
+        name: { type: string }
+        path_pattern: { type: string, description: 'Regex against the path sent to the backend. Use .* for everything', example: '.*' }
+        error_types:
+          type: array
+          items: { type: string, enum: [timeout, connection, http5xx, all] }
+        status_code: { type: string, default: '200' }
+        response_type: { $ref: '#/components/schemas/BodyResponseType' }
+        response: { type: string }
+        conditions:
+          type: array
+          items: { $ref: '#/components/schemas/ConditionInput' }
+
+    GraphqlOperationInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, description: Operation or root field name }
+        type: { type: string, enum: [query, mutation], default: query }
+        response: { type: string, description: JSON body returned in mock mode }
+        use_proxy: { type: boolean, description: Forward this operation to the real server }
+        active: { type: boolean, default: true }
+
+    WebsocketMessageInput:
+      type: object
+      required: [event_type, response]
+      properties:
+        name: { type: string }
+        event_type: { type: string, enum: [onConnect, onMessage, periodic] }
+        match_pattern: { type: string, description: 'For onMessage: text or regex to match. Empty matches everything' }
+        is_regex: { type: boolean }
+        response: { type: string, description: Message sent to the client }
+        delay: { type: integer, description: Milliseconds to wait before sending }
+        interval: { type: integer, description: 'For periodic: milliseconds between sends' }
+
+    FaultsInput:
+      type: object
+      properties:
+        latency_mode: { type: string, enum: [none, fixed, random] }
+        latency_ms: { type: integer, description: 'Delay in ms, or the lower bound when the mode is random' }
+        latency_max_ms: { type: integer, description: Upper bound when the mode is random }
+        fault_rate: { type: integer, minimum: 0, maximum: 100, description: Percentage of requests that fail on purpose }
+        fault_type:
+          type: string
+          enum: [error, reset, empty]
+          description: "`error` answers fault_status with a JSON body, `reset` drops the connection, `empty` answers the code with no body."
+        fault_status: { type: string, default: '500' }
+
+    RouteRef:
+      type: object
+      properties:
+        id: { type: integer }
+        method: { type: string }
+        path: { type: string }
+
+    Route:
+      type: object
+      description: Compact view, as returned by the listing.
+      properties:
+        id: { type: integer }
+        method: { type: string }
+        path: { type: string }
+        status_code: { type: string }
+        response_type: { $ref: '#/components/schemas/ResponseType' }
+        is_regex: { type: boolean }
+        active: { type: boolean }
+        wait_mode: { type: boolean }
+        order: { type: integer, description: 'Lower wins when several routes match' }
+        tags:
+          type: array
+          items: { $ref: '#/components/schemas/Tag' }
+        summary: { type: string }
+        operation_id: { type: string }
+        has_docs: { type: boolean, description: Present when the route carries documentation }
+        docs: { type: string, description: Only with include_docs }
+
+    RouteDetail:
+      allOf:
+        - $ref: '#/components/schemas/Route'
+        - type: object
+          properties:
+            response: { type: string, description: 'The body. On a proxy route, the target URL' }
+            description: { type: string, nullable: true }
+            custom_headers:
+              type: array
+              items: { $ref: '#/components/schemas/HeaderRule' }
+            templating: { type: boolean }
+            file:
+              type: object
+              nullable: true
+              description: Only on `file` routes, the uploaded file it answers with.
+              properties:
+                name: { type: string }
+                mime_type: { type: string, nullable: true }
+            mock_script: { type: string }
+            sse_loop: { type: boolean }
+            sequence_mode: { type: string, enum: [stick, loop] }
+            sequence:
+              type: array
+              items: { $ref: '#/components/schemas/SequenceStep' }
+            calls_so_far: { type: integer, description: Calls served by the scenario since the last reset }
+            latency:
+              type: object
+              properties:
+                mode: { type: string }
+                ms: { type: integer }
+                max_ms: { type: integer }
+            fault:
+              type: object
+              properties:
+                rate: { type: integer }
+                type: { type: string }
+                status: { type: string }
+            conditions:
+              type: array
+              items: { $ref: '#/components/schemas/Condition' }
+            proxy_timeout: { type: integer }
+            proxy_request_headers:
+              type: array
+              items: { $ref: '#/components/schemas/HeaderRule' }
+            proxy_request_params:
+              type: array
+              items: { $ref: '#/components/schemas/HeaderRule' }
+            proxy_pre_script: { type: string, nullable: true }
+            proxy_post_script: { type: string, nullable: true }
+            recording: { type: boolean }
+            recording_mode: { type: string, enum: [update, skip] }
+            fallbacks:
+              type: array
+              items: { type: object }
+            graphql_operations:
+              type: array
+              items: { type: object }
+            websocket_messages:
+              type: array
+              items: { type: object }
+
+    RoutePatch:
+      type: object
+      description: Every field is optional; only what you send changes.
+      properties:
+        method: { $ref: '#/components/schemas/HttpMethod' }
+        path: { type: string, description: 'It cannot start with /api or /mcp' }
+        status_code: { type: string, description: "With '301' the body is the redirect target" }
+        response_type: { $ref: '#/components/schemas/ResponseType' }
+        response: { type: string, description: 'Response body. On proxy routes, the target URL' }
+        is_regex: { type: boolean }
+        active: { type: boolean }
+        wait_mode: { type: boolean, description: 'Hold the request until it is released' }
+        custom_headers:
+          type: array
+          items: { $ref: '#/components/schemas/HeaderRule' }
+        tags:
+          type: array
+          items: { $ref: '#/components/schemas/TagInput' }
+        operation_id: { type: string }
+        summary: { type: string }
+        description: { type: string, description: The route's documentation }
+        templating:
+          type: boolean
+          description: |
+            Resolve `{{...}}` placeholders in the body and headers. Off by
+            default, because a response can legitimately contain `{{...}}`.
+        mock_script: { type: string, description: 'ms.* script that shapes the response of a MOCK route, running last' }
+        sse_loop: { type: boolean, description: 'For sse routes: start the event list over instead of closing' }
+        conditions:
+          type: array
+          items: { $ref: '#/components/schemas/ConditionInput' }
+        proxy_timeout: { type: integer, default: 30000 }
+        proxy_request_headers:
+          type: array
+          items: { $ref: '#/components/schemas/HeaderRule' }
+        proxy_request_params:
+          type: array
+          items: { $ref: '#/components/schemas/HeaderRule' }
+        proxy_pre_script: { type: string }
+        proxy_post_script: { type: string }
+        latency_mode: { type: string, enum: [none, fixed, random] }
+        latency_ms: { type: integer }
+        latency_max_ms: { type: integer }
+        fault_rate: { type: integer }
+        fault_type: { type: string, enum: [error, reset, empty] }
+        fault_status: { type: string }
+
+    RouteInput:
+      allOf:
+        - $ref: '#/components/schemas/RoutePatch'
+        - type: object
+          required: [method, path, status_code, response_type]
+
+    RouteWithFile:
+      type: object
+      description: |
+        A route that answers with an uploaded file. Same fields as the JSON body
+        plus `file`, but a form carries only text: booleans go as `"true"` or
+        `"false"`, and `tags`, `custom_headers` and `conditions` as JSON inside
+        their own field.
+
+        On create, `file` is required when `response_type` is `file`. On update,
+        leaving it out keeps the file already there.
+      properties:
+        file:
+          type: string
+          format: binary
+          description: The file this route answers with. Up to 50 MB.
+        method: { $ref: '#/components/schemas/HttpMethod' }
+        path: { type: string }
+        status_code: { type: string }
+        response_type: { $ref: '#/components/schemas/ResponseType' }
+        is_regex: { type: boolean }
+        active: { type: boolean }
+        wait_mode: { type: boolean }
+        operation_id: { type: string }
+        summary: { type: string }
+        description: { type: string }
+        tags:
+          type: string
+          description: JSON array of tags, e.g. `[{"name":"fixtures"}]`
+        custom_headers:
+          type: string
+          description: JSON array of header rules
+        conditions:
+          type: string
+          description: JSON array of conditions
+
+    RouteSelector:
+      type: object
+      description: |
+        Which routes the operation applies to. Filters combine with AND, and at
+        least one is required: an operation with no selector would hit every
+        route, which is never what a script means.
+      properties:
+        ids:
+          type: array
+          items: { type: integer }
+        tag: { type: string, description: Tag name or id }
+        method: { type: string }
+        path: { type: string, description: Exact path }
+        path_contains: { type: string }
+        response_type: { $ref: '#/components/schemas/ResponseType' }
+        search: { type: string, description: 'Free text over path, summary, operationId and documentation' }
+
+    RouteSelectorNoTag:
+      type: object
+      description: Same selector, without `tag`, which here names the tag being applied. Use `match_tag` instead.
+      properties:
+        ids:
+          type: array
+          items: { type: integer }
+        method: { type: string }
+        path: { type: string }
+        path_contains: { type: string }
+        response_type: { $ref: '#/components/schemas/ResponseType' }
+        search: { type: string }
+
+    ActiveResult:
+      type: object
+      properties:
+        updated: { type: integer, description: Routes whose state changed }
+        active: { type: boolean }
+        routes:
+          type: array
+          items: { $ref: '#/components/schemas/RouteRef' }
+        deactivated:
+          type: array
+          description: Routes turned off for colliding with the ones enabled, when `exclusive` was used.
+          items: { $ref: '#/components/schemas/RouteRef' }
+
+    RouteUsage:
+      type: object
+      properties:
+        id: { type: integer }
+        method: { type: string }
+        path: { type: string }
+        active: { type: boolean }
+        calls: { type: integer }
+        last_call: { type: string, format: date-time, nullable: true }
+        errors: { type: integer }
+        avg_duration_ms: { type: number, nullable: true }
+
+    ScenarioReset:
+      type: object
+      properties:
+        reset: { type: boolean }
+        id: { type: integer, nullable: true }
+        cleared: { type: integer, description: Counters that were actually holding a value }
+
+    Environment:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        active: { type: boolean }
+        variables:
+          type: array
+          items: { $ref: '#/components/schemas/EnvironmentVariable' }
+
+    EnvironmentVariable:
+      type: object
+      required: [key]
+      properties:
+        key: { type: string }
+        value: { type: string }
+
+    LogEntry:
+      type: object
+      properties:
+        id: { type: integer }
+        at: { type: string, format: date-time }
+        level: { type: string, enum: [info, success, warning, error] }
+        type: { type: string }
+        message: { type: string }
+        method: { type: string }
+        url: { type: string }
+        status: { type: integer }
+        duration_ms: { type: integer }
+        target: { type: string, description: 'For proxied requests, where it went' }
+        trace_id: { type: string }
+        details: { type: object, description: 'Headers and bodies, only with include_details' }
+
+    LogStats:
+      type: object
+      properties:
+        total: { type: integer }
+        range:
+          type: object
+          nullable: true
+          properties:
+            from: { type: integer, format: int64 }
+            to: { type: integer, format: int64 }
+        by_level: { type: object, additionalProperties: { type: integer } }
+        by_type: { type: object, additionalProperties: { type: integer } }
+        top_status:
+          type: array
+          items:
+            type: object
+            properties:
+              status: { type: integer }
+              total: { type: integer }
+        duration:
+          type: object
+          nullable: true
+          properties:
+            avg: { type: number }
+            max: { type: number }
+        histogram:
+          type: array
+          items: { type: object }
+        storage:
+          type: object
+          description: 'Retention: how many entries are kept and how many there are.'
+
+    Trace:
+      type: object
+      properties:
+        trace_id: { type: string }
+        method: { type: string }
+        url: { type: string }
+        route_id: { type: integer, nullable: true }
+        status: { type: integer, nullable: true }
+        started_at: { type: string, format: date-time }
+        duration: { type: integer }
+        steps: { type: integer }
+        has_error: { type: boolean }
+        entries:
+          type: array
+          items: { type: object }
+
+    RecordingSummary:
+      type: object
+      properties:
+        created: { type: integer }
+        updated: { type: integer }
+        skipped: { type: integer }
+        routes:
+          type: array
+          items: { type: object }
+
+    VerifyResult:
+      type: object
+      properties:
+        matched: { type: integer, description: Calls that matched }
+        passed: { type: boolean, description: Whether the expectation holds. True when no expectation was given. }
+        expected: { type: string, nullable: true }
+        calls:
+          type: array
+          description: The most recent matches, up to 20.
+          items:
+            type: object
+            properties:
+              at: { type: string, format: date-time }
+              method: { type: string }
+              url: { type: string }
+              status: { type: integer, nullable: true }
+              trace_id: { type: string }
+              body: {}
+              query: {}
+
+    WaitingRequest:
+      type: object
+      properties:
+        id: { type: string }
+        method: { type: string }
+        path: { type: string }
+        at: { type: string }
+        status_code: { type: string }
+        response_type: { type: string }
+
+    VersionStatus:
+      type: object
+      properties:
+        current: { type: string }
+        latest: { type: string, nullable: true }
+        update_available: { type: boolean }
+        package_url: { type: string }
+        checked_at: { type: string, nullable: true }
+
+    ServerInfo:
+      type: object
+      properties:
+        version: { type: string }
+        total_routes: { type: integer }
+        active_routes: { type: integer }
+        documented_routes: { type: integer }
+        routes_by_type: { type: object, additionalProperties: { type: integer } }
+        response_types:
+          type: array
+          items: { type: string }
+        http_methods:
+          type: array
+          items: { type: string }
+        active_environment: { type: string, nullable: true }
+        log: { type: object }
+        auth: { $ref: '#/components/schemas/AuthState' }
+        notes:
+          type: array
+          items: { type: string }
+          description: The matching rules worth knowing before creating anything.
+        workflow: { type: object, description: The usual order of calls per route type. }

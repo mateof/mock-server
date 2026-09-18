@@ -26,6 +26,9 @@ COPY services ./services
 COPY views ./views
 COPY public ./public
 COPY locales ./locales
+# El contrato de la API: la pantalla /api-docs lo lee de aquí en tiempo de
+# ejecución, así que sin esta copia la imagen arranca pero no sabe explicarse
+COPY openapi ./openapi
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S appgroup && \

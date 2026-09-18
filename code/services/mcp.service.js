@@ -12,9 +12,12 @@
  * falta estado entre llamadas, y así no hay sesiones que caduquen ni que
  * limpiar si el cliente desaparece.
  *
- * Toda la escritura pasa por routes.service.js, el mismo que usa el panel: si
- * cada superficie tuviera su propia lógica acabarían divergiendo en las
- * validaciones y los fallos saldrían solo por un lado.
+ * Aquí solo vive el vocabulario: el esquema de argumentos de cada herramienta y
+ * la descripción que lee el asistente. La operación la hace control.service.js,
+ * la misma capa que atiende la API REST, y la escritura acaba siempre en
+ * routes.service.js, el que usa el panel. Si cada superficie tuviera su propia
+ * lógica acabarían divergiendo en las validaciones y los fallos saldrían solo
+ * por un lado.
  */
 
 const { McpServer } = require('@modelcontextprotocol/sdk/server/mcp.js');
@@ -22,24 +25,17 @@ const { StreamableHTTPServerTransport } = require('@modelcontextprotocol/sdk/ser
 const { z } = require('zod');
 
 const sqliteService = require('./sqlite.service');
-const routesService = require('./routes.service');
-const criteriaService = require('./criteria-evaluator.service');
-const scriptRunner = require('./script-runner.service');
-const logService = require('./log.service');
-const recordingService = require('./recording.service');
-const scenarioService = require('./scenario.service');
-const environmentService = require('./environment.service');
-const semaphore = require('./semaphore.service');
-const { log } = require('./socket.service');
+const control = require('./control.service');
 const { version } = require('../package.json');
 
-const RESPONSE_TYPES = ['json', 'xml', 'soap', 'text', 'html', 'page', 'empty', 'sse', 'file', 'graphql', 'websocket', 'proxy'];
+// Cada herramienta es una petición a la capa de control, la misma que atiende
+// la API REST: aquí solo viven el esquema de argumentos y la descripción que
+// lee el asistente.
+const MCP = { source: 'MCP' };
 
-// Lo que puede imponer un paso, una condición o un fallback: solo lo que se
-// construye a partir de un cuerpo de texto. Lo demás lo resuelve otro camino y
-// puesto ahí se servía como texto plano sin avisar.
-const BODY_RESPONSE_TYPES = routesService.BODY_RESPONSE_TYPES;
-const HTTP_METHODS = ['get', 'post', 'put', 'delete', 'patch', 'options', 'head', 'any'];
+const RESPONSE_TYPES = control.RESPONSE_TYPES;
+const BODY_RESPONSE_TYPES = control.BODY_RESPONSE_TYPES;
+const HTTP_METHODS = control.HTTP_METHODS;
 
 // ===== ESQUEMAS REUTILIZADOS =====
 
@@ -95,298 +91,6 @@ const routeFields = {
     conditions: z.array(conditionSchema).optional().describe('Conditional responses, evaluated in order: the first match wins')
 };
 
-/**
- * Payload completo a partir de una ruta existente.
- *
- * updateRoute reescribe la fila entera, así que cualquier herramienta que toque
- * un solo campo tiene que mandar todos los demás. Hacerlo a mano en cada una ya
- * apagó la grabación una vez al editar una transformación; con un solo sitio,
- * añadir una columna no puede volver a romperlas de una en una.
- */
-/**
- * Resuelve un conjunto de rutas por ids o por tag, que es el patrón de todas
- * las herramientas masivas.
- *
- * Devuelve un texto cuando no hay nada que hacer, para que quien llama lo
- * convierta en el error de la herramienta con su propio mensaje.
- */
-async function rutasPorIdsOTag({ ids, tag }) {
-    const rutas = await routesService.listRoutes({});
-
-    if (Array.isArray(ids) && ids.length) {
-        const encontradas = rutas.filter(r => ids.includes(r.id));
-        return encontradas.length ? encontradas : 'Ninguna ruta con esos ids';
-    }
-
-    if (tag) {
-        const buscado = String(tag).toLowerCase();
-        const encontradas = rutas.filter(r => {
-            if (!r.tags) return false;
-            try {
-                // Por nombre o por id: el asistente ve nombres en list_tags
-                return JSON.parse(r.tags).some(t =>
-                    t.id === tag || String(t.name).toLowerCase() === buscado);
-            } catch (e) {
-                return false;
-            }
-        });
-        return encontradas.length ? encontradas : `Ninguna ruta lleva el tag "${tag}"`;
-    }
-
-    return 'Hace falta ids o tag';
-}
-
-/**
- * Llama al propio servidor por HTTP.
- *
- * Se hace una petición de verdad y no se invoca el middleware a mano para que
- * pase por todo: cabeceras, cuerpo crudo, traza y log. Una llamada simulada
- * probaría un camino distinto del que usan los clientes.
- */
-function llamarASiMismo({ method, path, headers, body, timeout }) {
-    const http = require('http');
-    const puerto = process.env.PORT || 3880;
-
-    return new Promise((resolve, reject) => {
-        const peticion = http.request({
-            host: '127.0.0.1',
-            port: puerto,
-            path,
-            method,
-            headers: { ...headers, ...(body ? { 'Content-Length': Buffer.byteLength(body) } : {}) }
-        }, (respuesta) => {
-            const trozos = [];
-            respuesta.on('data', c => trozos.push(c));
-            respuesta.on('end', () => {
-                const texto = Buffer.concat(trozos).toString('utf8');
-                resolve({
-                    status: respuesta.statusCode,
-                    headers: respuesta.headers,
-                    // Se devuelve parseado cuando se puede: es lo que el
-                    // asistente va a querer mirar
-                    body: intentarJson(texto)
-                });
-            });
-        });
-
-        peticion.setTimeout(timeout, () => {
-            peticion.destroy();
-            reject(new Error(`sin respuesta en ${timeout} ms`));
-        });
-        peticion.on('error', reject);
-        if (body) peticion.write(body);
-        peticion.end();
-    });
-}
-
-function intentarJson(texto) {
-    if (!texto) return '';
-    try { return JSON.parse(texto); } catch (e) { return texto; }
-}
-
-function baseFromRoute(ruta) {
-    return {
-        tipo: ruta.tipo,
-        ruta: ruta.ruta,
-        codigo: ruta.codigo,
-        respuesta: ruta.respuesta,
-        tiporespuesta: ruta.tiporespuesta,
-        esperaActiva: ruta.esperaActiva,
-        isRegex: ruta.isRegex,
-        customHeaders: ruta.customHeaders,
-        activo: ruta.activo,
-        tags: ruta.tags,
-        operationId: ruta.operationId,
-        summary: ruta.summary,
-        description: ruta.description,
-        requestBodyExample: ruta.requestBodyExample,
-        proxyTimeout: ruta.proxy_timeout,
-        proxyRequestHeaders: ruta.proxy_request_headers,
-        proxyRequestParams: ruta.proxy_request_params,
-        proxyPreScript: ruta.proxy_pre_script,
-        proxyPostScript: ruta.proxy_post_script,
-        recording: ruta.recording === 1,
-        recordingMode: ruta.recording_mode,
-        latencyMode: ruta.latency_mode,
-        latencyMs: ruta.latency_ms,
-        latencyMaxMs: ruta.latency_max_ms,
-        faultRate: ruta.fault_rate,
-        faultType: ruta.fault_type,
-        faultStatus: ruta.fault_status,
-        templating: ruta.templating === 1,
-        sequenceMode: ruta.sequence_mode,
-        mockScript: ruta.mock_script,
-        sseLoop: ruta.sse_loop === 1
-    };
-}
-
-// ===== TRADUCCIÓN A LA CAPA DE SERVICIO =====
-
-/**
- * Los nombres de la API MCP son los que le resultan naturales a un asistente;
- * la tabla usa los suyos, en español y heredados. La traducción vive aquí y en
- * un solo sitio.
- */
-function toPayload(args, base = {}) {
-    const payload = { ...base };
-
-    if (args.method !== undefined) payload.tipo = args.method;
-    if (args.path !== undefined) payload.ruta = args.path;
-    if (args.status_code !== undefined) payload.codigo = args.status_code;
-    if (args.response_type !== undefined) payload.tiporespuesta = args.response_type;
-    if (args.response !== undefined) payload.respuesta = args.response;
-    if (args.is_regex !== undefined) payload.isRegex = args.is_regex;
-    if (args.active !== undefined) payload.activo = args.active;
-    if (args.wait_mode !== undefined) payload.esperaActiva = args.wait_mode;
-    if (args.custom_headers !== undefined) payload.customHeaders = args.custom_headers;
-    if (args.tags !== undefined) payload.tags = args.tags;
-    if (args.operation_id !== undefined) payload.operationId = args.operation_id;
-    if (args.summary !== undefined) payload.summary = args.summary;
-    if (args.description !== undefined) payload.description = args.description;
-    if (args.proxy_timeout !== undefined) payload.proxyTimeout = args.proxy_timeout;
-    if (args.proxy_request_headers !== undefined) payload.proxyRequestHeaders = args.proxy_request_headers;
-    if (args.proxy_request_params !== undefined) payload.proxyRequestParams = args.proxy_request_params;
-    if (args.proxy_pre_script !== undefined) payload.proxyPreScript = args.proxy_pre_script;
-    if (args.proxy_post_script !== undefined) payload.proxyPostScript = args.proxy_post_script;
-    if (args.recording !== undefined) payload.recording = args.recording;
-    if (args.recording_mode !== undefined) payload.recordingMode = args.recording_mode;
-    if (args.latency_mode !== undefined) payload.latencyMode = args.latency_mode;
-    if (args.latency_ms !== undefined) payload.latencyMs = args.latency_ms;
-    if (args.latency_max_ms !== undefined) payload.latencyMaxMs = args.latency_max_ms;
-    if (args.fault_rate !== undefined) payload.faultRate = args.fault_rate;
-    if (args.fault_type !== undefined) payload.faultType = args.fault_type;
-    if (args.fault_status !== undefined) payload.faultStatus = args.fault_status;
-    if (args.templating !== undefined) payload.templating = args.templating;
-    if (args.sequence_mode !== undefined) payload.sequenceMode = args.sequence_mode;
-    if (args.mock_script !== undefined) payload.mockScript = args.mock_script;
-    if (args.sse_loop !== undefined) payload.sseLoop = args.sse_loop;
-
-    if (args.conditions !== undefined) {
-        payload.conditions = args.conditions.map(c => ({
-            nombre: c.name || null,
-            criteria: c.criteria,
-            codigo: c.status_code || null,
-            tiporespuesta: c.response_type || null,
-            respuesta: c.response || null,
-            activo: 1
-        }));
-    }
-
-    return payload;
-}
-
-/**
- * Fila de la tabla al vocabulario de la API MCP
- */
-function toRouteView(row, { detailed = false, includeDocs = false } = {}) {
-    if (!row) return null;
-
-    const parse = (value) => {
-        if (!value) return null;
-        try { return JSON.parse(value); } catch (e) { return value; }
-    };
-
-    const view = {
-        id: row.id,
-        method: row.tipo,
-        path: row.ruta,
-        status_code: row.codigo,
-        response_type: row.tiporespuesta,
-        is_regex: row.isRegex === 1,
-        active: row.activo !== 0,
-        wait_mode: row.esperaActiva === 1,
-        order: row.orden,
-        tags: parse(row.tags) || []
-    };
-
-    if (row.summary) view.summary = row.summary;
-    if (row.operationId) view.operation_id = row.operationId;
-
-    // Que la ruta lleva instrucciones se dice siempre, aunque no se pidan:
-    // es lo que hace que el asistente sepa que hay algo que leer
-    if (row.description) view.has_docs = true;
-    if (includeDocs && row.description) view.docs = row.description;
-
-    if (!detailed) return view;
-
-    view.response = row.respuesta;
-    view.description = row.description || null;
-    view.docs = row.description || null;
-    view.custom_headers = parse(row.customHeaders) || [];
-    if (row.templating === 1) view.templating = true;
-    if (row.mock_script) view.mock_script = row.mock_script;
-    if (row.tiporespuesta === 'sse') view.sse_loop = row.sse_loop === 1;
-
-    if (Array.isArray(row.sequence) && row.sequence.length) {
-        view.sequence_mode = row.sequence_mode || 'stick';
-        view.sequence = row.sequence.map(p => ({
-            name: p.nombre,
-            status_code: p.codigo,
-            response_type: p.tiporespuesta,
-            response: p.respuesta,
-            repeat: p.repeticiones || 1,
-            active: p.activo !== 0
-        }));
-        view.calls_so_far = scenarioService.llamadas(row.id);
-    }
-
-    // Solo se asoma cuando hay algo configurado: en la inmensa mayoría de
-    // rutas sería ruido en cada respuesta
-    if ((row.latency_mode && row.latency_mode !== 'none') || row.fault_rate > 0) {
-        view.latency = {
-            mode: row.latency_mode || 'none',
-            ms: row.latency_ms || 0,
-            max_ms: row.latency_max_ms || 0
-        };
-        view.fault = {
-            rate: row.fault_rate || 0,
-            type: row.fault_type || 'error',
-            status: row.fault_status || '500'
-        };
-    }
-
-    if (row.tiporespuesta === 'proxy') {
-        view.proxy_timeout = row.proxy_timeout;
-        view.proxy_request_headers = parse(row.proxy_request_headers) || [];
-        view.proxy_request_params = parse(row.proxy_request_params) || [];
-        view.proxy_pre_script = row.proxy_pre_script || null;
-        view.proxy_post_script = row.proxy_post_script || null;
-        view.recording = row.recording === 1;
-        view.recording_mode = row.recording_mode || 'update';
-        view.fallbacks = (row.fallbacks || []).map(f => ({
-            id: f.id,
-            name: f.nombre,
-            path_pattern: f.path_pattern,
-            error_types: parse(f.error_types),
-            status_code: f.codigo,
-            response: f.respuesta
-        }));
-    }
-
-    view.conditions = (row.conditions || []).map(c => ({
-        id: c.id,
-        name: c.nombre,
-        criteria: c.criteria,
-        status_code: c.codigo,
-        response_type: c.tiporespuesta,
-        response: c.respuesta
-    }));
-
-    if (row.graphqlOperations) {
-        view.graphql_operations = row.graphqlOperations.map(o => ({
-            name: o.operationName, type: o.operationType, use_proxy: o.useProxy === 1
-        }));
-    }
-    if (row.websocketMessages) {
-        view.websocket_messages = row.websocketMessages.map(m => ({
-            name: m.nombre, event_type: m.event_type, match_pattern: m.match_pattern,
-            is_regex: m.is_regex === 1, response: m.respuesta, delay: m.delay, interval: m.send_interval
-        }));
-    }
-
-    return view;
-}
-
 const ok = (data) => ({ content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] });
 const fail = (message) => ({ content: [{ type: 'text', text: message }], isError: true });
 
@@ -418,38 +122,7 @@ function buildServer() {
         title: 'Server info',
         description: 'Mock server state: version, route counts by type and the rules worth knowing before creating anything.',
         inputSchema: {}
-    }, async () => run('server_info', async () => {
-        const rutas = await routesService.listRoutes();
-        const porTipo = {};
-        rutas.forEach(r => { porTipo[r.tiporespuesta] = (porTipo[r.tiporespuesta] || 0) + 1; });
-
-        const documentadas = rutas.filter(r => r.description && r.description.trim()).length;
-
-        return ok({
-            version,
-            total_routes: rutas.length,
-            documented_routes: documentadas,
-            routes_by_type: porTipo,
-            response_types: RESPONSE_TYPES,
-            http_methods: HTTP_METHODS,
-            notes: [
-                'The /api and /mcp prefixes are reserved: a route there never answers.',
-                'Exact matching ignores the query string; regex routes are tested against the full URL.',
-                'Proxy routes are always evaluated after mocks, whatever their order.',
-                'On a proxy route, response is the target URL.',
-                'A graphql route needs set_graphql_operations (or import_graphql_schema) to answer anything.',
-                'A websocket route needs set_websocket_messages to do anything.',
-                'When several routes match, the lowest order wins; reorder_routes decides it.',
-                'Routes can carry documentation: instructions on what they simulate and how they are meant to be used. list_routes flags them with has_docs and returns it with include_docs. Read it before changing a route you did not create, and leave your own with set_route_docs.'
-            ],
-            workflow: {
-                mock: 'create_route -> set_route_conditions',
-                proxy: 'create_route (response = target URL) -> set_proxy_transform -> set_proxy_fallbacks',
-                graphql: 'create_route -> import_graphql_schema or set_graphql_operations',
-                websocket: 'create_route -> set_websocket_messages'
-            }
-        });
-    }));
+    }, async (args) => run('server_info', async () => ok(await control.serverInfo())));
 
     server.registerTool('list_routes', {
         title: 'List routes',
@@ -462,40 +135,13 @@ function buildServer() {
             include_docs: z.boolean().optional().describe('Include each route\'s documentation in the listing. Off by default because it can be long'),
             documented: z.boolean().optional().describe('Only routes that have documentation (true) or only those that lack it (false)')
         }
-    }, async (args) => run('list_routes', async () => {
-        let rutas = await routesService.listRoutes({
-            tipo: args.method,
-            tiporespuesta: args.response_type,
-            activo: args.active,
-            search: args.search
-        });
-
-        if (args.documented !== undefined) {
-            rutas = rutas.filter(r => Boolean(r.description && r.description.trim()) === args.documented);
-        }
-
-        return ok({
-            count: rutas.length,
-            documented: rutas.filter(r => r.description && r.description.trim()).length,
-            routes: rutas.map(r => toRouteView(r, { includeDocs: args.include_docs === true }))
-        });
-    }));
+    }, async (args) => run('list_routes', async () => ok(await control.listRoutes(args))));
 
     server.registerTool('get_route_docs', {
         title: 'Read a route\'s documentation',
         description: 'The instructions and notes written on a route: what it simulates, how it is meant to be called, what to be careful with. Read this before changing a route you did not create.',
         inputSchema: { id: z.number() }
-    }, async (args) => run('get_route_docs', async () => {
-        const ruta = await routesService.getRoute(args.id);
-        if (!ruta) return fail(`No existe la ruta ${args.id}`);
-        return ok({
-            id: ruta.id,
-            method: ruta.tipo,
-            path: ruta.ruta,
-            docs: ruta.description || null,
-            documented: Boolean(ruta.description && ruta.description.trim())
-        });
-    }));
+    }, async (args) => run('get_route_docs', async () => ok(await control.getRouteDocs(args.id))));
 
     server.registerTool('set_route_docs', {
         title: 'Write a route\'s documentation',
@@ -505,30 +151,13 @@ function buildServer() {
             docs: z.string().describe('The documentation. An empty string clears it'),
             append: z.boolean().optional().describe('Add to the end of what is already there instead of replacing it')
         }
-    }, async (args) => run('set_route_docs', async () => {
-        const ruta = await routesService.getRoute(args.id);
-        if (!ruta) return fail(`No existe la ruta ${args.id}`);
-
-        const previo = ruta.description || '';
-        const texto = args.append && previo
-            ? `${previo.trimEnd()}\n\n${args.docs}`
-            : args.docs;
-
-        await routesService.setDocs(args.id, texto);
-
-        log.success(`🤖 MCP: documentación ${texto.trim() ? 'actualizada' : 'borrada'} en la ruta ${args.id}`);
-        return ok({ updated: true, id: args.id, docs: texto || null });
-    }));
+    }, async (args) => run('set_route_docs', async () => ok(await control.setRouteDocs(args.id, args, MCP))));
 
     server.registerTool('get_route', {
         title: 'Get a route',
         description: 'Full detail of a route: body, headers, conditions and, for proxies, fallbacks and transforms.',
         inputSchema: { id: z.number().describe('Route id') }
-    }, async ({ id }) => run('get_route', async () => {
-        const ruta = await routesService.getRoute(id);
-        if (!ruta) return fail(`No existe la ruta ${id}`);
-        return ok(toRouteView(ruta, { detailed: true }));
-    }));
+    }, async (args) => run('get_route', async () => ok(await control.getRoute(args.id))));
 
     server.registerTool('create_route', {
         title: 'Create a route',
@@ -540,62 +169,19 @@ function buildServer() {
             status_code: z.string().describe("Status code, e.g. '200'"),
             response_type: z.enum(RESPONSE_TYPES)
         }
-    }, async (args) => run('create_route', async () => {
-        const id = await routesService.createRoute(toPayload(args));
-        log.success(`🤖 MCP: ruta creada ${args.method.toUpperCase()} ${args.path}`);
-        const ruta = await routesService.getRoute(id);
-        return ok({ created: true, route: toRouteView(ruta, { detailed: true }) });
-    }));
+    }, async (args) => run('create_route', async () => ok(await control.createRoute(args, MCP))));
 
     server.registerTool('update_route', {
         title: 'Update a route',
         description: 'Changes only the fields you pass; everything else is kept as it is.',
         inputSchema: { id: z.number(), ...routeFields }
-    }, async (args) => run('update_route', async () => {
-        const actual = await routesService.getRoute(args.id);
-        if (!actual) return fail(`No existe la ruta ${args.id}`);
-
-        // Semántica de parche: se parte de lo que ya hay y se pisa lo indicado,
-        // porque un asistente que manda dos campos no espera perder los demás
-        const base = {
-            tipo: actual.tipo,
-            ruta: actual.ruta,
-            codigo: actual.codigo,
-            respuesta: actual.respuesta,
-            tiporespuesta: actual.tiporespuesta,
-            esperaActiva: actual.esperaActiva,
-            isRegex: actual.isRegex,
-            customHeaders: actual.customHeaders,
-            activo: actual.activo,
-            tags: actual.tags,
-            operationId: actual.operationId,
-            summary: actual.summary,
-            description: actual.description,
-            requestBodyExample: actual.requestBodyExample,
-            proxyTimeout: actual.proxy_timeout,
-            proxyRequestHeaders: actual.proxy_request_headers,
-            proxyRequestParams: actual.proxy_request_params,
-            proxyPreScript: actual.proxy_pre_script,
-            proxyPostScript: actual.proxy_post_script
-        };
-
-        await routesService.updateRoute(args.id, toPayload(args, base), { file: 'keep' });
-        log.success(`🤖 MCP: ruta ${args.id} actualizada`);
-        const ruta = await routesService.getRoute(args.id);
-        return ok({ updated: true, route: toRouteView(ruta, { detailed: true }) });
-    }));
+    }, async (args) => run('update_route', async () => ok(await control.updateRoute(args.id, args, MCP))));
 
     server.registerTool('delete_route', {
         title: 'Delete a route',
         description: 'Deletes a route and everything attached to it (conditions, fallbacks, operations).',
         inputSchema: { id: z.number() }
-    }, async ({ id }) => run('delete_route', async () => {
-        const ruta = await routesService.getRoute(id);
-        if (!ruta) return fail(`No existe la ruta ${id}`);
-        await routesService.deleteRoute(id);
-        log.warning(`🤖 MCP: ruta eliminada ${ruta.tipo.toUpperCase()} ${ruta.ruta}`);
-        return ok({ deleted: true, id });
-    }));
+    }, async (args) => run('delete_route', async () => ok(await control.deleteRoute(args.id, MCP))));
 
     server.registerTool('set_route_conditions', {
         title: 'Set conditional responses',
@@ -604,22 +190,7 @@ function buildServer() {
             id: z.number(),
             conditions: z.array(conditionSchema).describe('The full list; an empty list removes all of them')
         }
-    }, async ({ id, conditions }) => run('set_route_conditions', async () => {
-        const ruta = await routesService.getRoute(id);
-        if (!ruta) return fail(`No existe la ruta ${id}`);
-
-        // Se valida antes de guardar: una condición que no compila no filtraría
-        // nunca y el fallo aparecería en ejecución, lejos de aquí
-        for (const c of conditions) {
-            const check = criteriaService.validateCriteria(c.criteria);
-            if (!check.valid) return fail(`Criterio inválido en "${c.name || c.criteria}": ${check.error}`);
-        }
-
-        const payload = toPayload({ conditions });
-        await sqliteService.saveConditionalResponses(id, payload.conditions);
-        log.success(`🤖 MCP: ${conditions.length} condicion(es) en la ruta ${id}`);
-        return ok({ updated: true, count: conditions.length });
-    }));
+    }, async (args) => run('set_route_conditions', async () => ok(await control.setRouteConditions(args.id, args, MCP))));
 
     server.registerTool('set_proxy_transform', {
         title: 'Set a proxy transform',
@@ -631,24 +202,7 @@ function buildServer() {
             pre_script: z.string().optional().describe('Transforms the request. It can short-circuit with ms.respond(code, body)'),
             post_script: z.string().optional().describe('Transforms the response before returning it')
         }
-    }, async (args) => run('set_proxy_transform', async () => {
-        const ruta = await routesService.getRoute(args.id);
-        if (!ruta) return fail(`No existe la ruta ${args.id}`);
-        if (ruta.tiporespuesta !== 'proxy') {
-            return fail(`La ruta ${args.id} es de tipo "${ruta.tiporespuesta}"; las transformaciones solo existen en rutas proxy`);
-        }
-
-        await routesService.updateRoute(args.id, toPayload({
-            proxy_request_headers: args.request_headers,
-            proxy_request_params: args.request_params,
-            proxy_pre_script: args.pre_script,
-            proxy_post_script: args.post_script
-        }, baseFromRoute(ruta)), { file: 'keep' });
-
-        log.success(`🤖 MCP: transformación actualizada en la ruta ${args.id}`);
-        const actualizada = await routesService.getRoute(args.id);
-        return ok({ updated: true, route: toRouteView(actualizada, { detailed: true }) });
-    }));
+    }, async (args) => run('set_proxy_transform', async () => ok(await control.setProxyTransform(args.id, args, MCP))));
 
     server.registerTool('set_proxy_fallbacks', {
         title: 'Set proxy fallbacks',
@@ -665,35 +219,7 @@ function buildServer() {
                 conditions: z.array(conditionSchema).optional().describe('Refines the answer depending on the request')
             })).describe('The full list; an empty list removes all of them')
         }
-    }, async ({ id, fallbacks }) => run('set_proxy_fallbacks', async () => {
-        const ruta = await routesService.getRoute(id);
-        if (!ruta) return fail(`Route ${id} not found`);
-        if (ruta.tiporespuesta !== 'proxy') {
-            return fail(`Route ${id} is of type "${ruta.tiporespuesta}"; fallbacks only exist on proxy routes`);
-        }
-
-        await routesService.saveFallbacks(id, fallbacks.map((f, i) => ({
-            nombre: f.name || `fallback ${i + 1}`,
-            path_pattern: f.path_pattern,
-            error_types: f.error_types,
-            codigo: f.status_code || '200',
-            tiporespuesta: f.response_type || 'json',
-            respuesta: f.response || '',
-            activo: true,
-            conditions: (f.conditions || []).map(c => ({
-                nombre: c.name || null,
-                criteria: c.criteria,
-                codigo: c.status_code || null,
-                tiporespuesta: c.response_type || null,
-                respuesta: c.response || null,
-                activo: 1
-            }))
-        })));
-
-        log.success(`🤖 MCP: ${fallbacks.length} fallback(s) en la ruta ${id}`);
-        const actualizada = await routesService.getRoute(id);
-        return ok({ updated: true, route: toRouteView(actualizada, { detailed: true }) });
-    }));
+    }, async (args) => run('set_proxy_fallbacks', async () => ok(await control.setProxyFallbacks(args.id, args, MCP))));
 
     server.registerTool('set_graphql_operations', {
         title: 'Set GraphQL operations',
@@ -708,25 +234,7 @@ function buildServer() {
                 active: z.boolean().optional()
             })).describe('The full list; an empty list removes all of them')
         }
-    }, async ({ id, operations }) => run('set_graphql_operations', async () => {
-        const ruta = await routesService.getRoute(id);
-        if (!ruta) return fail(`Route ${id} not found`);
-        if (ruta.tiporespuesta !== 'graphql') {
-            return fail(`Route ${id} is of type "${ruta.tiporespuesta}"; operations only exist on graphql routes`);
-        }
-
-        await routesService.saveGraphQLOperations(id, operations.map(op => ({
-            operationName: op.name,
-            operationType: op.type || 'query',
-            respuesta: op.response || null,
-            useProxy: op.use_proxy ? 1 : 0,
-            activo: op.active === false ? 0 : 1
-        })));
-
-        log.success(`🤖 MCP: ${operations.length} operacion(es) GraphQL en la ruta ${id}`);
-        const actualizada = await routesService.getRoute(id);
-        return ok({ updated: true, route: toRouteView(actualizada, { detailed: true }) });
-    }));
+    }, async (args) => run('set_graphql_operations', async () => ok(await control.setGraphqlOperations(args.id, args, MCP))));
 
     server.registerTool('import_graphql_schema', {
         title: 'Import a GraphQL schema',
@@ -735,21 +243,7 @@ function buildServer() {
             id: z.number(),
             url: z.string().describe('Endpoint to introspect, e.g. https://rickandmortyapi.com/graphql')
         }
-    }, async ({ id, url }) => run('import_graphql_schema', async () => {
-        const ruta = await routesService.getRoute(id);
-        if (!ruta) return fail(`Route ${id} not found`);
-        if (ruta.tiporespuesta !== 'graphql') {
-            return fail(`Route ${id} is of type "${ruta.tiporespuesta}"; the schema only applies to graphql routes`);
-        }
-
-        const operations = await routesService.importGraphQLSchema(id, url);
-        log.success(`🤖 MCP: esquema GraphQL importado en la ruta ${id} (${operations.length} operaciones)`);
-        return ok({
-            imported: true,
-            operation_count: operations.length,
-            operations: operations.map(o => ({ name: o.operationName, type: o.operationType }))
-        });
-    }));
+    }, async (args) => run('import_graphql_schema', async () => ok(await control.importGraphqlSchema(args.id, args, MCP))));
 
     server.registerTool('set_websocket_messages', {
         title: 'Set WebSocket messages',
@@ -766,28 +260,7 @@ function buildServer() {
                 interval: z.number().optional().describe('For periodic: milliseconds between sends')
             })).describe('The full list; an empty list removes all of them')
         }
-    }, async ({ id, messages }) => run('set_websocket_messages', async () => {
-        const ruta = await routesService.getRoute(id);
-        if (!ruta) return fail(`Route ${id} not found`);
-        if (ruta.tiporespuesta !== 'websocket') {
-            return fail(`Route ${id} is of type "${ruta.tiporespuesta}"; messages only exist on websocket routes`);
-        }
-
-        await routesService.saveWebSocketMessages(id, messages.map(m => ({
-            nombre: m.name || null,
-            event_type: m.event_type,
-            match_pattern: m.match_pattern || null,
-            is_regex: m.is_regex ? 1 : 0,
-            respuesta: m.response,
-            delay: m.delay || 0,
-            send_interval: m.interval || 0,
-            activo: 1
-        })));
-
-        log.success(`🤖 MCP: ${messages.length} mensaje(s) WebSocket en la ruta ${id}`);
-        const actualizada = await routesService.getRoute(id);
-        return ok({ updated: true, route: toRouteView(actualizada, { detailed: true }) });
-    }));
+    }, async (args) => run('set_websocket_messages', async () => ok(await control.setWebsocketMessages(args.id, args, MCP))));
 
     server.registerTool('reorder_routes', {
         title: 'Reorder routes',
@@ -795,32 +268,7 @@ function buildServer() {
         inputSchema: {
             order: z.array(z.number()).describe('Route ids in the desired priority order, highest priority first')
         }
-    }, async ({ order }) => run('reorder_routes', async () => {
-        const rutas = await routesService.listRoutes();
-        const existentes = new Set(rutas.map(r => r.id));
-        const desconocidas = order.filter(id => !existentes.has(id));
-        if (desconocidas.length) {
-            return fail(`These routes do not exist: ${desconocidas.join(', ')}`);
-        }
-
-        // Los proxies viven en su propio rango alto para quedar siempre por
-        // detrás de los mocks: se respeta numerándolos aparte
-        const porId = new Map(rutas.map(r => [r.id, r]));
-        const orders = [];
-        let mock = 1;
-        let proxy = 99999999;
-        for (const id of order) {
-            if (porId.get(id).tiporespuesta === 'proxy') {
-                orders.push({ id, orden: proxy-- });
-            } else {
-                orders.push({ id, orden: mock++ });
-            }
-        }
-
-        await routesService.reorderRoutes(orders);
-        log.success(`🤖 MCP: ${orders.length} rutas reordenadas`);
-        return ok({ reordered: orders.length, order: orders });
-    }));
+    }, async (args) => run('reorder_routes', async () => ok(await control.reorderRoutes(args, MCP))));
 
     server.registerTool('duplicate_route', {
         title: 'Duplicate a route',
@@ -829,12 +277,7 @@ function buildServer() {
             id: z.number(),
             new_path: z.string().describe('Path for the copy')
         }
-    }, async ({ id, new_path }) => run('duplicate_route', async () => {
-        const nuevoId = await routesService.duplicateRoute(id, new_path);
-        log.success(`🤖 MCP: ruta ${id} duplicada en ${new_path}`);
-        const copia = await routesService.getRoute(nuevoId);
-        return ok({ created: true, route: toRouteView(copia, { detailed: true }) });
-    }));
+    }, async (args) => run('duplicate_route', async () => ok(await control.duplicateRoute(args.id, args, MCP))));
 
     server.registerTool('create_tag', {
         title: 'Create a tag',
@@ -843,19 +286,13 @@ function buildServer() {
             name: z.string(),
             color: z.string().optional().describe('Hex colour, e.g. #6366f1')
         }
-    }, async ({ name, color }) => run('create_tag', async () => {
-        const tag = await sqliteService.getOrCreateTag(name, color);
-        return ok({ tag });
-    }));
+    }, async (args) => run('create_tag', async () => ok(await control.createTag(args, MCP))));
 
     server.registerTool('delete_tag', {
         title: 'Delete a tag',
         description: 'Deletes a tag and removes it from every route carrying it.',
         inputSchema: { id: z.string() }
-    }, async ({ id }) => run('delete_tag', async () => {
-        await sqliteService.deleteTag(id);
-        return ok({ deleted: true, id });
-    }));
+    }, async (args) => run('delete_tag', async () => ok(await control.deleteTag(args.id, MCP))));
 
     server.registerTool('verify_calls', {
         title: 'Check what was actually called',
@@ -870,21 +307,7 @@ function buildServer() {
             at_least: z.number().optional(),
             at_most: z.number().optional()
         }
-    }, async (args) => run('verify_calls', async () => {
-        const resultado = await logService.verificarLlamadas({
-            path: args.path,
-            method: args.method,
-            status: args.status,
-            bodyContains: args.body_contains,
-            since: args.since_ms
-        }, {
-            times: args.times,
-            atLeast: args.at_least,
-            atMost: args.at_most
-        });
-
-        return ok(resultado);
-    }));
+    }, async (args) => run('verify_calls', async () => ok(await control.verifyCalls(args))));
 
     server.registerTool('set_routes_active', {
         title: 'Enable or disable routes in bulk',
@@ -894,48 +317,7 @@ function buildServer() {
             ids: z.array(z.number()).optional().describe('Route ids. Takes precedence over tag'),
             tag: z.string().optional().describe('Tag name or id: every route carrying it')
         }
-    }, async (args) => run('set_routes_active', async () => {
-        const rutas = await routesService.listRoutes({});
-        let objetivo = [];
-
-        if (Array.isArray(args.ids) && args.ids.length) {
-            objetivo = rutas.filter(r => args.ids.includes(r.id));
-        } else if (args.tag) {
-            const buscado = String(args.tag).toLowerCase();
-            objetivo = rutas.filter(r => {
-                if (!r.tags) return false;
-                try {
-                    // Se admite el nombre o el id: el asistente ve nombres en
-                    // list_tags y pedirle que traduzca a id sería un paso de más
-                    return JSON.parse(r.tags).some(t =>
-                        t.id === args.tag || String(t.name).toLowerCase() === buscado);
-                } catch (e) {
-                    return false;
-                }
-            });
-        } else {
-            return fail('Hace falta ids o tag');
-        }
-
-        if (objetivo.length === 0) {
-            return fail(args.tag ? `Ninguna ruta lleva el tag "${args.tag}"` : 'Ninguna ruta con esos ids');
-        }
-
-        for (const ruta of objetivo) {
-            const completa = await routesService.getRoute(ruta.id);
-            await routesService.updateRoute(ruta.id, {
-                ...baseFromRoute(completa),
-                activo: args.active
-            }, { file: 'keep' });
-        }
-
-        log.success(`🤖 MCP: ${objetivo.length} rutas ${args.active ? 'activadas' : 'desactivadas'}`);
-        return ok({
-            updated: objetivo.length,
-            active: args.active,
-            routes: objetivo.map(r => ({ id: r.id, method: r.tipo, path: r.ruta }))
-        });
-    }));
+    }, async (args) => run('set_routes_active', async () => ok(await control.setRoutesActive(args, MCP))));
 
     server.registerTool('route_usage', {
         title: 'Which routes are actually used',
@@ -944,34 +326,7 @@ function buildServer() {
             since_ms: z.number().optional().describe('Epoch ms lower bound. Without it, everything still in the log'),
             include_unused: z.boolean().optional().describe('Also list routes with no calls at all. Default true')
         }
-    }, async (args) => run('route_usage', async () => {
-        const uso = await logService.usoPorRuta({ from: args.since_ms });
-        const rutas = await routesService.listRoutes({});
-        const incluirSinUso = args.include_unused !== false;
-
-        const filas = rutas
-            .map(r => {
-                const datos = uso[r.id] || { calls: 0, last_call: null, errors: 0, avg_duration: null };
-                return {
-                    id: r.id,
-                    method: r.tipo,
-                    path: r.ruta,
-                    active: r.activo !== 0,
-                    calls: datos.calls,
-                    last_call: datos.last_call ? new Date(datos.last_call).toISOString() : null,
-                    errors: datos.errors,
-                    avg_duration_ms: datos.avg_duration
-                };
-            })
-            .filter(r => incluirSinUso || r.calls > 0)
-            .sort((a, b) => b.calls - a.calls);
-
-        return ok({
-            routes: filas,
-            unused: filas.filter(r => r.calls === 0).length,
-            total: filas.length
-        });
-    }));
+    }, async (args) => run('route_usage', async () => ok(await control.routeUsage(args))));
 
     server.registerTool('set_route_sequence', {
         title: 'Set a stateful scenario',
@@ -988,36 +343,13 @@ function buildServer() {
                 active: z.boolean().optional()
             })).describe('Steps in order. An empty array removes the scenario')
         }
-    }, async (args) => run('set_route_sequence', async () => {
-        const ruta = await routesService.getRoute(args.id);
-        if (!ruta) return fail(`No existe la ruta ${args.id}`);
-        if (ruta.tiporespuesta === 'proxy') {
-            return fail(`La ruta ${args.id} es proxy; los escenarios solo existen en rutas mock`);
-        }
-
-        await routesService.saveSequence(args.id, (args.sequence || []).map(p => ({
-            nombre: p.name || null,
-            codigo: p.status_code || null,
-            tiporespuesta: p.response_type || null,
-            respuesta: p.response === undefined ? null : p.response,
-            repeticiones: p.repeat || 1,
-            activo: p.active !== false
-        })), args.mode);
-
-        log.success(`🤖 MCP: escenario de la ruta ${args.id} actualizado (${(args.sequence || []).length} pasos)`);
-        const actualizada = await routesService.getRoute(args.id);
-        return ok({ updated: true, route: toRouteView(actualizada, { detailed: true }) });
-    }));
+    }, async (args) => run('set_route_sequence', async () => ok(await control.setRouteSequence(args.id, args, MCP))));
 
     server.registerTool('reset_route_sequence', {
         title: 'Restart a scenario',
         description: 'Puts the call counter back to zero so the scenario starts from its first step again. Without an id, every scenario is reset.',
         inputSchema: { id: z.number().optional() }
-    }, async (args) => run('reset_route_sequence', async () => {
-        const total = scenarioService.reiniciar(args.id);
-        log.success(`🤖 MCP: escenario reiniciado${args.id ? ` en la ruta ${args.id}` : ' (todas las rutas)'}`);
-        return ok({ reset: true, id: args.id ?? null, cleared: total });
-    }));
+    }, async (args) => run('reset_route_sequence', async () => ok(await control.resetRouteSequence(args, MCP))));
 
     server.registerTool('set_route_faults', {
         title: 'Set latency and fault injection',
@@ -1031,25 +363,7 @@ function buildServer() {
             fault_type: z.enum(['error', 'reset', 'empty']).optional(),
             fault_status: z.string().optional().describe("Status code for 'error' and 'empty'. Default '500'")
         }
-    }, async (args) => run('set_route_faults', async () => {
-        const ruta = await routesService.getRoute(args.id);
-        if (!ruta) return fail(`No existe la ruta ${args.id}`);
-
-        const base = baseFromRoute(ruta);
-        await routesService.updateRoute(args.id, {
-            ...base,
-            latencyMode: args.latency_mode === undefined ? base.latencyMode : args.latency_mode,
-            latencyMs: args.latency_ms === undefined ? base.latencyMs : args.latency_ms,
-            latencyMaxMs: args.latency_max_ms === undefined ? base.latencyMaxMs : args.latency_max_ms,
-            faultRate: args.fault_rate === undefined ? base.faultRate : args.fault_rate,
-            faultType: args.fault_type === undefined ? base.faultType : args.fault_type,
-            faultStatus: args.fault_status === undefined ? base.faultStatus : args.fault_status
-        }, { file: 'keep' });
-
-        log.success(`🤖 MCP: latencia y fallos actualizados en la ruta ${args.id}`);
-        const actualizada = await routesService.getRoute(args.id);
-        return ok({ updated: true, route: toRouteView(actualizada, { detailed: true }) });
-    }));
+    }, async (args) => run('set_route_faults', async () => ok(await control.setRouteFaults(args.id, args, MCP))));
 
     // ===== GRABACIÓN =====
 
@@ -1061,23 +375,7 @@ function buildServer() {
             recording: z.boolean(),
             mode: z.enum(['update', 'skip']).optional().describe('What to do when a mock for that method and path already exists. Default: update')
         }
-    }, async (args) => run('set_route_recording', async () => {
-        const ruta = await routesService.getRoute(args.id);
-        if (!ruta) return fail(`No existe la ruta ${args.id}`);
-        if (ruta.tiporespuesta !== 'proxy') {
-            return fail(`La ruta ${args.id} es de tipo "${ruta.tiporespuesta}"; la grabación solo existe en rutas proxy`);
-        }
-
-        await routesService.updateRoute(args.id, {
-            ...baseFromRoute(ruta),
-            recording: args.recording,
-            recordingMode: args.mode || ruta.recording_mode
-        }, { file: 'keep' });
-
-        log.success(`🤖 MCP: grabación ${args.recording ? 'activada' : 'desactivada'} en la ruta ${args.id}`);
-        const actualizada = await routesService.getRoute(args.id);
-        return ok({ updated: true, route: toRouteView(actualizada, { detailed: true }) });
-    }));
+    }, async (args) => run('set_route_recording', async () => ok(await control.setRouteRecording(args.id, args, MCP))));
 
     server.registerTool('create_mocks_from_logs', {
         title: 'Turn recorded traffic into mocks',
@@ -1094,24 +392,7 @@ function buildServer() {
             mode: z.enum(['update', 'skip']).optional().describe('What to do when the mock already exists. Default: update'),
             tags: z.array(z.string()).optional()
         }
-    }, async (args) => run('create_mocks_from_logs', async () => {
-        const resumen = await recordingService.desdeFiltrosDeLog({
-            url: args.url,
-            from: args.from,
-            to: args.to,
-            method: args.method,
-            status: args.status,
-            traceId: args.trace_id,
-            limit: args.limit
-        }, {
-            activo: !!args.active,
-            mode: args.mode,
-            tags: args.tags
-        });
-
-        log.success(`🤖 MCP: ${resumen.created} rutas creadas y ${resumen.updated} actualizadas desde el log`);
-        return ok(resumen);
-    }));
+    }, async (args) => run('create_mocks_from_logs', async () => ok(await control.createMocksFromLogs(args, MCP))));
 
     server.registerTool('create_mock_from_log_entry', {
         title: 'Turn one log line into a mock',
@@ -1122,20 +403,7 @@ function buildServer() {
             mode: z.enum(['update', 'skip']).optional(),
             tags: z.array(z.string()).optional()
         }
-    }, async (args) => run('create_mock_from_log_entry', async () => {
-        const resultado = await recordingService.desdeEntradaDeLog(args.log_id, {
-            activo: args.active === undefined ? true : args.active,
-            mode: args.mode,
-            tags: args.tags
-        });
-
-        if (resultado.action === 'skipped') {
-            return fail(`No se pudo convertir la entrada ${args.log_id}: ${resultado.reason}`);
-        }
-
-        log.success(`🤖 MCP: ruta ${resultado.id} ${resultado.action} desde la entrada ${args.log_id} del log`);
-        return ok(resultado);
-    }));
+    }, async (args) => run('create_mock_from_log_entry', async () => ok(await control.createMockFromLogEntry(args.log_id, args, MCP))));
 
     server.registerTool('try_route', {
         title: 'Call a route and see what it answers',
@@ -1147,58 +415,13 @@ function buildServer() {
             headers: z.array(headerRuleSchema).optional().describe('Request headers, using the set action'),
             timeout_ms: z.number().optional().describe('Default 10000')
         }
-    }, async (args) => run('try_route', async () => {
-        const camino = args.path.startsWith('/') ? args.path : `/${args.path}`;
-        if (routesService.isReservedRoute(camino)) {
-            return fail(`${camino} es un prefijo reservado del panel, no una ruta simulada`);
-        }
-
-        const cabeceras = {};
-        for (const regla of args.headers || []) {
-            if (regla.action !== 'remove' && regla.name) cabeceras[regla.name] = regla.value || '';
-        }
-        if (args.body && !cabeceras['content-type'] && !cabeceras['Content-Type']) {
-            // Sin content-type, un cuerpo JSON llega al mock como texto suelto y
-            // las condiciones sobre body no casan: el fallo más probable aquí
-            cabeceras['Content-Type'] = 'application/json';
-        }
-
-        const inicio = Date.now();
-        try {
-            const respuesta = await llamarASiMismo({
-                method: (args.method || 'GET').toUpperCase(),
-                path: camino,
-                headers: cabeceras,
-                body: args.body,
-                timeout: args.timeout_ms || 10000
-            });
-
-            return ok({
-                status: respuesta.status,
-                duration_ms: Date.now() - inicio,
-                headers: respuesta.headers,
-                body: respuesta.body,
-                trace_id: respuesta.headers['x-mock-trace-id'] || null
-            });
-        } catch (e) {
-            return fail(`No se pudo llamar a ${camino}: ${e.message}`);
-        }
-    }));
+    }, async (args) => run('try_route', async () => ok(await control.tryRoute(args))));
 
     server.registerTool('list_waiting', {
         title: 'Requests held by active wait',
         description: 'Routes with active wait hold their requests until something releases them. This lists what is currently held, with the response each one is about to send.',
         inputSchema: {}
-    }, async () => run('list_waiting', async () => {
-        const lista = semaphore.getList();
-        return ok({
-            count: lista.length,
-            waiting: lista.map(e => ({
-                id: e.id, method: e.method, path: e.url, at: e.date,
-                status_code: e.codigo, response_type: e.tiporespuesta
-            }))
-        });
-    }));
+    }, async (args) => run('list_waiting', async () => ok(control.listWaiting())));
 
     server.registerTool('release_waiting', {
         title: 'Release a held request',
@@ -1208,18 +431,7 @@ function buildServer() {
             status_code: z.string().optional().describe('Override the status it answers'),
             response: z.string().optional().describe('Override the body it answers')
         }
-    }, async (args) => run('release_waiting', async () => {
-        const personalizada = (args.status_code || args.response)
-            ? { code: args.status_code, body: args.response }
-            : null;
-
-        const objetivos = args.id ? [args.id] : semaphore.getList().map(e => e.id);
-        if (!objetivos.length) return fail('No hay ninguna petición retenida');
-
-        const liberadas = objetivos.filter(id => semaphore.wakeUp(id, personalizada));
-        log.success(`🤖 MCP: ${liberadas.length} peticiones liberadas`);
-        return ok({ released: liberadas.length, ids: liberadas });
-    }));
+    }, async (args) => run('release_waiting', async () => ok(control.releaseWaiting(args, MCP))));
 
     server.registerTool('delete_routes', {
         title: 'Delete several routes at once',
@@ -1228,17 +440,7 @@ function buildServer() {
             ids: z.array(z.number()).optional(),
             tag: z.string().optional().describe('Tag name or id: every route carrying it')
         }
-    }, async (args) => run('delete_routes', async () => {
-        const objetivo = await rutasPorIdsOTag(args);
-        if (typeof objetivo === 'string') return fail(objetivo);
-
-        for (const ruta of objetivo) await routesService.deleteRoute(ruta.id);
-        log.success(`🤖 MCP: ${objetivo.length} rutas eliminadas`);
-        return ok({
-            deleted: objetivo.length,
-            routes: objetivo.map(r => ({ id: r.id, method: r.tipo, path: r.ruta }))
-        });
-    }));
+    }, async (args) => run('delete_routes', async () => ok(await control.deleteRoutes(args, MCP))));
 
     server.registerTool('set_routes_tags', {
         title: 'Add or remove a tag on several routes',
@@ -1249,32 +451,7 @@ function buildServer() {
             ids: z.array(z.number()).optional(),
             match_tag: z.string().optional().describe('Instead of ids: every route carrying this other tag')
         }
-    }, async (args) => run('set_routes_tags', async () => {
-        const objetivo = await rutasPorIdsOTag({ ids: args.ids, tag: args.match_tag });
-        if (typeof objetivo === 'string') return fail(objetivo);
-
-        let cambiadas = 0;
-        for (const fila of objetivo) {
-            const ruta = await routesService.getRoute(fila.id);
-            let actuales = [];
-            try { actuales = ruta.tags ? JSON.parse(ruta.tags) : []; } catch (e) { actuales = []; }
-
-            const nombre = args.tag.toLowerCase();
-            const tenia = actuales.some(t => String(t.name).toLowerCase() === nombre);
-            if (args.action === 'add' && tenia) continue;
-            if (args.action === 'remove' && !tenia) continue;
-
-            const nuevas = args.action === 'remove'
-                ? actuales.filter(t => String(t.name).toLowerCase() !== nombre)
-                : [...actuales, { name: args.tag }];
-
-            await routesService.updateRoute(fila.id, { ...baseFromRoute(ruta), tags: nuevas }, { file: 'keep' });
-            cambiadas += 1;
-        }
-
-        log.success(`🤖 MCP: tag "${args.tag}" ${args.action === 'add' ? 'añadido a' : 'quitado de'} ${cambiadas} rutas`);
-        return ok({ updated: cambiadas, tag: args.tag, action: args.action });
-    }));
+    }, async (args) => run('set_routes_tags', async () => ok(await control.setRoutesTags(args, MCP))));
 
     server.registerTool('clear_logs', {
         title: 'Empty the log',
@@ -1285,15 +462,12 @@ function buildServer() {
             level: z.string().optional().describe('info, success, warning or error'),
             type: z.string().optional()
         }
-    }, async (args) => run('clear_logs', async () => {
-        const eliminados = await logService.clear({
-            from: args.from_ms, to: args.to_ms,
+    }, async (args) => run('clear_logs', async () => ok(await control.clearLogs({
+            from: args.from_ms,
+            to: args.to_ms,
             level: args.level ? [args.level] : null,
             type: args.type ? [args.type] : null
-        });
-        log.success(`🤖 MCP: ${eliminados} entradas de log eliminadas`);
-        return ok({ deleted: eliminados });
-    }));
+        }, MCP))));
 
     // ===== ENTORNOS =====
 
@@ -1301,14 +475,7 @@ function buildServer() {
         title: 'List environments and their variables',
         description: 'Environments hold variables that routes reference as ${NAME} in the proxy target, the response body and the headers. Only one is active, and that is the one routes resolve against. Read this before pointing routes at a backend, so you use the variable instead of hardcoding a URL.',
         inputSchema: {}
-    }, async () => run('list_environments', async () => {
-        const entornos = await environmentService.listar();
-        return ok({
-            active: environmentService.activo().name,
-            count: entornos.length,
-            environments: entornos
-        });
-    }));
+    }, async (args) => run('list_environments', async () => ok(await control.listEnvironments())));
 
     server.registerTool('set_environment', {
         title: 'Create an environment or change its variables',
@@ -1320,49 +487,13 @@ function buildServer() {
                 .describe("How to apply variables. 'merge' (default) adds and updates without touching the rest; 'replace' makes the list the whole set, which is how you delete several at once. To change one variable, set_env_var is safer than either"),
             activate: z.boolean().optional().describe('Make it the active environment')
         }
-    }, async (args) => run('set_environment', async () => {
-        const entornos = await environmentService.listar();
-        let entorno = entornos.find(e => e.name.toLowerCase() === args.name.toLowerCase());
-
-        try {
-        if (!entorno) {
-            entorno = await environmentService.crear(args.name, args.variables);
-        } else if (args.variables) {
-            // Mezclar por defecto: reemplazar obliga a leer y reenviar todo, y
-            // el olvido de una variable la borra sin decir nada
-            if (args.mode === 'replace') {
-                await environmentService.guardarVariables(entorno.id, args.variables);
-            } else {
-                await environmentService.mezclarVariables(entorno.id, args.variables);
-            }
-        }
-
-        if (args.activate) await environmentService.activar(entorno.id);
-        } catch (e) {
-            return fail(e.message);
-        }
-
-        log.success(`🤖 MCP: entorno "${args.name}" guardado${args.activate ? ' y activado' : ''}`);
-        const actualizados = await environmentService.listar();
-        return ok({
-            active: environmentService.activo().name,
-            environment: actualizados.find(e => e.id === entorno.id)
-        });
-    }));
+    }, async (args) => run('set_environment', async () => ok(await control.setEnvironment(args, MCP))));
 
     server.registerTool('get_environment', {
         title: 'Read one environment',
         description: 'The variables of a single environment, by name. Without a name, the active one.',
         inputSchema: { name: z.string().optional() }
-    }, async (args) => run('get_environment', async () => {
-        const entornos = await environmentService.listar();
-        const entorno = args.name
-            ? entornos.find(e => e.name.toLowerCase() === args.name.toLowerCase())
-            : entornos.find(e => e.active);
-
-        if (!entorno) return fail(args.name ? `No existe el entorno "${args.name}"` : 'No hay ningún entorno activo');
-        return ok({ environment: entorno });
-    }));
+    }, async (args) => run('get_environment', async () => ok(await control.getEnvironment(args))));
 
     server.registerTool('set_env_var', {
         title: 'Set one environment variable',
@@ -1372,19 +503,7 @@ function buildServer() {
             value: z.string(),
             environment: z.string().optional().describe('Environment name. Without it, the active one')
         }
-    }, async (args) => run('set_env_var', async () => {
-        try {
-            const r = await environmentService.fijarVariable(args.environment, args.key, args.value);
-            log.success(`🤖 MCP: ${r.key} fijada en "${r.environment}"`);
-            const entornos = await environmentService.listar();
-            return ok({
-                updated: true, ...r,
-                environment_detail: entornos.find(e => e.name === r.environment)
-            });
-        } catch (e) {
-            return fail(e.message);
-        }
-    }));
+    }, async (args) => run('set_env_var', async () => ok(await control.setEnvVar(args, MCP))));
 
     server.registerTool('delete_env_var', {
         title: 'Delete one environment variable',
@@ -1393,79 +512,31 @@ function buildServer() {
             key: z.string(),
             environment: z.string().optional().describe('Environment name. Without it, the active one')
         }
-    }, async (args) => run('delete_env_var', async () => {
-        try {
-            const r = await environmentService.borrarVariable(args.environment, args.key);
-            if (!r.deleted) return fail(`"${args.key}" no existe en "${r.environment}"`);
-            log.success(`🤖 MCP: ${r.key} eliminada de "${r.environment}"`);
-            return ok(r);
-        } catch (e) {
-            return fail(e.message);
-        }
-    }));
+    }, async (args) => run('delete_env_var', async () => ok(await control.deleteEnvVar(args, MCP))));
 
     server.registerTool('rename_environment', {
         title: 'Rename an environment',
         description: 'Changes the name, keeping its variables and whether it was the active one.',
         inputSchema: { name: z.string(), new_name: z.string() }
-    }, async (args) => run('rename_environment', async () => {
-        try {
-            const r = await environmentService.renombrar(args.name, args.new_name);
-            log.success(`🤖 MCP: entorno "${r.previous}" renombrado a "${r.name}"`);
-            return ok({ renamed: true, ...r });
-        } catch (e) {
-            return fail(e.message);
-        }
-    }));
+    }, async (args) => run('rename_environment', async () => ok(await control.renameEnvironment(args, MCP))));
 
     server.registerTool('activate_environment', {
         title: 'Switch the active environment',
         description: 'Makes an environment the one routes resolve their ${NAME} references against. It takes effect on the next request, with no reload.',
         inputSchema: { name: z.string() }
-    }, async (args) => run('activate_environment', async () => {
-        const entornos = await environmentService.listar();
-        const entorno = entornos.find(e => e.name.toLowerCase() === args.name.toLowerCase());
-        if (!entorno) return fail(`No existe el entorno "${args.name}"`);
-
-        try {
-            await environmentService.activar(entorno.id);
-        } catch (e) {
-            return fail(e.message);
-        }
-        log.success(`🤖 MCP: entorno activo cambiado a "${entorno.name}"`);
-        return ok({ active: entorno.name, variables: entorno.variables.length });
-    }));
+    }, async (args) => run('activate_environment', async () => ok(await control.activateEnvironment(args, MCP))));
 
     server.registerTool('delete_environment', {
         title: 'Delete an environment',
         description: 'Removes an environment and its variables. The last remaining one cannot be deleted, and deleting the active one moves the flag to another.',
         inputSchema: { name: z.string() }
-    }, async (args) => run('delete_environment', async () => {
-        const entornos = await environmentService.listar();
-        const entorno = entornos.find(e => e.name.toLowerCase() === args.name.toLowerCase());
-        if (!entorno) return fail(`No existe el entorno "${args.name}"`);
-
-        try {
-            await environmentService.eliminar(entorno.id);
-        } catch (e) {
-            // El caso normal aquí es "es el único que queda", que es una regla
-            // del dominio y no un fallo: se cuenta tal cual
-            return fail(e.message);
-        }
-
-        log.success(`🤖 MCP: entorno "${entorno.name}" eliminado`);
-        return ok({ deleted: true, active: environmentService.activo().name });
-    }));
+    }, async (args) => run('delete_environment', async () => ok(await control.deleteEnvironment(args, MCP))));
 
     server.registerTool('check_environment_usage', {
         title: 'Which routes reference variables, and which are missing',
         description: 'Reports every route that uses ${NAME} and, of those, which names the active environment does not define. It looks at the response body, headers, proxy target and rules, the scripts, and the criteria of conditions and fallbacks. Undefined variables are left in the text rather than blanked, so a route can answer with ${NAME} inside it; this is how you find that before it happens.',
         inputSchema: {}
-    }, async () => run('check_environment_usage', async () => {
-        // El análisis vive en el servicio: duplicarlo aquí es como uno de los
-        // dos se queda sin mirar un campo nuevo
-        return ok(await environmentService.analizarUso());
-    }));
+    }, async (args) => run('check_environment_usage', async () => ok(await control.checkEnvironmentUsage())));
 
     server.registerTool('validate_script', {
         title: 'Validate a transform script',
@@ -1482,31 +553,7 @@ function buildServer() {
                 status: z.number().optional()
             }).optional()
         }
-    }, async ({ script, phase, test_context }) => run('validate_script', async () => {
-        const validation = scriptRunner.validateScript(script);
-        if (!validation.valid) return ok({ valid: false, error: validation.error });
-        if (!test_context) return ok({ valid: true });
-
-        const vars = {};
-        const outcome = phase === 'response'
-            ? scriptRunner.runResponseScript(script, {
-                status: test_context.status || 200,
-                headers: test_context.headers || {},
-                bodyText: test_context.body || '{}',
-                request: {},
-                vars
-            })
-            : scriptRunner.runRequestScript(script, {
-                method: test_context.method || 'GET',
-                path: test_context.path || '/',
-                query: test_context.query || {},
-                headers: test_context.headers || {},
-                bodyText: test_context.body || '',
-                vars
-            });
-
-        return ok({ valid: true, result: outcome });
-    }));
+    }, async (args) => run('validate_script', async () => ok(control.validateScript(args))));
 
     server.registerTool('validate_criteria', {
         title: 'Validate a criteria expression',
@@ -1521,12 +568,7 @@ function buildServer() {
                 method: z.string().optional()
             }).optional()
         }
-    }, async ({ criteria, test_context }) => run('validate_criteria', async () => {
-        const validation = criteriaService.validateCriteria(criteria);
-        if (!validation.valid) return ok({ valid: false, error: validation.error });
-        if (!test_context) return ok({ valid: true, helpers: criteriaService.getAvailableHelpers() });
-        return ok({ valid: true, result: criteriaService.evaluateCriteria(criteria, test_context) });
-    }));
+    }, async (args) => run('validate_criteria', async () => ok(control.validateCriteria(args))));
 
     server.registerTool('validate_regex', {
         title: 'Test a regex path',
@@ -1535,14 +577,7 @@ function buildServer() {
             pattern: z.string(),
             test_url: z.string().optional()
         }
-    }, async ({ pattern, test_url }) => run('validate_regex', async () => {
-        try {
-            const regex = new RegExp(pattern);
-            return ok({ valid: true, matches: test_url ? regex.test(test_url) : null });
-        } catch (e) {
-            return ok({ valid: false, error: e.message });
-        }
-    }));
+    }, async (args) => run('validate_regex', async () => ok(control.validateRegex(args))));
 
     // Filtros del log, compartidos por las dos herramientas para que el resumen
     // y el detalle no puedan contar cosas distintas
@@ -1560,19 +595,6 @@ function buildServer() {
         trace_id: z.string().optional().describe('Only entries of one request, as returned by X-Mock-Trace-Id')
     };
 
-    const toLogFilters = (args) => ({
-        from: args.minutes && !args.from ? Date.now() - args.minutes * 60000 : args.from,
-        to: args.to,
-        level: args.level,
-        type: args.type,
-        method: args.method,
-        status: args.status,
-        url: args.url,
-        search: args.search,
-        minDuration: args.min_duration,
-        traceId: args.trace_id
-    });
-
     server.registerTool('query_logs', {
         title: 'Query the log',
         description: 'Reads the recorded traffic: which requests arrived, what was answered, how long it took and, for proxied requests, the full headers and bodies. This is how you find out what actually happened instead of guessing.',
@@ -1582,34 +604,7 @@ function buildServer() {
             offset: z.number().optional(),
             include_details: z.boolean().optional().describe('Include headers and bodies. Off by default because they are big')
         }
-    }, async (args) => run('query_logs', async () => {
-        const resultado = await logService.query({
-            ...toLogFilters(args),
-            limit: args.limit,
-            offset: args.offset
-        });
-
-        return ok({
-            total: resultado.total,
-            returned: resultado.count,
-            entries: resultado.entries.map(e => {
-                const vista = {
-                    id: e.id,
-                    at: e.ts,
-                    level: e.level,
-                    type: e.type,
-                    message: e.message
-                };
-                if (e.method) vista.method = e.method;
-                if (e.url) vista.url = e.url;
-                if (e.status !== null) vista.status = e.status;
-                if (e.duration !== null) vista.duration_ms = e.duration;
-                if (e.target) vista.target = e.target;
-                if (args.include_details && e.details) vista.details = e.details;
-                return vista;
-            })
-        });
-    }));
+    }, async (args) => run('query_logs', async () => ok(await control.queryLogs(args))));
 
     server.registerTool('get_trace', {
         title: 'Get a request trace',
@@ -1617,37 +612,19 @@ function buildServer() {
         inputSchema: {
             trace_id: z.string().describe('Trace id. Every answer carries it in the X-Mock-Trace-Id header, and query_logs returns it')
         }
-    }, async ({ trace_id }) => run('get_trace', async () => {
-        const traza = await logService.getTrace(trace_id);
-        if (!traza) return fail(`Trace ${trace_id} not found. It may have been pruned by the log retention.`);
-        return ok(traza);
-    }));
+    }, async (args) => run('get_trace', async () => ok(await control.getTrace(args.trace_id))));
 
     server.registerTool('log_stats', {
         title: 'Log summary',
         description: 'Totals by level, by type and by status code, average and worst duration, and a histogram over time. Use it to spot what is failing before pulling the individual entries.',
         inputSchema: logFilters
-    }, async (args) => run('log_stats', async () => {
-        const resumen = await logService.stats(toLogFilters(args));
-        return ok({
-            total: resumen.total,
-            range: resumen.range,
-            by_level: resumen.by_level,
-            by_type: resumen.by_type,
-            top_status: resumen.top_status,
-            duration: resumen.duration,
-            storage: logService.estado()
-        });
-    }));
+    }, async (args) => run('log_stats', async () => ok(await control.logStats(args))));
 
     server.registerTool('list_tags', {
         title: 'List tags',
         description: 'Tags available to classify routes.',
         inputSchema: {}
-    }, async () => run('list_tags', async () => {
-        const tags = await sqliteService.getAllTags();
-        return ok({ count: tags.length, tags });
-    }));
+    }, async (args) => run('list_tags', async () => ok(await control.listTags())));
 
     return server;
 }
@@ -1730,10 +707,11 @@ module.exports = {
     handleRequest,
     methodNotAllowed,
     buildServer,
-    // Expuestas para poder probar la traducción entre vocabularios, que es
-    // donde se esconden los fallos de mapeo de campos
-    toPayload,
-    toRouteView,
+    // Se reexportan desde control.service: la traducción entre vocabularios es
+    // la misma para MCP y para la API REST, y aquí se mantiene el nombre por el
+    // que ya la importaban las pruebas
+    toPayload: control.toPayload,
+    toRouteView: control.toRouteView,
     RESPONSE_TYPES,
     HTTP_METHODS
 };
