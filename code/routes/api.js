@@ -3,7 +3,6 @@ var router = express.Router();
 const sqliteService = require('../services/sqlite.service');
 var pm = require('../middlewares/proxy.middleware');
 const semaphore = require('../services/semaphore.service');
-const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const openapiService = require('../services/openapi.service');
@@ -16,32 +15,10 @@ const versionService = require('../services/version.service');
 const recordingService = require('../services/recording.service');
 const scenarioService = require('../services/scenario.service');
 const environmentService = require('../services/environment.service');
-const config = require('../services/paths');
 
-// Configuración de multer para subida de archivos
-const UPLOADS_DIR = path.join(config.DATA_DIR, 'uploads');
-
-// Asegurar que existe el directorio de uploads
-if (!fs.existsSync(UPLOADS_DIR)) {
-    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-}
-
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, UPLOADS_DIR);
-    },
-    filename: function (req, file, cb) {
-        // Generar nombre único: timestamp + nombre original
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        const ext = path.extname(file.originalname);
-        cb(null, uniqueSuffix + ext);
-    }
-});
-
-const upload = multer({
-    storage: storage,
-    limits: { fileSize: 50 * 1024 * 1024 } // 50MB límite
-});
+// La subida vive en su middleware, compartida con la API v1: dos copias de la
+// configuración acabarían guardando en sitios distintos
+const { upload, UPLOADS_DIR } = require('../middlewares/uploads.middleware');
 
 // El orden y la validación de rutas viven en routes.service, compartidos con MCP
 const getNextOrder = (db, isProxy) => routesService.getNextOrder(isProxy);
@@ -222,17 +199,10 @@ router.post('/routes/bulk-active', async function(req, res) {
             return res.status(400).json({ success: false, error: 'No routes matched' });
         }
 
-        const huecos = ids.map(() => '?').join(',');
-        const cambiadas = await new Promise((resolve, reject) => {
-            db.run(`UPDATE rutas SET activo = ? WHERE id IN (${huecos})`, [activo, ...ids], function(err) {
-                if (err) reject(err); else resolve(this.changes);
-            });
-        });
-
-        // Entre las afectadas puede haber proxys, y su configuración vive en memoria
-        await pm.reloadProxyConfigs();
-
-        console.log(`[API] ${cambiadas} rutas ${activo ? 'activadas' : 'desactivadas'}`);
+        // El cambio de estado y la recarga de proxys viven en routes.service, que
+        // es por donde pasan también la API pública y el servidor MCP: aquí no
+        // puede quedarse una variante que se olvide de recargar
+        const cambiadas = await routesService.setActive(ids, activo);
         res.json({ success: true, updated: cambiadas, active: !!activo, ids });
     } catch (err) {
         console.error(`[API] Error en el cambio masivo de estado: ${err.message}`);
@@ -1130,24 +1100,13 @@ router.delete('/tags/:id', async function(req, res) {
 });
 
 router.put('/toggle-active/:id', async function(req, res, next) {
-    const db = sqliteService.getDatabase();
     const id = req.params.id;
     const activo = req.body.activo ? 1 : 0;
 
     try {
-        await new Promise((resolve, reject) => {
-            db.run(`UPDATE rutas SET activo = ? WHERE id = ?`, [activo, id], function(err) {
-                if (err) reject(err);
-                else resolve();
-            });
-        });
-
-        console.log(`Ruta ${id} activo cambiado a ${activo}`);
-
-
-        console.log('Recargando configuración de proxy...');
-        await pm.reloadProxyConfigs();
-        console.log('Configuración de proxy recargada');
+        // Mismo camino que el cambio masivo y que la API pública: una sentencia
+        // y una recarga de la configuración de proxy
+        await routesService.setActive([id], activo);
 
         res.statusCode = 200;
         res.end();

@@ -22,6 +22,14 @@
                 <i class="fa fa-list-ul"></i>
                 <span class="btn-nav-label"><%= __('logs.title') %></span>
             </a>
+            <!-- La documentación de la API es una pantalla entera, no un modal:
+                 se abre para tenerla al lado mientras se escribe el script que
+                 llama al servidor -->
+            <a class="btn-nav-top<%= (typeof paginaActual !== 'undefined' && paginaActual === 'api-docs') ? ' is-current' : '' %>"
+               href="/api-docs" title="<%= __('apiDocs.title') %>">
+                <i class="fa fa-plug"></i>
+                <span class="btn-nav-label"><%= __('apiDocs.navLabel') %></span>
+            </a>
             <button type="button" class="btn-nav-top"
                     onclick="typeof openList === 'function' ? openList() : (window.location.href = '/')"
                     title="<%= __('routes.pendingList') %>">

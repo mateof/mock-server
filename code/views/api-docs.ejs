@@ -1,0 +1,58 @@
+<div class="main-container">
+  <div class="card-modern animate-fade-in">
+    <div class="card-header-modern">
+      <h2><i class="fa fa-plug"></i> <%= __('apiDocs.title') %></h2>
+      <div class="d-flex gap-2">
+        <a class="btn-modern btn-modern-secondary" href="/api/v1/openapi.json" target="_blank" rel="noopener">
+          <i class="fa fa-file-code-o"></i> JSON
+        </a>
+        <a class="btn-modern btn-modern-secondary" href="/api/v1/openapi.yaml" target="_blank" rel="noopener">
+          <i class="fa fa-file-text-o"></i> YAML
+        </a>
+        <a class="btn-modern btn-modern-primary" href="/">
+          <i class="fa fa-sitemap"></i> <%= __('apiDocs.backToRoutes') %>
+        </a>
+      </div>
+    </div>
+
+    <div class="card-body-modern">
+      <p class="api-docs-intro"><%= __('apiDocs.intro') %></p>
+
+      <!--
+        El token va aquí arriba y no solo en el diálogo "Authorize" de Swagger:
+        con la API abierta ese diálogo no hace falta para nada, y con la API
+        cerrada lo primero que uno necesita es un sitio evidente donde pegarlo.
+        Se guarda en el navegador para no volver a pegarlo en cada visita.
+      -->
+      <div class="api-docs-auth">
+        <div class="api-docs-auth-state" id="apiAuthState">
+          <i class="fa fa-circle-o-notch fa-spin"></i> <%= __('apiDocs.checking') %>
+        </div>
+        <div class="api-docs-auth-token">
+          <label class="filter-label" for="apiToken"><%= __('apiDocs.tokenLabel') %></label>
+          <div class="d-flex gap-2">
+            <input type="password" class="filter-input" id="apiToken" autocomplete="off"
+                   placeholder="<%= __('apiDocs.tokenPlaceholder') %>">
+            <button type="button" class="btn-modern btn-modern-primary" onclick="ApiDocs.saveToken()">
+              <i class="fa fa-check"></i> <%= __('apiDocs.tokenSave') %>
+            </button>
+            <button type="button" class="btn-modern btn-modern-secondary" onclick="ApiDocs.clearToken()">
+              <i class="fa fa-times"></i> <%= __('apiDocs.tokenClear') %>
+            </button>
+          </div>
+          <small class="api-docs-hint"><%= __('apiDocs.tokenHint') %></small>
+        </div>
+      </div>
+
+      <div id="swagger-ui"></div>
+    </div>
+  </div>
+</div>
+
+<link rel="stylesheet" href="/vendor/swagger-ui/swagger-ui.css">
+<link rel="stylesheet" href="/css/swagger-ui-theme.css">
+<script src="/vendor/swagger-ui/swagger-ui-bundle.js"></script>
+<script src="/js/api-docs.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', () => ApiDocs.init());
+</script>

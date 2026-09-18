@@ -32,6 +32,7 @@ const proxyMiddleware = require('./middlewares/proxy.middleware');
 // ===== RUTAS =====
 const indexRouter = require('./routes/index');
 const apiRouter = require('./routes/api');
+const apiV1Router = require('./routes/api-v1');
 const exportImportRouter = require('./routes/export-import');
 
 // ============================================
@@ -108,6 +109,14 @@ app.use(express.json({ limit: '50mb', verify: keepRawBody }));
 app.use(express.urlencoded({ extended: true, limit: '50mb', verify: keepRawBody }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Swagger UI se sirve desde el paquete instalado y no desde una CDN: la
+// pantalla de documentación es justo la que se abre cuando el servidor corre en
+// un CI o en una red sin salida, y ahí una CDN deja la página en blanco
+app.use('/vendor/swagger-ui', express.static(
+    require('swagger-ui-dist').getAbsoluteFSPath(),
+    { maxAge: '1d', index: false }
+));
+
 console.log('[APP] Express configurado');
 
 // ============================================
@@ -115,6 +124,9 @@ console.log('[APP] Express configurado');
 // ============================================
 
 app.use('/', indexRouter);
+// La API pública va primero: es un contrato versionado y no puede quedar a
+// merced de que el router del panel estrene mañana una ruta que empiece igual
+app.use('/api/v1', apiV1Router);
 app.use('/api', apiRouter);
 app.use('/api', exportImportRouter);
 

@@ -859,5 +859,22 @@
     "confirmTitle": "Confirm",
     "promptTitle": "Enter a value",
     "alertTitle": "Notice"
+  },
+  "apiDocs": {
+    "title": "API and documentation",
+    "navLabel": "API",
+    "backToRoutes": "Back to routes",
+    "intro": "The API another application uses to drive this server: create routes, switch one set of mocks on and another off before each test, and then ask what was actually called. Anything you try here runs against this very server.",
+    "checking": "Checking authentication...",
+    "authOpen": "Open API: no token needed",
+    "authRequired": "Closed API: a token is needed",
+    "authUnknown": "Could not check authentication",
+    "tokenLabel": "Access token",
+    "tokenPlaceholder": "Paste the token here (only if the API is closed)",
+    "tokenSave": "Save",
+    "tokenClear": "Clear",
+    "tokenHint": "Kept in this browser only, and sent as Authorization: Bearer on every try. The server's fixed token works, and so does any of the ones created under MCP Connection.",
+    "tokenSaved": "Token saved in this browser",
+    "tokenCleared": "Token cleared"
   }
 }

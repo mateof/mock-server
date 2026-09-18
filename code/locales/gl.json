@@ -859,5 +859,22 @@
     "confirmTitle": "Confirmar",
     "promptTitle": "Escribe un valor",
     "alertTitle": "Aviso"
+  },
+  "apiDocs": {
+    "title": "API e documentación",
+    "navLabel": "API",
+    "backToRoutes": "Volver ás rutas",
+    "intro": "A API coa que outra aplicación pode gobernar este servidor: crear rutas, acender uns mocks e apagar outros antes de cada proba, e preguntar despois que se chamou de verdade. O que probes aquí execútase contra este mesmo servidor.",
+    "checking": "Comprobando a autenticación...",
+    "authOpen": "API aberta: non fai falta token",
+    "authRequired": "API pechada: fai falta un token",
+    "authUnknown": "Non se puido comprobar a autenticación",
+    "tokenLabel": "Token de acceso",
+    "tokenPlaceholder": "Pega aquí o token (só se a API está pechada)",
+    "tokenSave": "Gardar",
+    "tokenClear": "Borrar",
+    "tokenHint": "Gárdase só neste navegador e envíase como Authorization: Bearer en cada proba. Vale o token fixo do servidor ou calquera dos creados en Conexión MCP.",
+    "tokenSaved": "Token gardado neste navegador",
+    "tokenCleared": "Token borrado"
   }
 }

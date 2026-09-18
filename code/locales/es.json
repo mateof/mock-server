@@ -859,5 +859,22 @@
     "confirmTitle": "Confirmar",
     "promptTitle": "Escribe un valor",
     "alertTitle": "Aviso"
+  },
+  "apiDocs": {
+    "title": "API y documentación",
+    "navLabel": "API",
+    "backToRoutes": "Volver a rutas",
+    "intro": "La API con la que otra aplicación puede gobernar este servidor: crear rutas, encender unos mocks y apagar otros antes de cada prueba, y preguntar después qué se llamó de verdad. Lo que pruebes aquí se ejecuta contra este mismo servidor.",
+    "checking": "Comprobando la autenticación...",
+    "authOpen": "API abierta: no hace falta token",
+    "authRequired": "API cerrada: hace falta un token",
+    "authUnknown": "No se pudo comprobar la autenticación",
+    "tokenLabel": "Token de acceso",
+    "tokenPlaceholder": "Pega aquí el token (solo si la API está cerrada)",
+    "tokenSave": "Guardar",
+    "tokenClear": "Borrar",
+    "tokenHint": "Se guarda solo en este navegador y se envía como Authorization: Bearer en cada prueba. Vale el token fijo del servidor o cualquiera de los creados en Conexión MCP.",
+    "tokenSaved": "Token guardado en este navegador",
+    "tokenCleared": "Token borrado"
   }
 }

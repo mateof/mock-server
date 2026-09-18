@@ -446,6 +446,36 @@ async function deleteRoute(id) {
     return true;
 }
 
+/**
+ * Enciende o apaga un conjunto de rutas.
+ *
+ * Aparte de updateRoute a propósito: cambiar el estado no es editar la ruta.
+ * Por ahí habría que leer cada fila, reenviar sus treinta campos y recargar la
+ * configuración de proxy una vez por ruta; aquí es una sentencia y una recarga.
+ * Es la operación que más se pide desde fuera (un script que enciende un mock
+ * y apaga el contrario antes de cada caso), así que tiene que salir barata.
+ */
+async function setActive(ids, activo) {
+    const limpios = (Array.isArray(ids) ? ids : [ids])
+        .map(Number)
+        .filter(n => !Number.isNaN(n));
+
+    if (!limpios.length) {
+        throw new RouteValidationError('An array of route ids is required');
+    }
+
+    const huecos = limpios.map(() => '?').join(',');
+    const { changes } = await dbRun(
+        `UPDATE rutas SET activo = ? WHERE id IN (${huecos})`,
+        [activo ? 1 : 0, ...limpios]);
+
+    // Entre las afectadas puede haber proxys, y su configuración vive en memoria
+    await proxyMiddleware.reloadProxyConfigs();
+    console.log(`[ROUTES] ${changes} rutas ${activo ? 'activadas' : 'desactivadas'}`);
+
+    return changes;
+}
+
 // ===== FALLBACKS DE PROXY =====
 
 const ERROR_TYPES = ['timeout', 'connection', 'http5xx', 'all'];
@@ -781,6 +811,7 @@ module.exports = {
     createRoute,
     updateRoute,
     deleteRoute,
+    setActive,
     setDocs,
     saveSequence,
     saveFallbacks,

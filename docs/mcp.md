@@ -196,8 +196,16 @@ The token grants full control over the route configuration: creating, modifying 
 
 As with the rest of the application, do not expose this to an untrusted network.
 
+## The same thing, for scripts
+
+Everything here is also available over plain HTTP at `/api/v1`, documented at
+`/api-docs` and in [HTTP API](api.md). MCP is the door for an assistant holding
+a conversation; the HTTP API is the door for a test run that does the same thing
+a thousand times. The tokens are shared: a connection created here works for
+both.
+
 ## Implementation notes
 
 - Built on the official `@modelcontextprotocol/sdk`, so protocol handling and future revisions come from upstream rather than from a hand-rolled JSON-RPC layer.
-- Every write goes through `services/routes.service.js`, the same module the panel uses. Keeping one implementation is what stops the panel and the MCP surface from drifting apart in validation, ordering or proxy reloading.
-- Tool activity is logged in the panel's live console with a 🤖 marker, so it is visible what the assistant changed and when.
+- Every tool is a call into `services/control.service.js`, the operations layer the HTTP API uses too, and every write from there goes through `services/routes.service.js`, the same module the panel uses. Keeping one implementation is what stops the three surfaces from drifting apart in validation, ordering or proxy reloading.
+- Tool activity is logged in the panel's live console with a 🤖 marker, so it is visible what the assistant changed and when. Calls arriving over the HTTP API are marked 🔌 instead.

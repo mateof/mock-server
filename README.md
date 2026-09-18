@@ -175,6 +175,15 @@ A powerful HTTP mocking and proxying application built with Express.js and Node.
   - Fails silently: an instance with no internet simply shows nothing
   - Turn it off entirely with `MOCK_SERVER_UPDATE_CHECK=false`
 
+- **HTTP API & Swagger Screen** - Drive the server from another application
+  - Versioned API at `/api/v1`: create routes, switch mocks on and off, read the log, assert what was called
+  - Turn one set of mocks on and the competing ones off in a single call, which is what a test run needs between cases
+  - Routes are addressed by tag, method or path, so a script never has to learn the ids the database assigned
+  - Routes that answer with a file are created and updated over the same endpoints, as multipart
+  - Swagger UI at `/api-docs`, served from the panel and reading the contract from the server itself
+  - Open by default; close it with `MOCK_SERVER_API_AUTH=required` and a token
+  - See [HTTP API Documentation](docs/api.md) for details
+
 - **MCP Server** - Let an AI assistant build your mock flows
   - Create a connection from **Tools → MCP Connection**, copy the command, paste it into your terminal
   - Streamable HTTP endpoint at `/mcp` with Bearer token auth
@@ -298,6 +307,8 @@ podman compose up -d --build
 | `MOCK_SERVER_UPDATE_CHECK_HOURS` | 6 | How long the registry answer is cached |
 | `MOCK_SERVER_IMAGE` | mateof/mock-server | Image to check for newer versions |
 | `MOCK_SERVER_DATA_DIR` | `code/data` | Where the database, uploads and auto-import folder live |
+| `MOCK_SERVER_API_AUTH` | open | Set to `required` to demand a Bearer token on every `/api/v1` call |
+| `MOCK_SERVER_API_TOKEN` | - | A fixed API token, for a CI with no panel to click on |
 
 ### Testing
 
@@ -322,6 +333,35 @@ volumes:
 ```
 
 ## API Reference
+
+There are two HTTP surfaces, and they are not the same thing:
+
+- **`/api/v1`** is the public API: versioned, documented and meant to be called
+  from your own scripts and pipelines. Browse it with "Try it out" at
+  **`/api-docs`**, get the contract at `/api/v1/openapi.json`, and read
+  [HTTP API Documentation](docs/api.md) for the guide.
+- **`/api/...`** is what the panel itself calls. It is listed below because it
+  has been there from the start, but it follows the screen and can change with
+  it. New integrations belong on `/api/v1`.
+
+### HTTP API (v1)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/server` | Version, route counts, active environment and matching rules |
+| GET/POST | `/api/v1/routes` | List or create routes |
+| GET/PATCH/DELETE | `/api/v1/routes/:id` | Read, change some fields, or delete |
+| POST | `/api/v1/routes/activate` | Turn on what the selector matches (`exclusive` turns the competitors off) |
+| POST | `/api/v1/routes/deactivate` | Turn off what the selector matches |
+| PUT | `/api/v1/routes/:id/sequence` | Stateful scenario: answer by call number |
+| PUT | `/api/v1/routes/:id/faults` | Latency and fault injection |
+| POST | `/api/v1/routes/try` | Call a route through the server and see what it answers |
+| POST | `/api/v1/verify/calls` | Assert what was called, and how many times |
+| GET | `/api/v1/logs`, `/api/v1/logs/stats`, `/api/v1/logs/traces/:id` | What arrived and what was answered |
+| GET/PUT | `/api/v1/environments/:name` | Environments and their variables, by name |
+| GET | `/api/v1/openapi.json` | The full contract (60 operations) |
+
+### Panel endpoints
 
 ### Route Management
 

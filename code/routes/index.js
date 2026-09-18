@@ -19,6 +19,12 @@ router.get('/logs', function(req, res, next) {
   res.render('logs', { title: 'Mock Server - Logs', version, paginaActual: 'logs' });
 });
 
+/* Documentación de la API, con Swagger UI */
+router.get('/api-docs', function(req, res, next) {
+  // La barra es compartida: sirve para marcar en qué pantalla estamos
+  res.render('api-docs', { title: 'Mock Server - API', version, paginaActual: 'api-docs' });
+});
+
 /* Cambio de idioma */
 router.get('/lang/:locale', function(req, res) {
   const locale = req.params.locale;
