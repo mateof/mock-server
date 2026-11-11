@@ -20,6 +20,7 @@
  */
 
 const sqliteService = require('../services/sqlite.service');
+const accessService = require('../services/access.service');
 
 const tokenFijo = () => process.env.MOCK_SERVER_API_TOKEN || null;
 const exigido = () => String(process.env.MOCK_SERVER_API_AUTH || '').toLowerCase() === 'required';
@@ -32,11 +33,15 @@ function estado() {
     return {
         required: exigido(),
         scheme: 'bearer',
-        static_token_configured: Boolean(tokenFijo())
+        static_token_configured: Boolean(tokenFijo()),
+        ...accessService.estado()
     };
 }
 
 async function comprobar(token) {
+    if (accessService.esClave(token)) {
+        return { id: 'access-key', nombre: 'MOCK_SERVER_ACCESS_KEY' };
+    }
     if (tokenFijo() && token === tokenFijo()) {
         return { id: 'env', nombre: 'MOCK_SERVER_API_TOKEN' };
     }

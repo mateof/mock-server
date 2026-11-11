@@ -1,6 +1,7 @@
 const { Server } = require('socket.io');
 const moment = require("moment");
 const logService = require('./log.service');
+const accessService = require('./access.service');
 
 let io;
 
@@ -25,7 +26,8 @@ const init = (server) => {
     io = new Server(server, {
         cors: {
           origin: "*"
-        }
+        },
+        allowRequest: (req, callback) => callback(null, accessService.permitido(req))
       });
     io.on('connection', (socket) => {
         console.log('Un usuario se ha conectado');

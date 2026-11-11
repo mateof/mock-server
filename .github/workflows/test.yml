@@ -86,3 +86,32 @@ jobs:
             code/playwright-report/
             code/test-results/
           retention-days: 7
+
+  desktop:
+    name: Desktop app tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: 'npm'
+          cache-dependency-path: |
+            code/package-lock.json
+            desktop/package-lock.json
+
+      - name: Install server dependencies
+        working-directory: ./code
+        run: npm ci
+
+      - name: Install desktop dependencies
+        working-directory: ./desktop
+        run: npm ci
+
+      - name: Run desktop tests
+        working-directory: ./desktop
+        run: npm test

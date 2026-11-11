@@ -24,6 +24,7 @@ const environmentService = require('./services/environment.service');
 const websocketService = require('./services/websocket.service');
 const mcpService = require('./services/mcp.service');
 const traceService = require('./services/trace.service');
+const accessService = require('./services/access.service');
 
 // ===== MIDDLEWARES =====
 const routesMiddleware = require('./middlewares/routes.middleware');
@@ -34,6 +35,7 @@ const indexRouter = require('./routes/index');
 const apiRouter = require('./routes/api');
 const apiV1Router = require('./routes/api-v1');
 const exportImportRouter = require('./routes/export-import');
+const accessRouter = require('./routes/access');
 
 // ============================================
 // CONFIGURACIÓN
@@ -45,6 +47,7 @@ console.log('[APP] ==========================================');
 
 const app = express();
 const port = process.env.PORT || 3880;
+const host = process.env.MOCK_SERVER_HOST || undefined;
 const server = http.createServer(app);
 
 // ============================================
@@ -123,6 +126,9 @@ console.log('[APP] Express configurado');
 // RUTAS
 // ============================================
 
+app.use('/api/access', accessRouter);
+app.use(accessService.guardia(indexRouter));
+
 app.use('/', indexRouter);
 // La API pública va primero: es un contrato versionado y no puede quedar a
 // merced de que el router del panel estrene mañana una ruta que empiece igual
@@ -192,7 +198,7 @@ app.use(function (err, req, res, next) {
 // INICIO DEL SERVIDOR
 // ============================================
 
-server.listen(port);
+server.listen(port, host);
 
 server.on('error', (error) => {
   if (error.syscall !== 'listen') {

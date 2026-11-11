@@ -10,8 +10,10 @@ const path = require('path');
  */
 const PUERTO = process.env.E2E_PORT || 3899;
 const DATOS = path.join(__dirname, 'tests', 'e2e', '.data');
+const CLAVE_DE_ACCESO = 'clave-e2e-para-otros-equipos';
 
 module.exports = {
+    CLAVE_DE_ACCESO,
     testDir: './tests/e2e',
     testMatch: '**/*.spec.js',
     globalSetup: require.resolve('./tests/e2e/global-setup.js'),
@@ -51,7 +53,8 @@ module.exports = {
             PORT: String(PUERTO),
             MOCK_SERVER_DATA_DIR: DATOS,
             // Sin esto el log de la propia prueba ensucia lo que la prueba mira
-            MOCK_SERVER_LOG_MAX_ROWS: '2000'
+            MOCK_SERVER_LOG_MAX_ROWS: '2000',
+            MOCK_SERVER_ACCESS_KEY: CLAVE_DE_ACCESO
         }
     }
 };

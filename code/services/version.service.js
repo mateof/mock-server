@@ -25,7 +25,7 @@ const HABILITADO = process.env.MOCK_SERVER_UPDATE_CHECK !== 'false';
 const HORAS_CACHE = parseFloat(process.env.MOCK_SERVER_UPDATE_CHECK_HOURS) || 6;
 const TIMEOUT_MS = 5000;
 
-const URL_PAQUETE = `https://github.com/${IMAGEN.split('/')[0]}/${IMAGEN.split('/')[1]}/pkgs/container/${IMAGEN.split('/')[1]}`;
+const URL_PAQUETE = process.env.MOCK_SERVER_UPDATE_URL || `https://github.com/${IMAGEN.split('/')[0]}/${IMAGEN.split('/')[1]}/pkgs/container/${IMAGEN.split('/')[1]}`;
 
 let cache = null;
 let consultando = null;
