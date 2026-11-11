@@ -876,5 +876,12 @@
     "tokenHint": "Kept in this browser only, and sent as Authorization: Bearer on every try. The server's fixed token works, and so does any of the ones created under MCP Connection.",
     "tokenSaved": "Token saved in this browser",
     "tokenCleared": "Token cleared"
+  },
+  "access": {
+    "title": "Access key",
+    "intro": "This Mock Server can only be managed from other machines with its access key. The mocks stay open without it.",
+    "keyLabel": "Access key",
+    "submit": "Sign in",
+    "wrong": "That is not this server's key."
   }
 }

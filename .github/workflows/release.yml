@@ -1,4 +1,4 @@
-name: Build and Push Docker Image
+name: Release
 
 on:
   push:
@@ -133,3 +133,128 @@ jobs:
         run: |
           docker buildx imagetools inspect \
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.package-version.outputs.version }}
+
+  version:
+    name: Work out the release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      release: ${{ steps.version.outputs.release }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - id: version
+        name: Is this version released yet
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./code/package.json').version")
+          release=true
+          if git ls-remote --exit-code --tags origin "refs/tags/v${version}" >/dev/null 2>&1; then
+            release=false
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "release=${release}" >> "$GITHUB_OUTPUT"
+          echo "### v${version}: release ${release}" >> "$GITHUB_STEP_SUMMARY"
+
+  desktop:
+    name: Desktop ${{ matrix.name }}
+    needs: version
+    if: needs.version.outputs.release == 'true'
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS
+            runner: macos-latest
+            targets: mac-arm64 mac-x64
+          - name: Windows
+            runner: windows-latest
+            targets: win-x64
+          - name: Linux
+            runner: ubuntu-latest
+            targets: linux-x64 linux-arm64
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+          cache-dependency-path: |
+            desktop/package-lock.json
+            code/package-lock.json
+
+      - name: Install the desktop tooling
+        working-directory: ./desktop
+        run: npm ci
+
+      - name: Build the installers
+        shell: bash
+        run: node desktop/scripts/dist.js ${{ matrix.targets }}
+
+      - name: Upload the installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.name }}
+          path: |
+            desktop/dist/*.dmg
+            desktop/dist/*.exe
+            desktop/dist/*.AppImage
+          if-no-files-found: error
+          retention-days: 3
+
+  release:
+    name: GitHub release
+    needs: [version, publish, desktop]
+    if: needs.version.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download the installers
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: desktop-*
+          merge-multiple: true
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          cat > notes.md <<NOTES
+          ## Docker
+
+          \`\`\`bash
+          docker pull ${REGISTRY}/${IMAGE_NAME}:${VERSION}
+          \`\`\`
+
+          ## Desktop
+
+          | System | File |
+          | --- | --- |
+          | macOS, Apple Silicon | \`Mock-Server-${VERSION}-mac-arm64.dmg\` |
+          | macOS, Intel | \`Mock-Server-${VERSION}-mac-x64.dmg\` |
+          | Windows | \`Mock-Server-${VERSION}-win-x64.exe\` |
+          | Linux x64 | \`Mock-Server-${VERSION}-linux-x86_64.AppImage\` |
+          | Linux ARM | \`Mock-Server-${VERSION}-linux-arm64.AppImage\` |
+
+          The installers are not signed. On macOS, open the app once from System Settings, Privacy & Security, Open Anyway. On Windows, SmartScreen asks once: More info, Run anyway.
+
+          NOTES
+          gh release create "v${VERSION}" dist/* \
+            --repo "${GITHUB_REPOSITORY}" \
+            --target "${GITHUB_SHA}" \
+            --title "v${VERSION}" \
+            --notes-file notes.md \
+            --generate-notes

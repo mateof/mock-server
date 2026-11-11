@@ -1901,7 +1901,10 @@ components:
       scheme: bearer
       description: |
         Only enforced when the server runs with `MOCK_SERVER_API_AUTH=required`.
-        Use `MOCK_SERVER_API_TOKEN` or a token created from the panel.
+        Use `MOCK_SERVER_API_TOKEN`, a token created from the panel, or the
+        `MOCK_SERVER_ACCESS_KEY`. When that key is set, calls from other machines
+        need one of these (or an `X-API-Key` header with the key) even if
+        `MOCK_SERVER_API_AUTH` is not `required`.
 
   parameters:
     RouteId:
@@ -2018,6 +2021,12 @@ components:
         required: { type: boolean, description: Whether a token is demanded }
         scheme: { type: string, example: bearer }
         static_token_configured: { type: boolean, description: Whether MOCK_SERVER_API_TOKEN is set }
+        remote_access_key_required:
+          type: boolean
+          description: >-
+            Whether MOCK_SERVER_ACCESS_KEY is set. Other machines then need that key (as a Bearer token,
+            an X-API-Key header or the panel's sign-in cookie) to reach the panel, /api, /api/v1 and /mcp.
+            Requests from this same machine never need it, and the mocks never ask for it.
 
     HttpMethod:
       type: string

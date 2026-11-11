@@ -233,6 +233,54 @@ npm start
 
 The application will be available at `http://localhost:3880`
 
+## Desktop App
+
+Mock Server also ships as a desktop app for macOS, Windows and Linux. It is the same server and the same panel, in a window and in the tray, with nothing to install beforehand. Download it from the [latest release](https://github.com/mateof/mock-server/releases/latest):
+
+| System | File |
+|--------|------|
+| macOS, Apple Silicon | `Mock-Server-<version>-mac-arm64.dmg` |
+| macOS, Intel | `Mock-Server-<version>-mac-x64.dmg` |
+| Windows | `Mock-Server-<version>-win-x64.exe` |
+| Linux | `Mock-Server-<version>-linux-x86_64.AppImage` or `-linux-arm64.AppImage` |
+
+The installers are not signed. On macOS, the first time, open the app from System Settings, Privacy & Security, Open Anyway. On Windows, SmartScreen asks once: More info, Run anyway.
+
+What changes from Docker:
+
+- **Port 3880**, as in the image. If it is taken (for example by a Mock Server container), the app picks another one and says so. The port is kept in `desktop.json`, in the app's data folder.
+- **Only this machine can reach it** until you tick *Permitir acceso desde la red* in the tray (the desktop menus are in Spanish). Closing the window keeps the server running in the tray, so the mocks and the MCP keep answering; *Salir* stops it.
+- **Your data lives in the app's data folder** (*Archivo, Mostrar la carpeta de datos*). *Archivo, Importar datos de otra instalación* takes a copy of a `database.db` from a repository checkout or from a Docker volume, together with its `uploads/` folder. The original is not modified, and whatever the app had before is moved to `~/.mock-server/desktop-backups`.
+- **The MCP works the same**: Tools, MCP connection shows the command with the address the panel was opened on.
+
+### Access from other machines
+
+With *Permitir acceso desde la red* on, the tray shows the address for other machines, and *Pedir clave de acceso a otros equipos* chooses whether they need the access key:
+
+- **With access key** (the default): other machines call the mocks with no change, but the panel asks for the key before letting them in, and `/api`, `/api/v1` and `/mcp` answer 401 without it. Scripts and assistants send it as `Authorization: Bearer <key>` or `X-API-Key: <key>`. The tray copies the key and can generate a new one, which signs everybody out.
+- **Without access key**: anybody on your network can manage the server. That includes running code on your machine through route scripts and conditions, so only do this on a network you trust.
+
+The connection is plain `http`: the key travels in the clear, and from other machines the panel's copy buttons do not work because browsers only allow them on secure connections.
+
+The same protection works in Docker with `MOCK_SERVER_ACCESS_KEY`. Requests that reach the container through a published port do not come from its loopback, so every client needs the key, except for the mocks:
+
+```yaml
+environment:
+  - MOCK_SERVER_ACCESS_KEY=change-me-to-something-long
+```
+
+### Building the desktop app
+
+```bash
+cd desktop
+npm ci
+npm run dev                                   # run it from the source
+node scripts/dist.js                          # installer for this machine
+node scripts/dist.js mac-arm64 win-x64        # or name the targets: mac-arm64, mac-x64, win-x64, linux-x64, linux-arm64, all
+```
+
+The installers land in `desktop/dist`. A version bump in `code/package.json` that reaches `main` publishes the image and a GitHub release with every installer.
+
 ## Docker Deployment
 
 ### Docker Compose
@@ -309,6 +357,9 @@ podman compose up -d --build
 | `MOCK_SERVER_DATA_DIR` | `code/data` | Where the database, uploads and auto-import folder live |
 | `MOCK_SERVER_API_AUTH` | open | Set to `required` to demand a Bearer token on every `/api/v1` call |
 | `MOCK_SERVER_API_TOKEN` | - | A fixed API token, for a CI with no panel to click on |
+| `MOCK_SERVER_HOST` | all interfaces | Interface to listen on. `127.0.0.1` keeps the server to this machine |
+| `MOCK_SERVER_ACCESS_KEY` | - | Other machines need this key to reach the panel, `/api`, `/api/v1` and `/mcp`. The mocks stay open, and this machine never needs it. See [Access from other machines](#access-from-other-machines) |
+| `MOCK_SERVER_UPDATE_URL` | the GHCR package page | Where the "new version available" notice links to |
 
 ### Testing
 

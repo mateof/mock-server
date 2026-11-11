@@ -25,6 +25,7 @@ const { StreamableHTTPServerTransport } = require('@modelcontextprotocol/sdk/ser
 const { z } = require('zod');
 
 const sqliteService = require('./sqlite.service');
+const accessService = require('./access.service');
 const control = require('./control.service');
 const { version } = require('../package.json');
 
@@ -642,6 +643,12 @@ async function authenticate(req, res, next) {
         res.status(401)
             .set('WWW-Authenticate', 'Bearer realm="mock-server"')
             .json({ error: 'unauthorized', message: 'Falta la cabecera Authorization: Bearer <token>' });
+        return;
+    }
+
+    if (accessService.esClave(match[1].trim())) {
+        req.mcpToken = { id: 'access-key', nombre: 'MOCK_SERVER_ACCESS_KEY' };
+        next();
         return;
     }
 

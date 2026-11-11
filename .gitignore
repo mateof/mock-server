@@ -25,3 +25,7 @@ npm-debug.log*
 code/test-results/
 code/playwright-report/
 code/tests/e2e/.data/
+
+# App de escritorio
+desktop/.stage/
+desktop/dist/

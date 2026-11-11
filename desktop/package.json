@@ -1,0 +1,65 @@
+{
+  "name": "mock-server-desktop",
+  "version": "0.0.0",
+  "productName": "Mock Server",
+  "private": true,
+  "description": "Mock Server as a desktop app: the same server and panel, in a window and in the tray",
+  "main": "main.js",
+  "author": "Mateo",
+  "license": "GPL-3.0",
+  "scripts": {
+    "stage": "node scripts/stage.js",
+    "start": "env -u ELECTRON_RUN_AS_NODE electron .",
+    "dev": "node scripts/stage.js && env -u ELECTRON_RUN_AS_NODE electron .",
+    "dist": "node scripts/dist.js",
+    "test": "node --test \"test/*.test.js\""
+  },
+  "devDependencies": {
+    "electron": "42.11.18",
+    "electron-builder": "^26.18.0"
+  },
+  "build": {
+    "appId": "es.mateof.mockserver",
+    "productName": "Mock Server",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "*.js",
+      "scripts/targets.js",
+      "assets/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "import-worker.js"
+    ],
+    "npmRebuild": false,
+    "afterPack": "scripts/after-pack.js",
+    "artifactName": "Mock-Server-${version}-${os}-${arch}.${ext}",
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        "dmg"
+      ],
+      "identity": "-",
+      "hardenedRuntime": false
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Development"
+    }
+  }
+}

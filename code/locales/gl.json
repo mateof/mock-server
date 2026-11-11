@@ -876,5 +876,12 @@
     "tokenHint": "Gárdase só neste navegador e envíase como Authorization: Bearer en cada proba. Vale o token fixo do servidor ou calquera dos creados en Conexión MCP.",
     "tokenSaved": "Token gardado neste navegador",
     "tokenCleared": "Token borrado"
+  },
+  "access": {
+    "title": "Clave de acceso",
+    "intro": "Este Mock Server só deixa administralo desde outros equipos coa súa clave de acceso. Os mocks seguen abertos sen ela.",
+    "keyLabel": "Clave de acceso",
+    "submit": "Entrar",
+    "wrong": "Esa clave non é a deste servidor."
   }
 }
